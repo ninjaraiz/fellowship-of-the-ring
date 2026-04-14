@@ -1,16 +1,10 @@
-from .frodo import FRODO
+from .characters.frodo import FRODO
 from .EarendilsLight import EarendilsLight
-from .sam import SAM
-from .gandalf import GANDALF
-from .merry_pippin import MERRY_PIPPIN
-from .legolas import LEGOLAS
-from .aragorn import ARAGORN, RunResult, XFoilCase, xfoil_parser
-import sys
-try:
-    sys.path.append('/home/ninjaraiz/anaconda3/repos/pyLowOrder/')
-except:
-    sys.path.append('/home/m.jaraiz/repos/pyLowOrder/')
-
+from .characters.sam import SAM
+from .characters.gandalf import GANDALF
+from .characters.merry_pippin import MERRY_PIPPIN
+from .characters.legolas import LEGOLAS
+from .characters.aragorn import ARAGORN, RunResult
 __all__ = [
     "FRODO",
     "EarendilsLight",
@@ -19,8 +13,5 @@ __all__ = [
     "MERRY_PIPPIN",
     "LEGOLAS",
     "ARAGORN",
-    "RunResult",
-    "XFoilCase",
-    "xfoil_parser"
-
+    "RunResult"
 ]
