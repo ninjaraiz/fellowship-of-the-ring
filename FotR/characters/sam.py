@@ -19,7 +19,7 @@ from sklearn.preprocessing import StandardScaler
 
 from tqdm.auto import tqdm
 
-from .EarendilsLight import EarendilsLight
+from ..EarendilsLight import EarendilsLight
 class SAM():
     
     """

@@ -18,3 +18,12 @@ venv/
 xfoil_out/
 *.dat
 *.txt
+
+# Outputs
+**/*.h5
+**/*.vtf
+
+# Logs
+**/*.log
+**/*.out
+**/*.err
