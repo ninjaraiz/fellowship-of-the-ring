@@ -17,6 +17,7 @@ class XFoilCase:
         self._name = "airfoil"
         self.save_geom = save_geom
         self.visc_condition = visc_condition
+        self.cp_alphas = []
 
         # # Condiciones
         # if self.visc_condition == 'incompressible':
@@ -56,7 +57,6 @@ class XFoilCase:
         return os.path.join(self.workdir, filename)
 
     def set_conditions(self, re=1e6, mach=0.0, alpha=(-5, 10, 1)):
-
         self.re = re
         self.mach = mach
 
@@ -67,7 +67,12 @@ class XFoilCase:
             self.alpha_end = alpha
             self.alpha_step = 1
         else:
-            raise ValueError("alpha must be a tuple (start, end, step) or an int for a single alpha.")
+            raise ValueError("alpha must be a tuple (start, end, step) or an int.")
+
+        # Sincronizar cp_alphas con el barrido completo por defecto
+        self.cp_alphas = list(np.arange(self.alpha_start,
+                                        self.alpha_end + self.alpha_step,
+                                        self.alpha_step))
         return self
 
     def get_executable(self):
