@@ -23,6 +23,7 @@ import warnings
 import pyLOM as SMEAGOL
 
 from ..EarendilsLight import EarendilsLight
+from .sam import SAM
 
 class FRODO():
     
