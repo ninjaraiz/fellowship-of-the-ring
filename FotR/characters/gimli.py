@@ -11,9 +11,14 @@ import shutil
 import subprocess
 
 
-class MERRY_PIPPIN:
+class GIMLI:
     
-    def __init__(self, root_dir: str, eq_type: str = "rans", num_stages:int=None, **kwargs):
+    def __init__(
+        self, root_dir: str,
+        eq_type: str = "rans",
+        num_stages:int=None,
+        **kwargs
+        ):
         """
         Initializes the CFD case manager.
         """
@@ -30,7 +35,7 @@ class MERRY_PIPPIN:
         # script_dir = f'/home/m.jaraiz/repos/CETACEO_UPM/cetaceo/data/{case}/sources/'
 
         os.makedirs(self.root_dir, exist_ok=True)
-        os.makedirs(os.path.join(self.root_dir, "metadata"))
+        os.makedirs(os.path.join(self.root_dir, "metadata"), exist_ok=True)
         
         print(f'New simulation folder will be created in {os.path.abspath(self.root_dir)}.')
 
@@ -52,7 +57,7 @@ class MERRY_PIPPIN:
         """
         self.df_geom = pd.read_csv(geom_file_path, **kwargs)
         if normalize:
-            self.array_ptos = MERRY_PIPPIN.Backpack.normalize_airfoil(self.df_geom.values[:,cols_idx])
+            self.array_ptos = GIMLI.Backpack.normalize_airfoil(self.df_geom.values[:,cols_idx])
         else:
             self.array_ptos = self.df_geom.values[:,cols_idx]
         
@@ -89,7 +94,7 @@ class MERRY_PIPPIN:
         if method == "external":
             if external_dataframe is None:
                 raise ValueError("An external dataframe must be provided for method 'external'.")
-            self.case_tensor = external_dataframe.numpy()
+            self.case_tensor = external_dataframe.values.astype(float)
             self.design_vars = external_dataframe.columns.tolist()
             self.df_cases = external_dataframe
             
@@ -106,10 +111,16 @@ class MERRY_PIPPIN:
         vars_constant = {}
 
         for key, val in bounds.items():
-            if isinstance(val, tuple) and len(val) == 2:
+            if isinstance(val, (tuple, list)) and len(val) == 2:
                 vars_to_sample.append(key)
-            else:
+            elif isinstance(val, (tuple, list)) and len(val) == 1:
                 vars_constant[key] = float(val)
+            elif isinstance(val, (int, float)):
+                vars_constant[key] = float(val)
+            # elif isinstance(val, range):
+            #     vars_to_sample.append(key)
+            else:
+                raise ValueError(f"Invalid bound for variable '{key}': {val}. Must be a tuple (min, max) or a single value.")
 
         dims = len(vars_to_sample)
         if dims == 0:
@@ -126,7 +137,7 @@ class MERRY_PIPPIN:
         # Aplicar warp solo a las variables muestreadas
         sampled_columns = []
         for i, var in enumerate(vars_to_sample):
-            warped = MERRY_PIPPIN.Backpack._warp_variable(
+            warped = GIMLI.Backpack._warp_variable(
                 u[:, i],
                 bounds[var],
                 peak_range=peak_ranges.get(var, None),
@@ -330,10 +341,10 @@ class MERRY_PIPPIN:
         output_dir = os.path.join(self.root_dir, 'outputs')
 
         print("\n--- Trabajos en ejecución ---")
-        _ = MERRY_PIPPIN.Backpack.squeue_terminal()
+        _ = GIMLI.Backpack.squeue_terminal()
         
         print("\n--- Estado de los nodos ---")
-        sinfo = MERRY_PIPPIN.Backpack.sinfocpu_terminal()
+        sinfo = GIMLI.Backpack.sinfocpu_terminal()
         
         for linea in sinfo.strip().split("\n")[1:]:
             partes = linea.split()

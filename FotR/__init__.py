@@ -2,7 +2,7 @@ from .characters.frodo import FRODO
 from .EarendilsLight import EarendilsLight
 from .characters.sam import SAM
 from .characters.gandalf import GANDALF
-from .characters.merry_pippin import MERRY_PIPPIN
+from .characters.gimli import GIMLI
 from .characters.legolas import LEGOLAS
 from .characters.aragorn import ARAGORN, RunResult
 __all__ = [
@@ -10,7 +10,7 @@ __all__ = [
     "EarendilsLight",
     "SAM",
     "GANDALF",
-    "MERRY_PIPPIN",
+    "GIMLI",
     "LEGOLAS",
     "ARAGORN",
     "RunResult"
