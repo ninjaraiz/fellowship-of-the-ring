@@ -2784,8 +2784,10 @@ class FRODO():
                         df = FRODO.RESIDUALS.CODAResiduals.get_df_residuals_from_txt(
                             case_path=path, verbose=False, txt_from_end=txt_from_end
                         )
-                        data_to_plot.append((name, df))
-
+                        if df is not None:
+                            data_to_plot.append((name, df))
+                        else:
+                            print(f'\tWARNING: Case {name} has not started yet. Skipping to next.\n')
                 num_plots = len(data_to_plot)
                 if num_plots == 0:
                     print("No se encontraron datos para los criterios especificados.")
