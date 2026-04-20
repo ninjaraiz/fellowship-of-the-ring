@@ -980,20 +980,24 @@ class FRODO():
                 cmap_custom = plt.get_cmap("RdYlGn", num_states)
                 norm=BoundaryNorm(np.arange(-0.5, num_states+0.5, 1), cmap_custom.N)
 
-                if design_vars is None or len(design_vars) < 2:
+                # Omitir valores de desing_vars que sean constantes en todas las simulaciones, ya que no aportan información al gráfico de estado.
+                design_vars_filtered = [var for var in design_vars if df_state[var].nunique() > 1]
+                
+                
+                if design_vars_filtered is None or len(design_vars_filtered) < 2:
                     raise ValueError("Se requieren al menos dos variables de diseño para el gráfico de estado.")
-                elif len(design_vars) == 2: # pintando scatter 2D con AoA en x y Mach en y, coloreando por estado de convergencia (última columna de state_array)
+                elif len(design_vars_filtered) == 2: # pintando scatter 2D con AoA en x y Mach en y, coloreando por estado de convergencia (última columna de state_array)
                     fig, ax = plt.subplots(1, 2, figsize=figsize, sharey=True)
                     ax[0].scatter(
-                        df_state[design_vars[0]],
-                        df_state[design_vars[1]],
+                        df_state[design_vars_filtered[0]],
+                        df_state[design_vars_filtered[1]],
                         c=df_state['stage'],
                         cmap=cmap_custom,
                         norm = norm,
                         s=100
                         )
-                    ax[0].set_xlabel(design_vars[0])
-                    ax[0].set_ylabel(design_vars[1])
+                    ax[0].set_xlabel(design_vars_filtered[0])
+                    ax[0].set_ylabel(design_vars_filtered[1])
                     ax[0].set_title("Status of cases")
                     ax[0].grid()
                     ax[0].legend(handles=[
@@ -1002,7 +1006,7 @@ class FRODO():
                         plt.Line2D([0], [0], marker='o', color='w', label='Finished', markerfacecolor='green', markersize=10)
                     ], loc='lower center', bbox_to_anchor=(1.15, 0.5), ncols = 1)
                     
-                    for i, (x,y) in enumerate(zip(df_state[design_vars[0]].values, df_state[design_vars[1]].values)): 
+                    for i, (x,y) in enumerate(zip(df_state[design_vars_filtered[0]].values, df_state[design_vars_filtered[1]].values)): 
                         if df_state['stage'][i] != 0:
                             ax[0].annotate(f"{i}", (x, y), textcoords="offset points", xytext=(0,10), ha='center', fontsize=8)
                         else:
@@ -1011,34 +1015,34 @@ class FRODO():
 
                     mask_finished = df_state['stage'].values == np.max(df_state['stage'].values)
                     ax[1].scatter(
-                        df_state[design_vars[0]][mask_finished],
-                        df_state[design_vars[1]][mask_finished],
+                        df_state[design_vars_filtered[0]][mask_finished],
+                        df_state[design_vars_filtered[1]][mask_finished],
                         s=100
                         )
-                    for i, (x, y) in enumerate(zip(df_state[design_vars[0]].values, df_state[design_vars[1]].values)):
+                    for i, (x, y) in enumerate(zip(df_state[design_vars_filtered[0]].values, df_state[design_vars_filtered[1]].values)):
                         ax[1].annotate(f"{i}", (x, y), textcoords="offset points", xytext=(0,7), ha='center', fontsize=8)
                         
-                    ax[1].set_xlabel(design_vars[0])
-                    ax[1].set_ylabel(design_vars[1])
+                    ax[1].set_xlabel(design_vars_filtered[0])
+                    ax[1].set_ylabel(design_vars_filtered[1])
                     ax[1].set_title(f"Finished cases {df_state['stage'][df_state['stage'].values == num_states].shape[0] / df_state['stage'].values.shape[0] * 100:.2f}%")
                     ax[1].grid()
                     fig.subplots_adjust(wspace=0.3, hspace=0.2)
                     fig.show()
                     
-                elif len(design_vars) == 3:
+                elif len(design_vars_filtered) == 3:
                     fig, ax = plt.subplots(1, 1, figsize=figsize)
                     sc = ax.scatter(
-                        df_state[design_vars[0]],
-                        df_state[design_vars[1]],
-                        df_state[design_vars[2]],
+                        df_state[design_vars_filtered[0]],
+                        df_state[design_vars_filtered[1]],
+                        df_state[design_vars_filtered[2]],
                         c=df_state['stage'],
                         cmap=cmap_custom,
                         norm=norm,
                         s=100
                     )
-                    ax.set_xlabel(design_vars[0])
-                    ax.set_ylabel(design_vars[1])
-                    ax.set_zlabel(design_vars[2])
+                    ax.set_xlabel(design_vars_filtered[0])
+                    ax.set_ylabel(design_vars_filtered[1])
+                    ax.set_zlabel(design_vars_filtered[2])
                     ax.set_title("Status of cases")
                     ax.grid()
                     ax.legend(handles=[
@@ -1047,7 +1051,7 @@ class FRODO():
                             plt.Line2D([0], [0], marker='o', color='w', label='Finished', markerfacecolor='green', markersize=10)
                         ], loc='lower center', bbox_to_anchor=(1.15, 0.5), ncols = 1)
 
-                    for i, (x, y, z) in enumerate(zip(df_state[design_vars[0]].values, df_state[design_vars[1]].values, df_state[design_vars[2]].values)):
+                    for i, (x, y, z) in enumerate(zip(df_state[design_vars_filtered[0]].values, df_state[design_vars_filtered[1]].values, df_state[design_vars_filtered[2]].values)):
                         ax.annotate(f"{i}", (x, y, z), textcoords="offset points", xytext=(0,7), ha='center', fontsize=8)
 
             def case_per_idx_GPT(self, case_idx: int):
@@ -2668,7 +2672,7 @@ class FRODO():
                 ax_cfl.grid(which='both', linestyle='-', linewidth=0.5, alpha=0.3)
                 plt.show()
                 
-            def plot_all_final_residuals( ##### ARREGLAR LAS DESIGN VARS EN LOS EJES, QUE NO ESTÁN AUTOMATIZADAS
+            def plot_all_final_residuals(
                 self,
                 save_dir: Union[None, str] = None,
                 mode: Literal['absolute', 'norm', 'scaled'] = 'scaled',
@@ -2709,56 +2713,63 @@ class FRODO():
                 norm = mcolors.LogNorm(vmin=lim_converged, vmax=1e0)
                 color = kwargs.get('cmap', 'summer')
                 # cmap = 'summer'  # colormap para residuos
-                
-                for i, col in enumerate(columns):
-                    x = df_finals['aoa']
-                    y = df_finals['mach']
-                    c = df_finals[col]
-                    
-                    sc_nc = axes[i].scatter(
-                        x[~converged_mask],
-                        y[~converged_mask],
-                        c=c[~converged_mask],
-                        cmap=color,
-                        norm=norm,
-                        s=60,
-                        edgecolor='k',
-                        label= 'Non-converged',
+                design_vars = self.db.metadata['design_vars']
+                # for var in design_vars:
+                #     # Si alguna de las vars es constante en tood df_finals, omitirla de los ejes
+                #     if df_finals[var].nunique() <= 1:
+                #         print(f"Variable {var} is constant across all cases. It will be omitted from the axes.")
+                #         df_finals = df_finals.drop(columns=[var])
+                design_vars_filtered = [var for var in design_vars if df_finals[var].nunique() > 1]
+                if len(design_vars_filtered) == 2:
+                    for i, col in enumerate(columns):
+                        x = df_finals[design_vars_filtered[0]]
+                        y = df_finals[design_vars_filtered[1]]
+                        c = df_finals[col]
+                        
+                        sc_nc = axes[i].scatter(
+                            x[~converged_mask],
+                            y[~converged_mask],
+                            c=c[~converged_mask],
+                            cmap=color,
+                            norm=norm,
+                            s=60,
+                            edgecolor='k',
+                            label= 'Non-converged',
+                        )
+                        sc_c = axes[i].scatter(
+                            x[converged_mask],
+                            y[converged_mask],
+                            c=c[converged_mask],
+                            cmap=color,
+                            norm=norm,
+                            s=60,
+                            marker='*',
+                            linewidth=1.5,
+                            label='Converged'
+                        )
+                        
+                        if activate_idx:
+                            for p in df_finals[design_vars_filtered].values:
+                                idx = np.where((self.db.df_state.iloc[:,0] == p[0]) & (self.db.df_state.iloc[:,1] == p[1]))[0][0]
+                                axes[i].annotate(f"{idx}", (p[0], p[1]),  textcoords="offset points", xytext=(0,7), ha='center', fontsize=8)
+                        # Configuración de ejes
+                        axes[i].set_title(f'{col}')
+                        axes[i].set_xlabel('AoA')
+                        axes[i].set_ylabel('Mach')
+                        
+                        #Colorbar
+                        cbar = fig.colorbar(sc_nc, ax=axes[i])
+                        cbar.ax.set_title(f'Residual Stage {stage}')
+                        
+                    # Agregar leyenda única fuera del área de los plots
+                    handles, labels = axes[0].get_legend_handles_labels()
+                    fig.legend(
+                        handles,
+                        labels,
+                        loc='lower center',
+                        frameon=False,
+                        ncols=2
                     )
-                    sc_c = axes[i].scatter(
-                        x[converged_mask],
-                        y[converged_mask],
-                        c=c[converged_mask],
-                        cmap=color,
-                        norm=norm,
-                        s=60,
-                        marker='*',
-                        linewidth=1.5,
-                        label='Converged'
-                    )
-                    
-                    if activate_idx:
-                        for p in df_finals[['aoa', 'mach']].values:
-                            idx = np.where((self.db.df_state.iloc[:,0] == p[0]) & (self.db.df_state.iloc[:,1] == p[1]))[0][0]
-                            axes[i].annotate(f"{idx}", (p[0], p[1]),  textcoords="offset points", xytext=(0,7), ha='center', fontsize=8)
-                    # Configuración de ejes
-                    axes[i].set_title(f'{col}')
-                    axes[i].set_xlabel('AoA')
-                    axes[i].set_ylabel('Mach')
-                    
-                    #Colorbar
-                    cbar = fig.colorbar(sc_nc, ax=axes[i])
-                    cbar.ax.set_title(f'Residual Stage {stage}')
-                    
-                # Agregar leyenda única fuera del área de los plots
-                handles, labels = axes[0].get_legend_handles_labels()
-                fig.legend(
-                    handles,
-                    labels,
-                    loc='lower center',
-                    frameon=False,
-                    ncols=2
-                )
                 
                 # Guardar o mostrar
                 if save_dir:
