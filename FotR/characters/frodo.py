@@ -3688,7 +3688,6 @@ class FRODO():
 
                         raise ValueError(f"Formato no soportado para {var}")
 
-
         class NRL7301Sets_pylom():
             
             def __init__(self, db:'FRODO'):
