@@ -2190,6 +2190,74 @@ class SAM():
                 # df_result.to_csv(os.path.join(folder_to_save, 'df_data_complete.csv'), sep=';', header=True, index=True)
                 return df_result
 
+        @staticmethod
+        def _interpolate_idw(coord_src, var_src, coord_dst, k=4, eps=1e-12):
+            from scipy.spatial import cKDTree
+            tree = cKDTree(coord_src)
+            dist, idx = tree.query(coord_dst, k=k)
+
+            weights = 1.0 / (dist + eps)
+            weights /= weights.sum(axis=1, keepdims=True)
+
+            if var_src.ndim == 1:
+                return np.sum(weights * var_src[idx], axis=1)
+            else:
+                return np.sum(weights[..., None] * var_src[idx], axis=1)
+
+        @staticmethod
+        def _interpolate_idw_tree(tree, coord_src, var_src, coord_dst, k=4, eps=1e-12):
+            from scipy.spatial import cKDTree
+            dist, idx = tree.query(coord_dst, k=k)
+
+            weights = 1.0 / (dist + eps)
+            weights /= weights.sum(axis=1, keepdims=True)
+
+            if var_src.ndim == 1:
+                return np.sum(weights * var_src[idx], axis=1)
+            else:
+                return np.sum(weights[..., None] * var_src[idx], axis=1)
+            
+        @staticmethod 
+        def _interpolate_griddata(coord_src, var_src, coord_dst, method="linear"):
+            from scipy.interpolate import griddata
+            return griddata(coord_src, var_src, coord_dst, method=method)
+        
+        @staticmethod
+        def _build_pyvista_grid(coord, conec):
+            import pyvista as pv
+
+            n_cells = conec.shape[0]
+
+            # formato VTK
+            cells = np.hstack([
+                np.full((n_cells, 1), 4),
+                conec
+            ]).astype(np.int64).ravel()
+
+            celltypes = np.full(n_cells, pv.CellType.TETRA, dtype=np.uint8)
+
+            grid = pv.UnstructuredGrid(cells, celltypes, coord)
+
+            return grid
+
+        @staticmethod
+        def _interpolate_pyvista(coord_src, conec_src, var_src_stack,
+                                coord_dst, conec_dst):
+
+            import pyvista as pv
+
+            # construir mallas
+            mesh_src = SAM.Weapons._build_pyvista_grid(coord_src, conec_src)
+            mesh_dst = SAM.Weapons._build_pyvista_grid(coord_dst, conec_dst)
+
+            # añadir datos como cell data
+            mesh_src.cell_data["values"] = var_src_stack
+
+            # interpolación
+            sampled = mesh_dst.sample(mesh_src)
+
+            return sampled.cell_data["values"]
+
     class DictVisualizer:
         
         @staticmethod

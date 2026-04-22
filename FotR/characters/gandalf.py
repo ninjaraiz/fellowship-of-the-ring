@@ -13,7 +13,9 @@ import subprocess
 from ..EarendilsLight import EarendilsLight
 
 class GANDALF:
-    
+    """
+    GANDALF: Great Algorithm to N
+    """
     
     light = EarendilsLight(__name__)
     

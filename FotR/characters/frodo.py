@@ -3687,7 +3687,131 @@ class FRODO():
                     else:
 
                         raise ValueError(f"Formato no soportado para {var}")
+            
+            def create_group_by_interpolation(
+                self,
+                id_group_src: str,
+                new_group_id: str,
+                new_mesh: dict,
+                vars: Union[str, list[str]] = 'all',
+                method: str = 'idw',
+                k: int = 4,
+                ):
+                
+                data_src = self.db.data_dict[f'CADGroup_{id_group_src}']
+                coord_src = data_src["Coord"]
+                conec_src = data_src.get("Conec", None)
+                vars_src = data_src["Vars"]
+            
+                if "Coord" not in new_mesh:
+                    raise ValueError("new_mesh debe contener 'Coord'")
 
+                coord_dst = new_mesh["Coord"]
+                conec_dst = new_mesh.get("Conec", None)
+                
+                if np.shares_memory(coord_src, coord_dst):
+                    print("⚠️ WARNING: mallas comparten memoria")
+    
+                new_group_key = f'CADGroup_{new_group_id}'
+                if new_group_key in self.db.data_dict:
+                    print(f"⚠️ Sobrescribiendo {new_group_key}")
+                self.db.data_dict[new_group_key] = {}
+
+                # copiar malla
+                
+                for key, value in new_mesh.items():
+                    if isinstance(value, np.ndarray):
+                        self.db.data_dict[new_group_key][key] = value.copy()
+                    else:
+                        self.db.data_dict[new_group_key][key] = value
+
+                # copiar condiciones de vuelo
+                if "FlCc" in data_src:
+                    self.db.data_dict[new_group_key]["FlCc"] = data_src["FlCc"].copy()
+
+                self.db.data_dict[new_group_key]["Vars"] = {}
+
+                # -------------------------
+                # KDTree cache
+                # -------------------------
+                if method == "idw":
+                    from scipy.spatial import cKDTree
+                    tree = cKDTree(coord_src)
+                else:
+                    tree = None
+
+                # -------------------------
+                # Loop stages
+                # -------------------------
+                for stage, stage_data in vars_src.items():
+
+                    self.db.data_dict[new_group_key]["Vars"][stage] = {}
+
+                    if vars == 'all':
+                        selected_vars = [
+                            v for v in stage_data.keys()
+                            if v not in ("GlobalNumber", "CADGroupID")
+                        ]
+                    else:
+                        selected_vars = vars
+
+                    var_list = []
+                    shapes = []
+                    valid_names = []
+
+                    for var_name in selected_vars:
+                        if var_name not in stage_data:
+                            continue
+
+                        v = stage_data[var_name]
+
+                        if v.ndim == 1:
+                            v = v[:, None]
+
+                        var_list.append(v)
+                        shapes.append(v.shape[1])
+                        valid_names.append(var_name)
+
+                    if not var_list:
+                        continue
+
+                    var_src_stack = np.hstack(var_list)
+
+                    # -------------------------
+                    # Interpolación
+                    # -------------------------
+                    if method == "idw":
+                        var_dst_stack = SAM.Weapons._interpolate_idw_tree(
+                            tree, coord_src, var_src_stack, coord_dst, k=k
+                        )
+
+                    elif method == "griddata":
+                        var_dst_stack = SAM.Weapons._interpolate_griddata(
+                            coord_src, var_src_stack, coord_dst
+                        )
+
+                    elif method == "pyvista":
+                        if conec_src is None or conec_dst is None:
+                            raise ValueError("PyVista requiere 'Conec' en ambas mallas")
+
+                        var_dst_stack = SAM.Weapons._interpolate_pyvista(
+                            coord_src, conec_src,
+                            var_src_stack,
+                            coord_dst, conec_dst
+                        )
+
+                    else:
+                        raise ValueError(f"Método desconocido: {method}")
+
+                    # -------------------------
+                    # Unstack
+                    # -------------------------
+                    idx = 0
+                    for var_name, dim in zip(valid_names, shapes):
+                        self.db.data_dict[new_group_key]["Vars"][stage][var_name] = \
+                            var_dst_stack[:, idx:idx+dim]
+                        idx += dim
+                        
         class NRL7301Sets_pylom():
             
             def __init__(self, db:'FRODO'):
