@@ -177,7 +177,188 @@ class FRODO():
             SAM.DictVisualizer.rich_tree(self.data_dict)
         else:
             raise KeyError(f'Attribute data_dict not found. Please run extract_input() at least.')
-        
+    
+    @staticmethod
+    def merge_datasets(
+        sources: list,
+        new_group_id: str,
+        method: str = 'idw',
+        k: int = 4,
+        mesh_ref: int = 0,
+        cache: bool = True,
+        ) -> 'FRODO':
+
+        # -------------------------
+        # 0. Validaciones
+        # -------------------------
+        if len(sources) < 2:
+            raise ValueError("Se necesitan al menos 2 datasets")
+
+        dbs = [db for db, _ in sources]
+
+        formats = [db.format for db in dbs]
+        if len(set(formats)) != 1:
+            raise ValueError("Todos los datasets deben tener el mismo formato")
+
+        format_ref = formats[0]
+
+        # -------------------------
+        # 1. Elegir referencia
+        # -------------------------
+        if isinstance(mesh_ref, int):
+            ref_db, ref_gid = sources[mesh_ref]
+        else:
+            raise ValueError("mesh_ref no soportado")
+
+        ref_group = ref_db.data_dict[f'CADGroup_{ref_gid}']
+        coord_ref = ref_group["Coord"]
+
+        # -------------------------
+        # 2. Validar FlCc
+        # -------------------------
+        flcc_dims = [
+            db.data_dict[f'CADGroup_{gid}']["FlCc"].shape[1]
+            for db, gid in sources
+        ]
+
+        if len(set(flcc_dims)) != 1:
+            raise ValueError("FlCc incompatible")
+
+        # -------------------------
+        # 3. Cache
+        # -------------------------
+        cache_kdtree = {}
+        cache_interp = {}
+
+        # -------------------------
+        # 4. Homogeneizar malla
+        # -------------------------
+        processed = []
+
+        for db, gid in sources:
+
+            group_key = f'CADGroup_{gid}'
+            group = db.data_dict[group_key]
+
+            coord = group["Coord"]
+
+            same_mesh = np.array_equal(coord, coord_ref)
+
+            if same_mesh:
+                processed.append((db, gid))
+                continue
+
+            # ---------- CACHE ----------
+            cache_key = (id(db), gid, id(ref_group))
+
+            if cache and cache_key in cache_interp:
+                processed.append((db, cache_interp[cache_key]))
+                continue
+
+            # ---------- KDTree cache ----------
+            if method == "idw":
+                tree_key = (id(db), gid)
+                if cache and tree_key in cache_kdtree:
+                    tree = cache_kdtree[tree_key]
+                else:
+                    from scipy.spatial import cKDTree
+                    tree = cKDTree(coord)
+                    if cache:
+                        cache_kdtree[tree_key] = tree
+            else:
+                tree = None
+
+            # ---------- interpolación ----------
+            new_id = f"{gid}_merge_tmp_{id(db)}"
+
+            db.sets.create_group_by_interpolation(
+                id_group_src=gid,
+                new_group_id=new_id,
+                new_mesh=ref_group,
+                method=method,
+                k=k
+            )
+
+            if cache:
+                cache_interp[cache_key] = new_id
+
+            processed.append((db, new_id))
+
+        # -------------------------
+        # 5. Crear nuevo FRODO
+        # -------------------------
+        db_new = FRODO.__new__(FRODO)
+        db_new.format = format_ref
+        db_new.data_dict = {}
+
+        new_group_key = f'CADGroup_{new_group_id}'
+        db_new.data_dict[new_group_key] = {}
+
+        # copiar geometría
+        for key, value in ref_group.items():
+            if key != "Vars":
+                if isinstance(value, np.ndarray):
+                    db_new.data_dict[new_group_key][key] = value.copy()
+                else:
+                    db_new.data_dict[new_group_key][key] = value
+
+        # -------------------------
+        # 6. FlCc
+        # -------------------------
+        flcc_list = [
+            db.data_dict[f'CADGroup_{gid}']["FlCc"]
+            for db, gid in processed
+        ]
+
+        db_new.data_dict[new_group_key]["FlCc"] = np.vstack(flcc_list)
+
+        # -------------------------
+        # 7. Vars
+        # -------------------------
+        db_new.data_dict[new_group_key]["Vars"] = {}
+
+        # stages
+        all_stages = set()
+        for db, gid in processed:
+            all_stages.update(
+                db.data_dict[f'CADGroup_{gid}']["Vars"].keys()
+            )
+
+        for stage in all_stages:
+
+            db_new.data_dict[new_group_key]["Vars"][stage] = {}
+
+            # variables
+            all_vars = set()
+            for db, gid in processed:
+                vars_stage = db.data_dict[f'CADGroup_{gid}']["Vars"].get(stage, {})
+                all_vars.update(vars_stage.keys())
+
+            for var in all_vars:
+
+                var_list = []
+
+                for db, gid in processed:
+                    vars_stage = db.data_dict[f'CADGroup_{gid}']["Vars"].get(stage, {})
+
+                    if var not in vars_stage:
+                        continue
+
+                    v = vars_stage[var]
+
+                    if v.ndim not in (2, 3):
+                        raise ValueError(f"Variable {var} no soportada")
+
+                    var_list.append(v)
+
+                if not var_list:
+                    continue
+
+                db_new.data_dict[new_group_key]["Vars"][stage][var] = \
+                    np.concatenate(var_list, axis=-1)
+
+        return db_new
+    
     class READERS:
 
         class CODAReader():
