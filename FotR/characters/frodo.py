@@ -186,22 +186,41 @@ class FRODO():
         k: int = 4,
         mesh_ref: int = 0,
         cache: bool = True,
+        get_df_metrics_attr : dict = {},
         ) -> 'FRODO':
 
         # -------------------------
         # 0. Validaciones
         # -------------------------
         if len(sources) < 2:
-            raise ValueError("Se necesitan al menos 2 datasets")
+            raise ValueError("At least 2 datasets are required")
 
         dbs = [db for db, _ in sources]
 
         formats = [db.format for db in dbs]
         if len(set(formats)) != 1:
-            raise ValueError("Todos los datasets deben tener el mismo formato")
+            raise ValueError("Every dataset must have the same format")
 
         format_ref = formats[0]
 
+        if format_ref == 'CODA':
+            if get_df_metrics_attr != {}:
+                csvs = []
+                for db in dbs:
+                    df = db.residuals.get_df_metrics(**get_df_metrics_attr)
+                    df.columns = df.columns.str.lower()
+                    csvs.append(df)
+                
+                for i, csv in enumerate(csvs):
+                    # csv.columns = [c.lower() for c in csv.columns]
+                    csv['dataset'] = f'dataset_{i}'
+                df_post = pd.concat(csvs, ignore_index=True) # puede haber casos duplicados porque estén repetidos en algunos databases.
+            else:
+                raise ValueError("get_df_metrics_attr not provided for CODA format. Please provide get_df_metrics_attr with the necessary parameters to extract metrics dataframes from CODA datasets.")
+        else:
+            if get_df_metrics_attr != {}:
+                raise ValueError(f"get_df_metrics_attr provided but not supported for format {format_ref}. This parameter is only supported for CODA format.")
+            
         # -------------------------
         # 1. Elegir referencia
         # -------------------------
@@ -235,19 +254,21 @@ class FRODO():
         # -------------------------
         processed = []
 
-        for db, gid in sources:
+        for i, (db, gid) in enumerate(sources):
 
             group_key = f'CADGroup_{gid}'
             group = db.data_dict[group_key]
 
             coord = group["Coord"]
+            # same_mesh = (coord == coord_ref) # np.allclose(coord, coord_ref, atol=1e-10)
 
-            same_mesh = np.array_equal(coord, coord_ref)
-
-            if same_mesh:
+            # if same_mesh:
+            #     processed.append((db, gid))
+            #     continue
+            
+            if i == mesh_ref:
                 processed.append((db, gid))
                 continue
-
             # ---------- CACHE ----------
             cache_key = (id(db), gid, id(ref_group))
 
@@ -289,6 +310,19 @@ class FRODO():
         # -------------------------
         db_new = FRODO.__new__(FRODO)
         db_new.format = format_ref
+        db_new.root_dir = dbs[mesh_ref].root_dir
+        db_new.sim_metadata = {}
+        for db in dbs:
+            for k, v in db.sim_metadata.items():
+                if k not in db_new.sim_metadata:
+                    db_new.sim_metadata[k] = v
+                    
+        #copiar metadata salvo la entrada df_cases
+        db_new.metadata = copy.deepcopy(dbs[mesh_ref].metadata)
+        db_new.metadata.pop('df_cases', None)
+        
+        db_new.metadata['df_cases'] = df_post[db_new.metadata['design_vars'] + ['case_idx', 'dataset']].copy() if format_ref == 'CODA' else None
+        
         db_new.data_dict = {}
 
         new_group_key = f'CADGroup_{new_group_id}'
@@ -303,14 +337,58 @@ class FRODO():
                     db_new.data_dict[new_group_key][key] = value
 
         # -------------------------
-        # 6. FlCc
+        # 6. FlCc (con deduplicación)
         # -------------------------
-        flcc_list = [
-            db.data_dict[f'CADGroup_{gid}']["FlCc"]
-            for db, gid in processed
-        ]
+        flcc_list = []
+        case_splits = []
 
-        db_new.data_dict[new_group_key]["FlCc"] = np.vstack(flcc_list)
+        for db, gid in processed:
+            flcc = db.data_dict[f'CADGroup_{gid}']["FlCc"]
+            flcc_list.append(flcc)
+            case_splits.append(flcc.shape[0])
+
+        flcc_all = np.vstack(flcc_list)
+        assert len(df_post) == flcc_all.shape[0], "get_df_metrics_attr provided but length of df_post does not match number of cases in FlCc. Please check that get_df_metrics_attr is correctly configured to extract a dataframe with the same number of rows as cases in FlCc for each dataset."
+        # -------------------------
+        # deduplicación con prioridad
+        # -------------------------
+        seen = {}
+        keep_indices = []
+
+        offset = 0
+
+        for i, n_cases in enumerate(case_splits):
+
+            flcc = flcc_list[i]
+
+            for j in range(n_cases):
+
+                key = tuple(np.round(flcc[j], decimals=8))
+                global_idx = offset + j
+
+                if key not in seen:
+                    seen[key] = (i, global_idx)
+                    keep_indices.append(global_idx)
+
+                else:
+                    prev_i, prev_idx = seen[key]
+                    ref_idx = mesh_ref
+                    
+                    if prev_i == ref_idx and i != ref_idx:
+                    # if prev_i == mesh_ref and i != mesh_ref:
+                        if prev_idx in keep_indices:
+                            keep_indices.remove(prev_idx)
+                        keep_indices.append(global_idx)
+                        seen[key] = (i, global_idx)
+
+            offset += n_cases
+
+        keep_indices = sorted(keep_indices)
+
+        # aplicar
+        df_post = df_post.iloc[keep_indices].reset_index(drop=True)
+        db_new.data_dict[new_group_key]["FlCc"] = flcc_all[keep_indices]
+        db_new.df_post = df_post
 
         # -------------------------
         # 7. Vars
@@ -353,9 +431,14 @@ class FRODO():
 
                 if not var_list:
                     continue
+                
+                var_concat = np.concatenate(var_list, axis=-1)
+                var_new = var_concat[..., keep_indices]
 
-                db_new.data_dict[new_group_key]["Vars"][stage][var] = \
-                    np.concatenate(var_list, axis=-1)
+                db_new.data_dict[new_group_key]["Vars"][stage][var] = var_new
+
+                # db_new.data_dict[new_group_key]["Vars"][stage][var] = \
+                #     np.concatenate(var_list, axis=-1)
 
         return db_new
     
@@ -2380,6 +2463,7 @@ class FRODO():
                 df_post = db.df_state.copy()
 
                 design_vars = db.metadata['design_vars']
+                # print(f'Design vars: {design_vars}')
                 n_stages = db.metadata['num_stages']
 
                 for stage in range(n_stages):
@@ -2396,23 +2480,29 @@ class FRODO():
                         load_in_metadata=False
                     ).copy()
 
-                    df_finals.columns = df_finals.columns.astype(str).str.lower()
+                    df_finals.columns = df_finals.columns.astype(str).str.lower() # para que no falle aquí, tenemos que imponer en merge_datasets que las desing_vars sean las mismas.
 
 
                     rename_dict = {
                         col: f"{col}_stage{stage}"
                         for col in df_finals.columns
-                        if col not in design_vars
+                        if col not in [dv.lower() for dv in design_vars]
                     }
 
+                    # print('df_finals')
+                    # print(df_finals.head(2))
                     df_finals = df_finals.rename(columns=rename_dict)
 
+                    # print('df_post')
+                    # print(df_post.head(2))
+                    
                     df_post = df_post.merge(
                         df_finals,
                         on=design_vars,
                         # how="left"
                     )
-
+                    
+                
                 for irow in range(len(db.df_state)):
 
                     case_name = db.case_per_idx(irow)
