@@ -340,7 +340,7 @@ class FRODO():
         db_new.format = format_ref
         db_new.root_dir = root_dir
         db_new.sim_metadata = {}
-        db_new._set_subclases()
+        db_new.kwargs = {}
         
         os.makedirs(root_dir, exist_ok=True)
         os.makedirs(os.path.join(root_dir, 'metadata'), exist_ok=True)
@@ -366,7 +366,8 @@ class FRODO():
         
         with open(os.path.join(root_dir, 'metadata', 'cases_metadata.json'), 'w') as f:
             json.dump(metadata_to_save, f, indent=4)
-        
+            
+        db_new._set_subclases()
         db_new.data_dict = {}
 
         new_group_key = f'CADGroup_{new_group_id}'
@@ -526,7 +527,8 @@ class FRODO():
                     df_cases = pd.DataFrame.from_dict(case_metadata.get('df_cases', {})).sort_values(by=self.metadata['design_vars'][0], ignore_index=True, axis=0)
                     
                     df_cases = df_cases.reset_index(drop=True)
-                    df_cases.insert(0, "case_idx", df_cases.index.astype(np.int32))
+                    if "case_idx" not in df_cases.columns:
+                        df_cases.insert(0, "case_idx", df_cases.index.astype(np.int32))
 
                     self.metadata['df_cases'] = df_cases
                     
@@ -3117,7 +3119,12 @@ class FRODO():
                             f"Case {i}: AoA: {row['aoa']:.4f}, Mach: {row['mach']:.4f}, Residuals: {residuals_exp}"
                         )
             
-            def plot_state_calculation(self, num_stages: int = 1, txt_from_end: int = 1, figsize: tuple = None):
+            def plot_state_calculation(
+                self,
+                num_stages: int = 1,
+                txt_from_end: int = 1,
+                figsize: tuple = None
+                ):
                 data_to_plot = []
                 for name, case in self.db.sim_metadata.items():
                     if len(case['stages'].keys()) == num_stages:
