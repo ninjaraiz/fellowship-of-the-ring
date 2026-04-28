@@ -90,6 +90,19 @@ class FRODO():
         self.kwargs = kwargs
         self.update_df_state = kwargs.pop("update_df_state", False)
         self.name = kwargs.pop("name", 'FRODO Database')
+        
+        self._set_subclases()
+        
+        if initial_parse:
+            inicio = time.perf_counter()
+            self._parse()
+            fin_parse = time.perf_counter()
+            
+            print(f"Parse taked: {fin_parse - inicio:.4f} seconds")
+    
+    def _set_subclases(self):
+        
+        format = self.format
         # -------- READER FACTORY ----------
         reader_map = {
             "CODA": self.READERS.CODAReader,
@@ -100,7 +113,7 @@ class FRODO():
         if format not in reader_map:
             raise ValueError(f"Format {format} not supported.")
 
-        self.reader = reader_map[format](root_dir=self.root_dir, **kwargs)
+        self.reader = reader_map[format](root_dir=self.root_dir, **self.kwargs)
 
         # -------- SETS FACTORY ------------
         sets_map = {
@@ -129,21 +142,10 @@ class FRODO():
         
         if residuals_cls is not None:
             self.residuals = residuals_cls(db=self)
-            # if format == 'CODA':
-            #     for attr in dir(self.residuals):
-            #         if not attr.startswith("_") and callable(getattr(self.residuals, attr)):
-            #             setattr(self, attr, getattr(self.residuals, attr))
         else:
             self.residuals = None
             print("\n\tWARNING: Actual format does not have residuals class implemented. Residuals methods will not be available in FRODO instance.\n")
             
-        if initial_parse:
-            inicio = time.perf_counter()
-            self._parse()
-            fin_parse = time.perf_counter()
-            
-            print(f"Parse taked: {fin_parse - inicio:.4f} seconds")
-                
     def _parse(self):
         self.reader.parse_simulation_dirs()
 
@@ -180,6 +182,7 @@ class FRODO():
     
     @staticmethod
     def merge_datasets(
+        root_dir:str,
         sources: list,
         new_group_id: str,
         method: str = 'idw',
@@ -188,7 +191,23 @@ class FRODO():
         cache: bool = True,
         get_df_metrics_attr : dict = {},
         ) -> 'FRODO':
-
+        """
+        Merge multiple FRODO datasets into a single one with a unified mesh and FlCc, based on a reference mesh and interpolation.
+        
+        Args:
+            root_dir (str): Root directory containing the FRODO datasets.
+            sources (list): List of tuples (FRODO, CADGroupID (str)) to merge. Example: [(db1, '3'), (db2, '3_interp')] to merge CADGroup_3 and CADGroup_3_interp from db1 and db2.
+            new_group_id (str): CADGroupID to assign to the merged group in the new FRODO.
+            method (str): Interpolation method to use for homogenizing meshes. Supported: 'idw' (inverse distance weighting). Default is 'idw'.
+            k (int): Number of nearest neighbors to use for IDW interpolation. Default is 4.
+            mesh_ref (int or str): Index of the source to use as reference mesh. Default is 0 (first source).
+            cache (bool): Whether to cache KDTree and interpolation results for efficiency when merging multiple datasets with some shared sources. Default is True.
+            get_df_metrics_attr (dict): Optional dictionary of attributes to pass to db.residuals.get_df_metrics() for each source when merging CODA datasets. This allows extracting and concatenating metrics dataframes aligned with the merged FlCc. Only supported for CODA format. Default is empty dict (no metrics extraction). An example of get_df_metrics_attr could be {'var_metrics': ['CoefLift', 'CoefDrag', 'CoefMomentY'], 'iter_var': 1000, 'save' : False}, which would call db.residuals.get_df_metrics('var_metrics': ['CoefLift', 'CoefDrag', 'CoefMomentY'], 'iter_var': 1000, 'save' : False) for each source and concatenate the resulting dataframes.
+            
+        Returns:
+            FRODO: A new FRODO instance containing the merged dataset with unified mesh and FlCc under the specified new_group_id.
+            
+        """
         # -------------------------
         # 0. Validaciones
         # -------------------------
@@ -206,15 +225,23 @@ class FRODO():
         if format_ref == 'CODA':
             if get_df_metrics_attr != {}:
                 csvs = []
-                for db in dbs:
+                for db, gid in sources:                          # ← sources en vez de dbs
                     df = db.residuals.get_df_metrics(**get_df_metrics_attr)
                     df.columns = df.columns.str.lower()
+
+                    # Filtrar df a los casos que pertenecen a este grupo concreto
+                    flcc = db.data_dict[f'CADGroup_{gid}']['FlCc']
+                    design_vars_lower = [v.lower() for v in db.metadata['design_vars']]
+                    df_flcc = pd.DataFrame(flcc, columns=design_vars_lower)
+                    # Left join desde flcc: garantiza exactamente las mismas filas que FlCc
+                    # con NaN en métricas si el caso no tiene residuales
+                    df = df_flcc.merge(df, on=design_vars_lower, how='left')
+
                     csvs.append(df)
-                
+
                 for i, csv in enumerate(csvs):
-                    # csv.columns = [c.lower() for c in csv.columns]
                     csv['dataset'] = f'dataset_{i}'
-                df_post = pd.concat(csvs, ignore_index=True) # puede haber casos duplicados porque estén repetidos en algunos databases.
+                df_post = pd.concat(csvs, ignore_index=True)
             else:
                 raise ValueError("get_df_metrics_attr not provided for CODA format. Please provide get_df_metrics_attr with the necessary parameters to extract metrics dataframes from CODA datasets.")
         else:
@@ -309,19 +336,36 @@ class FRODO():
         # 5. Crear nuevo FRODO
         # -------------------------
         db_new = FRODO.__new__(FRODO)
+        
         db_new.format = format_ref
-        db_new.root_dir = dbs[mesh_ref].root_dir
+        db_new.root_dir = root_dir
         db_new.sim_metadata = {}
+        db_new._set_subclases()
+        
+        os.makedirs(root_dir, exist_ok=True)
+        os.makedirs(os.path.join(root_dir, 'metadata'), exist_ok=True)
+        os.makedirs(os.path.join(root_dir, 'outputs'), exist_ok=True)
+        # db_new.root_dir = dbs[mesh_ref].root_dir
+        
         for db in dbs:
-            for k, v in db.sim_metadata.items():
-                if k not in db_new.sim_metadata:
-                    db_new.sim_metadata[k] = v
+            for meta_key, meta_val in db.sim_metadata.items():
+                if meta_key not in db_new.sim_metadata:
+                    db_new.sim_metadata[meta_key] = meta_val
                     
         #copiar metadata salvo la entrada df_cases
         db_new.metadata = copy.deepcopy(dbs[mesh_ref].metadata)
         db_new.metadata.pop('df_cases', None)
         
         db_new.metadata['df_cases'] = df_post[db_new.metadata['design_vars'] + ['case_idx', 'dataset']].copy() if format_ref == 'CODA' else None
+        db_new.metadata['df_cases'].to_csv(os.path.join(root_dir, 'metadata', 'df_cases.csv'))
+        
+        # Guardar metadata como json en root_dir/metadata/cases_metadata.json:
+        metadata_to_save = copy.deepcopy(db_new.metadata)
+        if 'df_cases' in metadata_to_save and metadata_to_save['df_cases'] is not None:
+            metadata_to_save['df_cases'] = metadata_to_save['df_cases'].to_dict(orient='list')
+        
+        with open(os.path.join(root_dir, 'metadata', 'cases_metadata.json'), 'w') as f:
+            json.dump(metadata_to_save, f, indent=4)
         
         db_new.data_dict = {}
 
@@ -388,7 +432,8 @@ class FRODO():
         # aplicar
         df_post = df_post.iloc[keep_indices].reset_index(drop=True)
         db_new.data_dict[new_group_key]["FlCc"] = flcc_all[keep_indices]
-        db_new.df_post = df_post
+        df_post.to_csv(os.path.join(root_dir, 'metadata', 'df_post.csv'), sep=',')
+        # db_new.df_post = df_post
 
         # -------------------------
         # 7. Vars
@@ -416,24 +461,38 @@ class FRODO():
 
                 var_list = []
 
+                # Determinar la forma espacial de referencia (primer grupo que tenga la variable)
+                ref_shape = None
                 for db, gid in processed:
                     vars_stage = db.data_dict[f'CADGroup_{gid}']["Vars"].get(stage, {})
+                    if var in vars_stage:
+                        ref_shape = vars_stage[var].shape[:-1]  # shape espacial sin el eje de casos
+                        break
+
+                if ref_shape is None:
+                    continue  # ningún grupo tiene esta variable en este stage
+
+                for db, gid in processed:
+                    vars_stage = db.data_dict[f'CADGroup_{gid}']["Vars"].get(stage, {})
+                    n_cases = db.data_dict[f'CADGroup_{gid}']["FlCc"].shape[0]
 
                     if var not in vars_stage:
+                        # Placeholder NaN: mantiene la alineación con flcc_all
+                        var_list.append(np.full(ref_shape + (n_cases,), np.nan))
                         continue
 
                     v = vars_stage[var]
-
                     if v.ndim not in (2, 3):
                         raise ValueError(f"Variable {var} no soportada")
-
                     var_list.append(v)
 
                 if not var_list:
                     continue
-                
-                var_concat = np.concatenate(var_list, axis=-1)
+
+                var_concat = np.concatenate(var_list, axis=-1)  # shape[-1] == flcc_all.shape[0] ✓
                 var_new = var_concat[..., keep_indices]
+                
+                
 
                 db_new.data_dict[new_group_key]["Vars"][stage][var] = var_new
 
@@ -2499,7 +2558,7 @@ class FRODO():
                     df_post = df_post.merge(
                         df_finals,
                         on=design_vars,
-                        # how="left"
+                        how="left"
                     )
                     
                 
