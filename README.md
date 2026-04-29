@@ -22,7 +22,7 @@ Sin más dilación, y currándome esto menos de lo que debería, vamos a introdu
 En adelante, y como ahora no dispongo de más tiempo, resumiré la ayuda mínima necesaria en comentarios mientras navegas por este notebook. No dudes en escribirme si tienes dudas sobre la convivencia en esta comunidad (miguel.jaraizga@upm.es)
 
 <div align="center">
-  <img src="./frodo_sam_2.png" width="600">
+  <img src="./pictures/frodo_sam_2.png" width="600">
 </div>
 
 
