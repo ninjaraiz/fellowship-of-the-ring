@@ -67,8 +67,11 @@ class GmshCase:
         """
         Puedes overridear esto si quieres abstraer más.
         """
-        return "/home/m.jaraiz/repos/gmsh-4.13.1-Linux64/bin/gmsh"
-
+        self.executable = shutil.which("gmsh")
+        if self.executable is None:
+            raise FileNotFoundError("No se encontró el ejecutable de Gmsh en el PATH.")
+        else:
+            return self.executable
     # -----------------------------
     # Runner integration
     # -----------------------------
