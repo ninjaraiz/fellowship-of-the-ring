@@ -167,7 +167,7 @@ class ARAGORN:
                         - list[str]   (líneas de comandos)
                         - Path        (ruta a un fichero de script)
                         - cualquier objeto con método .build_commands() -> list[str]
-        program     : ejecutable a lanzar (hereda default_program si None)
+        program     : ejecutable a lanzar.
         run_id      : clave para self.outputs. Se genera automáticamente si None.
         parser      : callable(stdout: str, workdir: Path) -> dict
                       Recibe la salida estándar y el directorio de trabajo

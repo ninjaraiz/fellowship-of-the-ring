@@ -17,11 +17,11 @@ venv/
 # Outputs XFOIL
 xfoil_out/
 *.dat
-*.txt
 
 # Outputs
 **/*.h5
 **/*.vtf
+**/*.msh
 
 # Logs
 **/*.log

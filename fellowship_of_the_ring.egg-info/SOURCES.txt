@@ -1,0 +1,12 @@
+README.md
+setup.py
+FotR/EarendilsLight.py
+FotR/__init__.py
+FotR/solver_tools/__init__.py
+FotR/solver_tools/gmsh_tools.py
+FotR/solver_tools/xfoil_tools.py
+fellowship_of_the_ring.egg-info/PKG-INFO
+fellowship_of_the_ring.egg-info/SOURCES.txt
+fellowship_of_the_ring.egg-info/dependency_links.txt
+fellowship_of_the_ring.egg-info/requires.txt
+fellowship_of_the_ring.egg-info/top_level.txt

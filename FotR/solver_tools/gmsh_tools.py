@@ -44,12 +44,17 @@ class GmshCase:
     # Core: comandos para Gmsh
     # -----------------------------
     def build_args(self):
+
+        output_path = (self.workdir / self.mesh_name).resolve()
+
         args = [
             f"-{self.dim}",
             "-format", self.format,
-            "-o", self.mesh_name
+            "-o", str(output_path)
         ]
+
         args += self.extra_args
+
         return args
 
     # def prepare_case(self):
@@ -76,15 +81,17 @@ class GmshCase:
     # Runner integration
     # -----------------------------
     def run(self, runner, run_id=None):
+
+        geo_abs = self.geo_file.resolve()
+
         return runner.run(
-            script=self.geo_file,
+            script=geo_abs,
             program=self.get_executable(),
             run_id=run_id,
-            workdir=self.geo_file.parent,   # 🔥 clave
+            workdir=self.geo_file.parent,
             stdin_mode=False,
             extra_args=self.build_args(),
         )
-
     # -----------------------------
     # Postproceso
     # -----------------------------
@@ -105,52 +112,94 @@ class GmshCase:
             "format": self.format,
         }
     
+    def _in_jupyter(self):
+        try:
+            from IPython import get_ipython
+            shell = get_ipython().__class__.__name__
+            return shell == "ZMQInteractiveShell"
+        except Exception:
+            return False
+        
     def plot(self, mode="auto", screenshot=None, show_edges=True):
+
         import os
         import pyvista as pv
 
         mesh = self.load_mesh()
 
         # -------------------------
-        # Auto-detección entorno
+        # AUTO
         # -------------------------
         if mode == "auto":
-            if "DISPLAY" in os.environ and os.environ["DISPLAY"]:
-                mode = "interactive"
-            else:
+
+            if self._in_jupyter():
                 mode = "notebook"
 
-        # -------------------------
-        # MODO NOTEBOOK (seguro HPC)
-        # -------------------------
-        if mode == "notebook":
-            pv.set_jupyter_backend("static")
-            return mesh.plot(show_edges=show_edges)
+            elif "DISPLAY" in os.environ and os.environ["DISPLAY"]:
+                mode = "interactive"
+
+            else:
+                mode = "offscreen"
 
         # -------------------------
-        # MODO OFFSCREEN (batch)
+        # NOTEBOOK
+        # -------------------------
+        if mode == "notebook":
+
+            import nest_asyncio
+            nest_asyncio.apply()
+
+            pv.set_jupyter_backend("trame")
+
+            plotter = pv.Plotter(notebook=True)
+
+            plotter.add_mesh(
+                mesh,
+                show_edges=show_edges
+            )
+
+            plotter.show(jupyter_backend="trame")
+
+            return plotter
+
+        # -------------------------
+        # OFFSCREEN
         # -------------------------
         elif mode == "offscreen":
+
             pv.OFF_SCREEN = True
 
             plotter = pv.Plotter(off_screen=True)
-            plotter.add_mesh(mesh, show_edges=show_edges)
+
+            plotter.add_mesh(
+                mesh,
+                show_edges=show_edges
+            )
 
             if screenshot is None:
                 screenshot = self.workdir / "mesh.png"
 
             plotter.show(screenshot=str(screenshot))
+
             return screenshot
 
         # -------------------------
-        # MODO INTERACTIVO (GUI)
+        # GUI
         # -------------------------
         elif mode == "interactive":
+
             pv.OFF_SCREEN = False
 
             plotter = pv.Plotter()
-            plotter.add_mesh(mesh, show_edges=show_edges)
+
+            plotter.add_mesh(
+                mesh,
+                show_edges=show_edges
+            )
+
             plotter.show()
+
+            return plotter
 
         else:
             raise ValueError(f"Modo desconocido: {mode}")
