@@ -1,7 +1,7 @@
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+**/*.pyc
+**/*.pyo
+**/*.pyd
 
 # Jupyter
 .ipynb_checkpoints/
@@ -16,7 +16,7 @@ venv/
 
 # Outputs XFOIL
 xfoil_out/
-*.dat
+**/*.dat
 
 # Outputs
 **/*.h5
