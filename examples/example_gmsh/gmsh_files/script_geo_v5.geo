@@ -9,12 +9,12 @@ SetFactory("OpenCASCADE");
 ExtrudeDirection = 2;
 
 h0 = 0.1; // altura de extrusión
-nLayers = 3; // nº de capas
+nLayers = 10; // nº de capas
 
-lc_ff = 1e0; //9e-2; 
-lc_a = 3e-3; //8e-5;
-lc_ball = 1e-1; //5e-2;
-lc_box = 5e-2; //7e-4; 
+lc_ff = 1e-1; //9e-2; 
+lc_a = 8e-5; //8e-5;
+lc_ball = 1e-2; //5e-2;
+lc_box = 7e-3; //7e-4; 
 
 use_boundary_layer = 1; // 1 = activar capa límite | 0 = desactivar
 n_layers_BL = 10;
@@ -74,57 +74,32 @@ Plane Surface(1) = {1,2};
 //--------------------------------------------------//
 // Fields
 //--------------------------------------------------//
-// 5) Wake box (opcional)
-Field[6] = Box;
-Field[6].VIn  = lc_box*2;
-Field[6].VOut = lc_ff;
-Field[6].Thickness = 4*c;
-Field[6].XMin = -0.3*c; Field[6].XMax = 1.5*c;
-Field[6].YMin = -3.0*c; Field[6].YMax =  3.0*c;
-Field[6].ZMin = -t; Field[6].ZMax =  t;
 
-Field[7] = Box;
-Field[7].VIn  = lc_box;
-Field[7].VOut = lc_ff;
-Field[7].Thickness = 3*c;
-Field[7].XMin = -0.3*c; Field[7].XMax = 0.7*c;
-Field[7].YMin = -2.0*c; Field[7].YMax =  2.0*c;
-Field[7].ZMin = -t; Field[7].ZMax =  t;
+Include "./includes/parabola.geo";
+// Spline(200) = {2001:2000+n_points_2001};
+// Curve Loop(3) = {200};
 
-Field[50] = Box;
-Field[50].VIn = lc_a*2;
-Field[50].VOut = lc_ff;
+Field[4] = Distance;
+Field[4].PointsList = {2001:2000+n_points_2001};
 
-Field[50].XMin = -c;
-Field[50].XMax = 2.0*c;
-
-Field[50].ZMin = -2.0*t; Field[50].ZMax =  2.0*t;
-
-Field[50].YMin = -2.0*t;
-Field[50].YMax = 2.0*t;
-
-Field[50].Thickness = 6*c;
-
-Field[51] = Ball;
-Field[51].VIn  = lc_a*3;
-Field[51].VOut = lc_ff;
-Field[51].Radius = 4.5*c;
-Field[51].Thickness = 3*c;
-Field[51].XCenter = 3.5*c; Field[2].YCenter = 0.0; Field[2].ZCenter = 0.0;
-
+Field[5] = Threshold;
+Field[5].InField = 4;
+Field[5].SizeMin = lc_ball;
+Field[5].SizeMax = lc_ff;
+Field[5].DistMin = 1.0*c;
+Field[5].DistMax = 2.0*c;
 
 If (use_boundary_layer)
-  Transfinite Curve {100} = 400 Using Progression 1.0; // 9500
+  Transfinite Curve {100} = 4000 Using Progression 1.0; // 9500
 
   Field[1] = BoundaryLayer;
   Field[1].CurvesList = {100};   // spline del perfil
   Field[1].Size      = lc_a;
   Field[1].SizeFar   = lc_box;
   Field[1].NbLayers  = n_layers_BL;
-  Field[1].Thickness = 0.045*t;
+  Field[1].Thickness = 0.08*t;
 
-  // ratio = (lc_box/lc_a)^(1/n_layers_BL);
-  Field[1].Ratio     = 1.4;
+  Field[1].Ratio     = 1.2;
   Field[1].Quads     = 1;
 
   // Fans en LE/TE (ajustar IDs según tu geometría)
@@ -135,34 +110,30 @@ If (use_boundary_layer)
   BoundaryLayer Field = 1;
 EndIf
 
-// 2) Big disk for smooth transition to far-field
-Field[2] = Ball;
-Field[2].VIn  = lc_ball;
-Field[2].VOut = lc_ff;
-Field[2].Radius = 2.5*c;
-Field[2].Thickness = 3*c;
-Field[2].XCenter = 0.0; Field[2].YCenter = 0.0; Field[2].ZCenter = 0.0;
-
-// 6) Combina todo (MIN): toma el tamaño más fino requerido en cada punto,
-//    pero como los LE/TE están en Threshold su efecto está espacialmente limitado.
+Field[7] = Box;
+Field[7].VIn  = lc_box;
+Field[7].VOut = lc_ball;
+Field[7].Thickness = 3*c;
+Field[7].XMin = -0.3*c; Field[7].XMax = 0.7*c;
+Field[7].YMin = -2.0*c; Field[7].YMax =  2.0*c;
+Field[7].ZMin = -t; Field[7].ZMax =  t;
 
 Field[8] = Min;
 If (use_boundary_layer) 
-  Field[8].FieldsList = {1, 2, 6, 7, 50, 51}; //, 50};
+  Field[8].FieldsList = {1, 5, 7};
 Else
-  Field[8].FieldsList = {2, 6, 7, 50, 51}; //, 50};
+  Field[8].FieldsList = {5, 7};
 EndIf
 
 Background Field = 8;
 
-// --- Controles de suavizado y calidad ---
 Mesh.Smoothing = 5;             // número de iteraciones de suavizado Laplaciano
 // Mesh.MinimumCircleAngle = 30;    // ángulo mínimo en los triángulos (mejora ortogonalidad)
 Mesh.CharacteristicLengthExtendFromBoundary = 1;  // transición más suave desde BC
 
-Mesh.CharacteristicLengthFromCurvature = 1;
+Mesh.CharacteristicLengthFromCurvature = 0;
 
-Mesh.CharacteristicLengthFromPoints = 0.006;
+Mesh.CharacteristicLengthFromPoints = 0;
 
 // --------------------------------------------------//
 // Extrude Mesh
@@ -190,9 +161,4 @@ Physical Surface("Airfoil", 3) = {6};
 Physical Volume("Domain", 4) = {1};
 
 // Crear mallar y expotar:
-Mesh 2;
-
-
-// PROBAR CON CHATGPT A HACER UNA MALLA CON ZONAS DE REFINANMIENTO MÁS PERSONALIZADAS USANDO THRESHOLD Y DISTANCE.
-// LA FINALIDAD ES CONSEGUIR EL CONO REFINADO Y EL RESTO DE SITIOS SIN TOCAR.
-// HACER ESTO EN UNA NUEVA VERSIÓN DEL SCRIPT
+Mesh 3;

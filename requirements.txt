@@ -3,6 +3,7 @@
 # ============================================
 
 numpy>=1.26
+torch
 scipy>=1.13
 pandas>=2.2
 matplotlib>=3.9
@@ -23,6 +24,7 @@ trame>=3.0
 trame-vtk>=2.8
 trame-vuetify>=2.4
 nest_asyncio>=1.6
+nest_asyncio2
 ipywidgets
 
 # ============================================
