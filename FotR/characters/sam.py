@@ -1362,142 +1362,114 @@ class SAM():
             order = np.argsort(s_proj)
             
             return points[order], order
-
+        
         @staticmethod
-        def finite_diff_derivative(
-                X: torch.Tensor,
-                f: torch.Tensor,
-                order: int = 1) -> torch.Tensor:
-
-            if order < 1:
-                raise ValueError("El orden de la derivada debe ser >= 1")
-
-            # forzar doble precisión
-            X = X.to(torch.float64)
-            f = f.to(torch.float64)
-
-            N, D = X.shape
-            derivs = torch.zeros((N, D), dtype=torch.float64, device=X.device)
-
-            eps = 1e-14
-
-            for d in range(D):
-
-                xd = X[:, d]
-                g = f.clone()
-
-                for _ in range(order):
-
-                    new_g = torch.zeros_like(g)
-
-                    dx_forward  = xd[2:] - xd[1:-1]
-                    dx_backward = xd[1:-1] - xd[:-2]
-                    dx = dx_forward + dx_backward
-
-                    dx = torch.where(torch.abs(dx) < eps, eps, dx)
-
-                    new_g[1:-1] = (g[2:] - g[:-2]) / dx
-
-                    dx_left = xd[1] - xd[0]
-                    if torch.abs(dx_left) < eps:
-                        dx_left = eps
-
-                    new_g[0] = (g[1] - g[0]) / dx_left
-
-                    dx_right = xd[-1] - xd[-2]
-                    if torch.abs(dx_right) < eps:
-                        dx_right = eps
-
-                    new_g[-1] = (g[-1] - g[-2]) / dx_right
-
-                    g = new_g
-
-                derivs[:, d] = g
-
-            return derivs
-
-        @staticmethod
-        def surface_derivative(X, f, order=1):
+        def surface_derivative(X, f, order=1, min_ds=1e-6):
             """
-            Derivadas sobre una curva usando longitud de arco.
-
-            Parameters
-            ----------
-            X : (N,D) torch.Tensor or np.ndarray
-                Coordenadas ordenadas de la curva.
-            f : (N,) o (N,M)
-                Valores de la función en la curva (M casos opcional).
-            order : {1,2}
-
-            Returns
-            -------
-            df : misma shape que f
-                Derivada respecto a la longitud de arco.
+            Derivada respecto a la longitud de arco con filtrado de puntos duplicados/cercanos.
             """
-
-            import numpy as np
-            import torch
-
             is_torch = torch.is_tensor(X)
 
             if is_torch:
-
                 X = X.to(torch.float64)
                 f = f.to(torch.float64)
-
-                if f.ndim == 1:
+                squeeze = f.ndim == 1
+                if squeeze:
                     f = f[:, None]
 
-                # --- longitud de arco
                 dX = X[1:] - X[:-1]
                 ds = torch.sqrt(torch.sum(dX**2, dim=1))
 
-                eps = 1e-14
-                ds = torch.clamp(ds, min=eps)
+                # ── CORRECCIÓN 2: eliminar puntos demasiado cercanos ──────────────────
+                keep = torch.cat([torch.tensor([True]), ds >= min_ds])
+                X = X[keep]
+                f = f[keep]
+                dX = X[1:] - X[:-1]
+                ds = torch.sqrt(torch.sum(dX**2, dim=1))
+                # ──────────────────────────────────────────────────────────────────────
 
                 s = torch.zeros(X.shape[0], dtype=torch.float64, device=X.device)
                 s[1:] = torch.cumsum(ds, dim=0)
 
-                # --- primera derivada
                 df = torch.gradient(f, spacing=(s,), dim=0)[0]
-
                 if order == 1:
-                    return df.squeeze()
+                    return df.squeeze() if squeeze else df
 
-                # --- segunda derivada
                 d2f = torch.gradient(df, spacing=(s,), dim=0)[0]
-
-                return d2f.squeeze()
+                return d2f.squeeze() if squeeze else d2f
 
             else:
-
                 X = np.asarray(X, dtype=np.float64)
                 f = np.asarray(f, dtype=np.float64)
-
-                if f.ndim == 1:
+                squeeze = f.ndim == 1
+                if squeeze:
                     f = f[:, None]
 
-                # --- longitud de arco
                 dX = X[1:] - X[:-1]
                 ds = np.sqrt(np.sum(dX**2, axis=1))
 
-                eps = 1e-14
-                ds[ds < eps] = eps
+                # ── CORRECCIÓN 2: eliminar puntos demasiado cercanos ──────────────────
+                keep = np.concatenate([[True], ds >= min_ds])
+                X = X[keep]
+                f = f[keep]
+                dX = X[1:] - X[:-1]
+                ds = np.sqrt(np.sum(dX**2, axis=1))
+                # ──────────────────────────────────────────────────────────────────────
 
                 s = np.zeros(X.shape[0])
                 s[1:] = np.cumsum(ds)
 
-                # --- primera derivada
                 df = np.gradient(f, s, axis=0)
-
                 if order == 1:
-                    return df.squeeze()
+                    return df.squeeze() if squeeze else df
 
-                # --- segunda derivada
                 d2f = np.gradient(df, s, axis=0)
+                return d2f.squeeze() if squeeze else d2f
 
-                return d2f.squeeze()
-            
+        @staticmethod
+        def finite_diff_derivative(X, f, order=1):
+            if order < 1:
+                raise ValueError("El orden debe ser >= 1")
+
+            X = X.to(torch.float64)
+            f = f.to(torch.float64)
+            N, D = X.shape
+            derivs = torch.zeros((N, D), dtype=torch.float64, device=X.device)
+            eps = 1e-14
+
+            for d in range(D):
+                xd = X[:, d]
+                g = f.clone()
+                for _ in range(order):
+                    new_g = torch.zeros_like(g)
+
+                    # Interior: diferencias centrales O(h²)
+                    dx = xd[2:] - xd[:-2]
+                    dx = torch.where(torch.abs(dx) < eps, torch.full_like(dx, eps), dx)
+                    new_g[1:-1] = (g[2:] - g[:-2]) / dx
+
+                    # ── CORRECCIÓN 4: bordes con O(h²) usando 3 puntos ───────────────
+                    # Borde izquierdo: forward de segundo orden
+                    h0 = xd[1] - xd[0]
+                    h1 = xd[2] - xd[0]
+                    if abs(h0) < eps: h0 = eps
+                    if abs(h1) < eps: h1 = eps
+                    new_g[0] = (-g[2] * h0**2 + g[1] * h1**2 - g[0] * (h1**2 - h0**2)) \
+                            / (h0 * h1 * (h1 - h0))
+
+                    # Borde derecho: backward de segundo orden
+                    hm1 = xd[-1] - xd[-2]
+                    hm2 = xd[-1] - xd[-3]
+                    if abs(hm1) < eps: hm1 = eps
+                    if abs(hm2) < eps: hm2 = eps
+                    new_g[-1] = (g[-3] * hm1**2 - g[-2] * hm2**2 + g[-1] * (hm2**2 - hm1**2)) \
+                                / (hm1 * hm2 * (hm2 - hm1))
+                    # ─────────────────────────────────────────────────────────────────
+
+                    g = new_g
+                derivs[:, d] = g
+            return derivs
+
         @staticmethod
         def finite_diff_surface_derivative_ant(
                 X: torch.Tensor,
