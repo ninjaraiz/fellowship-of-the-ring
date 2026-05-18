@@ -108,6 +108,7 @@ class FRODO():
             "CODA": self.READERS.CODAReader,
             "Airfoil": self.READERS.AIRFOILReader,
             "NUMPYFILE": self.READERS.NUMPYFILEReader,
+            "PYLOM": self.READERS.PYLOMReader,
         }
 
         if format not in reader_map:
@@ -120,6 +121,7 @@ class FRODO():
             "CODA": self.SETS.CODASets,
             "Airfoil": None,
             "NUMPYFILE": self.SETS.NUMPYFILESets,
+            "PYLOM": self.SETS.PYLOMSets,
         }
         
         sets_cls = sets_map.get(format)
@@ -1893,212 +1895,6 @@ class FRODO():
                 #     "arrays_by_size": arrays_by_size,
                 # }
                 
-        class NUMPYFILEReader_mio():
-            
-            def __init__(self, root_dir:str, file:str, key_geom:str):
-                self.root_dir = root_dir
-                self.sim_metadata = {}
-                self.df_state = pd.DataFrame()
-                self.data_dict = {}
-                
-                if file == None:
-                    raise ValueError("File mustn't be None")
-                else:
-                    self.file_name = file
-                    
-                if key_geom == None:
-                    raise ValueError("Key_geom mustn't be None")
-                else:
-                    self.key_geom = key_geom
-                
-                print(f"Reader developed for numpy files.")
-                print(f"Geometry file must contain 'airfoil' in its name.\n")
-            
-            def parse_simulation_dirs_ant(self):
-                self.sim_metadata['path'] = os.path.join(self.root_dir, self.file_name)
-                content = np.load(self.sim_metadata['path'], allow_pickle=True).item()
-                
-                shapes = {key: content[key].shape for key in content.keys()}
-                self.sim_metadata['keys'] = shapes
-                unique_shapes = set(shapes.values())
-                shape_dict = {}
-                
-                try:
-                    us_geom = shapes[self.key_geom]
-                except:
-                    raise ValueError(f"Key {self.key_geom} not found in file {self.file_name}")
-                
-                for us in unique_shapes:
-                    keys_with_shape = [key for key, shape in shapes.items() if shape == us]
-                            
-                    if us == us_geom:
-                        continue
-                    
-                    if len(us) == 1 or us[1] == 1:
-                        shape_dict['integrals'] = keys_with_shape
-                        us_integrals = us
-                        
-                for us in unique_shapes:
-                    keys_with_shape = [key for key, shape in shapes.items() if shape == us]
-                    keys_filtered = [item for item in keys_with_shape if item not in shape_dict['integrals']]
-                    if us == (us_integrals[0], us_geom[0]):
-                        shape_dict['surface'] = keys_filtered
-                        
-                    elif len(us)>1 and us[0] == us_integrals[0] and us[1] > us_geom[0]:
-                        shape_dict['field'] = keys_filtered
-                
-                self.sim_metadata['keys_integrals'] = shape_dict.get('integrals', [])
-                self.sim_metadata['keys_surface'] = shape_dict.get('surface', [])
-                self.sim_metadata['keys_field'] = shape_dict.get('field', [])
-                        
-            def make_one_branch(self, keys: Union[list[str], str], name:str):
-                if set(keys).issubset(list(self.sim_metadata['keys'].keys())):
-                    pass
-                else:
-                    raise ValueError(f"Keys {keys} not found in file {self.file_name}.")
-                
-                content = np.load(self.sim_metadata['path'], allow_pickle=True).item()
-                
-                shapes = {content[key].shape for key in keys}
-                
-                if len(shapes) > 1:
-                    raise ValueError(f"Keys must have the same size.")
-                self.data_dict[name] = {key: content[key] for key in keys}
-            
-            def make_data_dict(self):
-                for name in ['inputs', 'outputs']:
-                    pass
-                
-            def extract_inputs(self, keys_inputs:Union[list[str], str]):
-                pass
-            
-            def extract_outputs(self):
-                pass
-            
-        class NRL7301Reader_pylom():
-            
-            def __init__(self, root_dir:str, keys:dict, names:dict = {}, **kwargs):
-                self.root_dir = root_dir
-                self.sim_metadata = {}
-                self.df_state = None
-                self.data_dict = {}
-                self.keys = keys
-
-                if names == {}:
-                    self.names = self.keys
-                else:
-                    self.names = names
-                try:
-                    self.common_tensors = self.kwargs.get('common_tensors', {})
-                except:
-                    self.common_tensors = []
-                
-                self.SAM = SAM
-                print('Reader developed for NRL7301 DLR Database (pylom format)')
-
-            def parse_simulation_dirs(self):
-                files = list(glob.glob(os.path.join(self.root_dir, "*.h5")))
-                self.files = []
-                for f in files:
-                    fname = os.path.basename(f).lower()
-                    if any(x in fname for x in ["train", "test", "val", "valid"]):
-                        self.files.append(f)
-                print(f"{len(self.files)} files found.")
-
-                # Completar sim_metadata con las características de los archivos encontrados
-                self.sim_metadata = {}
-                self.sim_metadata['files'] = {}
-                for f in self.files:
-                    with h5py.File(f, 'r') as h5file:
-                        keys_in_file = []
-                        h5file.visit(lambda name: keys_in_file.append(name) if isinstance(h5file.get(name, None), h5py.Dataset) else None)
-                    
-                    # self.sim_metadata['files'][os.path.basename(f)] = {}
-                    self.sim_metadata['files'][os.path.basename(f)] = {
-                        "path": f,
-                        "keys": keys_in_file
-                    }
-                self.df_state = None  # Not used for this format
-
-            def extract_inputs(self):
-                self.data_dict = {key: {} for key in list(self.names.keys())}
-                
-                ayuda = {}
-                for label in ['inputs', 'aux']:
-                    keys = self.keys[label]
-                    names = self.names[label]
-                    for fname, meta in self.sim_metadata['files'].items():
-                        reader = self.SAM.HDF5reader(meta["path"])
-                        dic = {}
-                        for key, name in zip(keys, names):
-                            dic[name] = reader.load_to_tensor(key, False)
-                            
-                        if fname not in ayuda:
-                            ayuda[fname] = {}
-                        ayuda[fname][label] = dic
-
-                # Recorremos archivos
-                for fname, file_content in ayuda.items():
-                    for section, section_content in file_content.items():  # aux / inputs / outputs
-                        for key, tensor in section_content.items():
-                            if key not in self.data_dict[section]:
-                                self.data_dict[section][key] = []
-                            self.data_dict[section][key].append(tensor)
-
-                # Concatenación inteligente
-                for section in self.data_dict:
-                    for key, tensors in self.data_dict[section].items():
-                        shapes = [t.shape for t in tensors]
-
-                        # Caso especial: todos iguales → no concateno, me quedo con uno
-                        if all(s == shapes[0] for s in shapes):
-                            self.data_dict[section][key] = tensors[0]
-                            continue
-
-                        # Si la primera dimensión coincide → concatenamos en la segunda
-                        if all(s[0] == shapes[0][0] for s in shapes):
-                            self.data_dict[section][key] = torch.cat(tensors, dim=1)
-                        else:
-                            # Si no, concatenamos en la primera
-                            self.data_dict[section][key] = torch.cat(tensors, dim=0)
-
-            def extract_outputs(self):
-                self.data_dict["outputs"]={} # <-- igual que en extract_inputs
-
-                ayuda = {}
-                keys = self.keys['outputs']
-                names = self.names['outputs']
-                for fname, meta in self.sim_metadata['files'].items():
-                    reader = self.SAM.HDF5reader(meta["path"])
-                    dic = {}
-                    for key, name in zip(keys, names):
-                        dic[name] = reader.load_to_tensor(key, False)
-                    if fname not in ayuda:
-                        ayuda[fname] = {}
-                    ayuda[fname]['outputs'] = dic
-
-                # Recorremos archivos
-                for fname, file_content in ayuda.items():
-                    for section, section_content in file_content.items():  # solo "outputs"
-                        for key, tensor in section_content.items():
-                            if key not in self.data_dict[section]:
-                                self.data_dict[section][key] = []
-                            self.data_dict[section][key].append(tensor)
-
-                # Concatenación inteligente
-                for section in ["outputs"]:  # aquí solo outputs
-                    for key, tensors in self.data_dict[section].items():
-                        shapes = [t.shape for t in tensors]
-
-                        if all(s == shapes[0] for s in shapes):
-                            self.data_dict[section][key] = tensors[0]
-                            continue
-
-                        if all(s[0] == shapes[0][0] for s in shapes):
-                            self.data_dict[section][key] = torch.cat(tensors, dim=1)
-                        else:
-                            self.data_dict[section][key] = torch.cat(tensors, dim=0)
-
         class NRL7301Reader():
             
             def __init__(self, root_dir:str, **kwargs):
@@ -2297,68 +2093,339 @@ class FRODO():
         
         class PYLOMReader():
             
-            def __init__(self, root_dir:str, file: str, **kwargs):
+            """
+            Reader for pyLOM datasets stored as .h5 or .pkl files.
+        
+            Typical usage
+            -------------
+            db = FRODO(root_dir='/path/to/data', format='PYLOM', file='sim.h5')
+        
+            db.extract_inputs(
+                keys_inputs = {
+                    'ptos': 'xyz',          # mandatory: mesh coordinates
+                    'time': 'time',         # variable from _vardict
+                },
+                keys_aux = {},
+            )
+        
+            db.extract_outputs(
+                keys_outputs = {
+                    'cp'  : 'Cp',           # scalar field from _fieldict
+                    'vel' : 'Velocity',     # vector field from _fieldict
+                }
+            )
+            """
+        
+            def __init__(self, root_dir: str, file: str, **kwargs):
                 """
-                Initialize the PYLOMReader, in order to load data from pylom datasets stored as .h5 files.
-                Args:
-                    root_dir (str): Root path where .h5 files are located.
-                    file (Union[str, list[str], tuple[str]]): Path(s) to .h5 file(s) relative to root_dir.
-                    **kwargs: Additional keyword arguments.
+                Parameters
+                ----------
+                root_dir : str
+                    Root path where the .h5 / .pkl file is located.
+                file : str or list[str] or tuple[str]
+                    Path(s) relative to root_dir.  Only the *first* file is used as the
+                    pyLOM dataset source; multiple files are accepted for forward
+                    compatibility but currently only the first is loaded.
+                **kwargs :
+                    Passed through; not used by the reader itself.
                 """
                 self.root_dir = root_dir
                 self.sim_metadata = {}
                 self.df_state = pd.DataFrame()
-                self.file = file
-                
-                for f in file:
-                    if not os.path.exists(os.path.join(root_dir, f)):
-                        raise FileNotFoundError(f"File {os.path.join(root_dir, f)} not found.")
-                
+                self.data_dict = {"inputs": {}, "outputs": {}, "aux": {}}
+        
+                # ── normalise file argument ──────────────────────────────────────────
                 if file is None:
-                    raise ValueError("File mustn't be None")
-                elif isinstance(file, str):
+                    raise ValueError("'file' must not be None.")
+                if isinstance(file, str):
                     self.files = [file]
-                elif isinstance(file, list) or isinstance(file, tuple):
+                elif isinstance(file, (list, tuple)):
                     if all(isinstance(f, str) for f in file):
-                        self.files = file
+                        self.files = list(file)
                     else:
                         raise TypeError("Every element in 'file' must be a str path.")
                 else:
-                    raise TypeError("The 'file' argument must be a string or a list/tuple of strings (paths to .npy files).")
-
+                    raise TypeError(
+                        "'file' must be a string or a list/tuple of strings."
+                    )
+        
+                self.file = self.files[0]   # primary file
+        
+                # ── existence check ──────────────────────────────────────────────────
+                for f in self.files:
+                    full = os.path.join(root_dir, f)
+                    if not os.path.exists(full):
+                        raise FileNotFoundError(f"File not found: {full}")
+        
+                # ── internal cache: populated lazily on first load ───────────────────
+                self._dataset = None
+        
+            # ── helpers ──────────────────────────────────────────────────────────────
+        
+            def _load_dataset(self) -> 'SMEAGOL.Dataset':
+                """Load (and cache) the pyLOM Dataset from disk."""
+                if self._dataset is None:
+                    t0 = time.perf_counter()
+                    self._dataset = SMEAGOL.Dataset.load(
+                        os.path.join(self.root_dir, self.file)
+                    )
+                    print(
+                        f"[PYLOMReader] Dataset loaded in "
+                        f"{time.perf_counter() - t0:.3f} s"
+                    )
+                return self._dataset
+        
+            @staticmethod
+            def _field_to_frodo(value: np.ndarray, ndim: int, npoints: int):
+                """
+                Convert a pyLOM field value to FRODO's storage convention.
+        
+                pyLOM storage  →  FRODO storage
+                ─────────────────────────────────────────────────────────────
+                (ndim*npoints,)          →  (npoints,)           [single snap, scalar]
+                (ndim*npoints, ncases)   →  (npoints, ncases)    [time-series, scalar]
+                (ndim*npoints,)  ndim>1  →  (ndim, npoints)      [single snap, vector]
+                (ndim*npoints, ncases)   →  (ndim, npoints, ncases) [time-series, vector]
+                """
+                single_snap = (value.ndim == 1)
+        
+                if ndim == 1:
+                    # scalar field
+                    if single_snap:
+                        return value.reshape(npoints)
+                    else:
+                        ncases = value.shape[1] if value.ndim > 1 else 1
+                        return value.reshape(npoints, ncases, order='C')
+                else:
+                    # vector field: de-interleave [d0_p0, d1_p0, …, dN_p0, d0_p1, …]
+                    if single_snap:
+                        return value.reshape(npoints, ndim, order='C').T  # (ndim, npoints)
+                    else:
+                        ncases = value.shape[1]
+                        # (ndim*npoints, ncases) → (npoints, ndim, ncases) → (ndim, npoints, ncases)
+                        return (
+                            value.reshape(npoints, ndim, ncases, order='C')
+                            .transpose(1, 0, 2)
+                        )
+        
+            # ── public API ────────────────────────────────────────────────────────────
+        
             def parse_simulation_dirs(self):
-                
+                """
+                Load the pyLOM Dataset and populate sim_metadata with a summary of
+                variables and fields (names + shapes).
+        
+                Called automatically by FRODO.__init__ when initial_parse=True.
+                """
                 self.sim_metadata = {}
                 self.sim_metadata["path"] = os.path.join(self.root_dir, self.file)
-                
-                inicio_leer = time.perf_counter()
-                content = SMEAGOL.Dataset.load(os.path.join(self.root_dir, self.file))
-                fin_leer = time.perf_counter()
-                print(f'Tiempo de lectura: {fin_leer - inicio_leer} segundos')
-                print(content)
-                self.sim_metadata['Vars'] = {}
-                self.sim_metadata['Fields'] = {}
-                for var in content._vardict.keys():
-                    self.sim_metadata['Vars'][var] = content._vardict[var]['value'].shape
-
-                for field in content._fieldict.keys():
-                    self.sim_metadata['Fields'][field] = content._fieldict[field]['value'].shape
-                    
-                print(f"Parsed {self.file}")
-                    
+        
+                ds = self._load_dataset()
+                print(ds)
+        
+                npoints = len(ds)
+                self.sim_metadata["npoints"] = npoints
+                self.sim_metadata["xyz_shape"] = ds.xyz.shape
+        
+                # ── variables (parametric / case axes) ──────────────────────────────
+                self.sim_metadata["Vars"] = {}
+                for vname, vdata in ds.vars.items():
+                    self.sim_metadata["Vars"][vname] = {
+                        "shape": vdata["value"].shape,
+                        "idim" : vdata["idim"],
+                    }
+        
+                # ── fields (spatial data) ────────────────────────────────────────────
+                self.sim_metadata["Fields"] = {}
+                for fname, fdata in ds.fields.items():
+                    self.sim_metadata["Fields"][fname] = {
+                        "shape": fdata["value"].shape,
+                        "ndim" : fdata["ndim"],
+                    }
+        
+                # ── df_state: one row per case (built from idim=0 variables) ─────────
+                # Collect all variables with idim==0 (they all share the same case axis)
+                case_vars = {
+                    k: v["value"]
+                    for k, v in ds.vars.items()
+                    if v["idim"] == 0
+                }
+                if case_vars:
+                    df_dict = {}
+                    for k, arr in case_vars.items():
+                        flat = np.asarray(arr).ravel()
+                        df_dict[k] = flat
+                    try:
+                        self.df_state = pd.DataFrame(df_dict)
+                    except ValueError:
+                        # Arrays have incompatible lengths – store individually
+                        self.df_state = pd.DataFrame(
+                            {k: pd.Series(v) for k, v in df_dict.items()}
+                        )
+        
+                print(f"[PYLOMReader] Parsed '{self.file}'  "
+                    f"({npoints} points, "
+                    f"{len(ds.vars)} vars, "
+                    f"{len(ds.fields)} fields)")
+        
+            # ─────────────────────────────────────────────────────────────────────────
+        
             def extract_inputs(
                 self,
-                keys_inputs,
-                keys_aux,
-                filter_by_vars,
-                filter_by_fields
-                ):
-                
-                pass
-            
-            def extract_outputs(self):
-                return super().extract_outputs()
-            
+                keys_inputs: dict,
+                keys_aux:    dict,
+                filter_by_vars:   'any' = None,
+                filter_by_fields: 'any' = None,
+            ):
+                """
+                Extract mesh coordinates and parametric variables into data_dict['inputs'].
+        
+                Parameters
+                ----------
+                keys_inputs : dict
+                    Mapping  alias → source_key, where source_key is either:
+                    * ``'xyz'``      – the mesh node coordinates  (npoints, ndim)
+                    * a key from ``_vardict``  – a parametric variable (ncases,)
+                    The alias ``'ptos'`` is conventional for coordinates and is expected
+                    by ``PYLOMSets.create_jset``.
+        
+                    Example::
+        
+                        keys_inputs = {
+                            'ptos' : 'xyz',     # coordinates
+                            'time' : 'time',    # variable "time" from _vardict
+                            'mach' : 'Mach',
+                        }
+        
+                keys_aux : dict
+                    Mapping  alias → field_key  for auxiliary spatial fields (e.g.
+                    mode shapes, masks).  Source must exist in ``_fieldict``.
+        
+                filter_by_vars : list[str] or None
+                    If provided, only retain cases where ``_vardict[v]`` entries are
+                    present.  (Reserved for future use – currently not applied.)
+        
+                filter_by_fields : list[str] or None
+                    If provided, only load the listed field names.
+                    (Reserved for future use – currently not applied.)
+        
+                Populates
+                ---------
+                data_dict['inputs'], data_dict['aux'], sim_metadata keys.
+                """
+                ds = self._load_dataset()
+                npoints = len(ds)
+        
+                self.data_dict["inputs"] = {}
+                self.data_dict["aux"]    = {}
+        
+                # ── inputs ───────────────────────────────────────────────────────────
+                for alias, src_key in keys_inputs.items():
+                    if src_key == "xyz":
+                        self.data_dict["inputs"][alias] = ds.xyz.copy()
+        
+                    elif src_key in ds.vars:
+                        arr = np.asarray(ds.vars[src_key]["value"])
+                        # Ensure shape (ncases, 1) for scalars so downstream code can
+                        # stack them easily, but keep higher-rank arrays as-is.
+                        if arr.ndim == 1:
+                            arr = arr.reshape(-1, 1)
+                        self.data_dict["inputs"][alias] = arr
+        
+                    else:
+                        raise KeyError(
+                            f"[PYLOMReader.extract_inputs] Key '{src_key}' not found "
+                            f"in dataset.  Available vars: {list(ds.vars.keys())}  |  "
+                            f"Use 'xyz' for coordinates."
+                        )
+        
+                # ── aux ───────────────────────────────────────────────────────────────
+                for alias, field_key in keys_aux.items():
+                    if field_key not in ds.fields:
+                        raise KeyError(
+                            f"[PYLOMReader.extract_inputs] Aux key '{field_key}' not "
+                            f"found in dataset fields: {list(ds.fields.keys())}"
+                        )
+                    fdata = ds.fields[field_key]
+                    self.data_dict["aux"][alias] = self._field_to_frodo(
+                        fdata["value"], fdata["ndim"], npoints
+                    )
+        
+                # ── metadata ─────────────────────────────────────────────────────────
+                self.sim_metadata["keys_inputs"] = keys_inputs
+                self.sim_metadata["keys_aux"]    = keys_aux
+        
+                # rebuild df_state from the (non-xyz) inputs that were extracted
+                scalar_inputs = {
+                    k: v.ravel()
+                    for k, v in self.data_dict["inputs"].items()
+                    if k != "ptos" and isinstance(v, np.ndarray) and v.ndim <= 2
+                }
+                if scalar_inputs:
+                    try:
+                        self.df_state = pd.DataFrame(scalar_inputs)
+                    except ValueError:
+                        self.df_state = pd.DataFrame(
+                            {k: pd.Series(v) for k, v in scalar_inputs.items()}
+                        )
+        
+                print(
+                    f"[PYLOMReader] extract_inputs done — "
+                    f"inputs: {list(self.data_dict['inputs'].keys())}  |  "
+                    f"aux: {list(self.data_dict['aux'].keys())}"
+                )
+        
+            # ─────────────────────────────────────────────────────────────────────────
+        
+            def extract_outputs(self, keys_outputs: dict):
+                """
+                Extract spatial field(s) from the dataset into data_dict['outputs'].
+        
+                Parameters
+                ----------
+                keys_outputs : dict
+                    Mapping  alias → field_key  where field_key exists in ``_fieldict``.
+        
+                    Example::
+        
+                        db.extract_outputs({
+                            'cp'  : 'Cp',        # scalar pressure coefficient
+                            'vel' : 'Velocity',  # 3-component velocity
+                        })
+        
+                Result shapes in data_dict['outputs']
+                --------------------------------------
+                scalar (ndim=1) → (npoints, ncases)
+                vector (ndim>1) → (ndim, npoints, ncases)
+                single snapshot → trailing ncases dimension is dropped.
+        
+                Populates
+                ---------
+                data_dict['outputs'], sim_metadata['keys_outputs'].
+                """
+                ds = self._load_dataset()
+                npoints = len(ds)
+        
+                self.data_dict["outputs"] = {}
+        
+                for alias, field_key in keys_outputs.items():
+                    if field_key not in ds.fields:
+                        raise KeyError(
+                            f"[PYLOMReader.extract_outputs] Key '{field_key}' not found "
+                            f"in dataset fields: {list(ds.fields.keys())}"
+                        )
+                    fdata = ds.fields[field_key]
+                    self.data_dict["outputs"][alias] = self._field_to_frodo(
+                        fdata["value"], fdata["ndim"], npoints
+                    )
+        
+                self.sim_metadata["keys_outputs"] = keys_outputs
+        
+                print(
+                    f"[PYLOMReader] extract_outputs done — "
+                    f"outputs: {list(self.data_dict['outputs'].keys())}"
+                )
+           
     class KEEPERS:
 
         class AIRFOILKeeper():
@@ -4148,112 +4215,7 @@ class FRODO():
                         self.db.data_dict[new_group_key]["Vars"][stage][var_name] = \
                             var_dst_stack[:, idx:idx+dim]
                         idx += dim
-                        
-        class NRL7301Sets_pylom():
-            
-            def __init__(self, db:'FRODO'):
-                self.db = db
-                self.keys = db.kwargs.get('keys', {})
-                names = db.kwargs.get('names', {})
-                
-                if names == {}:
-                    self.names = self.keys
-                else:
-                    self.names = names
-                    
-            def add_aux(
-                self,
-                notes: str,
-                tensor_name: str,
-                tensor: torch.Tensor
-                ):
-                # Accedemos a la base de datos a través de self.db
-                db = self.db
-
-                # Asegurar que existe la clave 'aux'
-                if not hasattr(db, "data_dict") or db.data_dict is None:
-                    db.data_dict = {"inputs": {}, "aux": {}, "outputs": {}}
-                elif "aux" not in db.data_dict:
-                    db.data_dict["aux"] = {}
-
-                # Añadir la nota en sim_metadata a nivel global
-                if 'info_aux' not in db.sim_metadata:
-                    db.sim_metadata['info_aux'] = []
-                db.sim_metadata['info_aux'].append(notes)
-
-                # Añadir el tensor
-                db.data_dict['aux'][tensor_name] = tensor
-                
-            # @staticmethod
-            # def add_aux(
-            #     db: 'FRODO',
-            #     notes: str = None,
-            #     tensor_name: str,
-            #     tensor: torch.Tensor
-            #     ):
-            #     # Asegurar que existe la clave 'aux'
-            #     if not hasattr(db, "data_dict"):
-            #         db.data_dict = {"inputs": {}, "aux": {}, "outputs": {}}
-            #     elif "aux" not in db.data_dict:
-            #         db.data_dict["aux"] = {}
-
-            #     # Añadir la nota en sim_metadata a nivel global
-            #     if 'info_aux' not in db.sim_metadata:
-            #         db.sim_metadata['info_aux'] = []
-            #     db.sim_metadata['info_aux'].append(notes)
-
-            #     # Añadir el tensor
-            #     db.data_dict['aux'][tensor_name] = tensor
-                
-            def create_jset(
-                self,
-                sol='all',
-                n=None,
-                save_path: bool | str = False,
-                verbose: bool = False
-                ):
-
-                # --- Inputs ---
-                tensors_inputs = [self.db.data_dict['inputs'][name] for name in self.names['inputs']]
-                tensor_ptos = tensors_inputs[0]  # asumimos que ptos es el primero en names['inputs']
-                tensor_flcc = torch.stack(tensors_inputs[1:], dim=1)  # resto de inputs apilados
-
-                # --- Aux ---
-                tensors_aux = [self.db.data_dict['aux'][name] for name in self.db.data_dict['aux'].keys()]
-                print(tuple(tensor.shape for tensor in tensors_aux))
-                # --- Outputs ---
-                tensors_out = [self.db.data_dict['outputs'][name] for name in self.names['outputs']]
-
-                # --- Crear dataset ---
-                result = SAM.Gardener.create_final_tensor(
-                    tensor_ptos, tensor_flcc, tensors_out, tensors_aux,
-                    sol=sol, n=n, verbose=verbose
-                )
-
-                # --- Guardar si hace falta ---
-                if save_path:
-                    if save_path.endswith('h5'):
-                        with h5py.File(save_path, "w") as h5file:
-                            h5file.create_dataset("tensor", data=result['tensor'].numpy())
-                            h5file.create_dataset("scaled", data=result['scaled'].numpy())
-                            h5file.create_dataset("mins", data=result['mins'].numpy())
-                            h5file.create_dataset("maxs", data=result['maxs'].numpy())
-
-                    if save_path.endswith('pt'):
-                        torch.save(obj=result, f=save_path)
-
-                    if verbose:
-                        print(f"Jset saved in {save_path}")
-
-                self.db.dict_tensors = result
-                print("jset loaded in db.dict_tensors")
-
-            def create_split(self):
-                pass
-            
-            def create_NN_pylom(self, *args, **kwargs):
-                raise NotImplementedError("Función para exportar a pyLOM no implementada todavía.")
-            
+                           
         class NRL7301Sets():
             
             def __init__(self, db:'FRODO'):
@@ -4471,3 +4433,395 @@ class FRODO():
             
             def create_split(self, *args, **kwargs):
                 return super().create_split(*args, **kwargs)
+            
+        class PYLOMSets():
+
+            """
+            High-level operations on a FRODO database loaded from a pyLOM dataset.
+        
+            Access via ``db.sets`` after constructing FRODO with ``format='PYLOM'``.
+        
+            Quick-reference
+            ---------------
+            db.sets.get_xyz()                         → (npoints, ndim) coordinates
+            db.sets.get_variable('time')              → (ncases,) array
+            db.sets.get_field('cp')                   → (npoints, ncases)
+            db.sets.get_field('vel', idim=0)          → (npoints, ncases) first component
+            db.sets.add_aux('mask', arr, 'bool mask') → store auxiliary array
+            db.sets.to_pylom_dataset()                → reconstruct pyLOM Dataset
+            db.sets.create_jset()                     → build ML tensor (SAM.Gardener)
+            """
+        
+            def __init__(self, db: 'FRODO'):
+                self.db = db
+        
+            # ── accessors ────────────────────────────────────────────────────────────
+        
+            def get_xyz(self) -> np.ndarray:
+                """
+                Return mesh node coordinates.
+        
+                Returns
+                -------
+                np.ndarray, shape (npoints, ndim)
+                """
+                inputs = self.db.data_dict.get("inputs", {})
+                for candidate in ("ptos", "xyz"):
+                    if candidate in inputs:
+                        return inputs[candidate]
+                raise KeyError(
+                    "Coordinates not found in data_dict['inputs'].  "
+                    "Run extract_inputs with 'ptos': 'xyz' first."
+                )
+        
+            def get_variable(self, name: str) -> np.ndarray:
+                """
+                Return a parametric variable (e.g. time, Mach, AoA) as a 1-D array.
+        
+                Parameters
+                ----------
+                name : str
+                    Alias used in ``extract_inputs``.
+        
+                Returns
+                -------
+                np.ndarray, shape (ncases,)
+                """
+                inputs = self.db.data_dict.get("inputs", {})
+                if name not in inputs:
+                    raise KeyError(
+                        f"Variable '{name}' not found in data_dict['inputs'].  "
+                        f"Available: {list(inputs.keys())}"
+                    )
+                return np.asarray(inputs[name]).ravel()
+        
+            def get_field(
+                self,
+                name: str,
+                idim: int = None,
+                section: 'int | slice | None' = None,
+            ) -> np.ndarray:
+                """
+                Return an output field with optional component and case selection.
+        
+                Parameters
+                ----------
+                name : str
+                    Alias used in ``extract_outputs``.
+                idim : int or None
+                    For vector fields (ndim > 1), select a single spatial component
+                    (0-indexed).  If None and the field is a vector, the full
+                    (ndim, npoints, ncases) array is returned.
+                section : int, slice or None
+                    Select a subset of cases from the trailing axis.
+        
+                Returns
+                -------
+                np.ndarray
+                    Scalar field  → (npoints,) or (npoints, ncases)
+                    Vector field  → (ndim, npoints, ncases)  or  (npoints, ncases) if idim set
+                """
+                outputs = self.db.data_dict.get("outputs", {})
+                if name not in outputs:
+                    raise KeyError(
+                        f"Field '{name}' not found in data_dict['outputs'].  "
+                        f"Available: {list(outputs.keys())}"
+                    )
+                arr = outputs[name]
+        
+                if idim is not None:
+                    if arr.ndim < 3:
+                        raise ValueError(
+                            f"Field '{name}' is scalar (shape {arr.shape}); "
+                            f"idim selection is only valid for vector fields."
+                        )
+                    arr = arr[idim]   # (npoints, ncases)
+        
+                if section is not None:
+                    arr = arr[..., section]
+        
+                return arr
+        
+            def field_names(self) -> list:
+                """Return the list of available output field aliases."""
+                return list(self.db.data_dict.get("outputs", {}).keys())
+        
+            def variable_names(self) -> list:
+                """Return the list of available input variable aliases (excl. 'ptos')."""
+                return [
+                    k for k in self.db.data_dict.get("inputs", {}).keys()
+                    if k not in ("ptos", "xyz")
+                ]
+        
+            # ── auxiliary data ───────────────────────────────────────────────────────
+        
+            def add_aux(
+                self,
+                array_name: str,
+                array:      np.ndarray,
+                notes:      str = None,
+            ):
+                """
+                Store an auxiliary array in data_dict['aux'] and record metadata.
+        
+                Parameters
+                ----------
+                array_name : str
+                    Key to use in data_dict['aux'].
+                array : np.ndarray
+                    The array to store.
+                notes : str or None
+                    Human-readable description stored in sim_metadata['keys_aux'].
+                """
+                db = self.db
+        
+                if not hasattr(db, "data_dict") or db.data_dict is None:
+                    db.data_dict = {"inputs": {}, "aux": {}, "outputs": {}}
+                elif "aux" not in db.data_dict:
+                    db.data_dict["aux"] = {}
+        
+                if "info_aux" not in db.sim_metadata:
+                    db.sim_metadata["info_aux"] = []
+                db.sim_metadata["info_aux"].append(notes)
+        
+                if "keys_aux" not in db.sim_metadata:
+                    db.sim_metadata["keys_aux"] = {}
+                db.sim_metadata["keys_aux"][array_name] = notes
+        
+                db.data_dict["aux"][array_name] = array
+        
+            # ── pyLOM round-trip ──────────────────────────────────────────────────────
+        
+            def to_pylom_dataset(self) -> 'SMEAGOL.Dataset':
+                """
+                Reconstruct a pyLOM ``Dataset`` from the current data_dict.
+        
+                This is useful for passing data back to pyLOM reduction methods
+                (POD, DMD, …) after processing inside FRODO.
+        
+                Returns
+                -------
+                SMEAGOL.Dataset
+                    A new Dataset with xyz, vars and fields populated from data_dict.
+        
+                Notes
+                -----
+                * A trivial serial PartitionTable (1 partition) is created.
+                * Vector fields stored as (ndim, npoints, ncases) are re-interleaved
+                back to pyLOM's (ndim*npoints, ncases) convention.
+                """
+                from pyLOM.dataset import Dataset
+                from pyLOM.partition_table import PartitionTable
+        
+                inputs  = self.db.data_dict.get("inputs", {})
+                outputs = self.db.data_dict.get("outputs", {})
+        
+                # ── coordinates ────────────────────────────────────────────────────
+                xyz = self.get_xyz()
+                npoints = xyz.shape[0]
+        
+                # ── partition table (serial, no master) ───────────────────────────
+                ptable = PartitionTable.new(
+                    nparts=1, nelems=0, npoints=npoints, has_master=False
+                )
+        
+                # ── vardict: everything in inputs except ptos/xyz ─────────────────
+                var_dict = {}
+                idim_counter = 0
+                for alias, arr in inputs.items():
+                    if alias in ("ptos", "xyz"):
+                        continue
+                    flat = np.asarray(arr).ravel()
+                    var_dict[alias] = {"idim": idim_counter, "value": flat}
+                    idim_counter += 1
+        
+                # ── fieldict: all outputs, re-interleaved to pyLOM convention ─────
+                field_dict = {}
+                for alias, arr in outputs.items():
+                    arr = np.asarray(arr)
+                    if arr.ndim == 1:
+                        # (npoints,) – single snapshot scalar
+                        field_dict[alias] = {
+                            "ndim" : 1,
+                            "value": arr.reshape(npoints),
+                        }
+                    elif arr.ndim == 2:
+                        # (npoints, ncases) – time-series scalar
+                        field_dict[alias] = {
+                            "ndim" : 1,
+                            "value": arr.reshape(npoints, arr.shape[1]),
+                        }
+                    elif arr.ndim == 3:
+                        # (ndim, npoints, ncases) – vector field
+                        ndim_f, np_, nc = arr.shape
+                        # re-interleave: (npoints, ndim, ncases) → (ndim*npoints, ncases)
+                        interleaved = arr.transpose(1, 0, 2).reshape(np_ * ndim_f, nc, order='C')
+                        field_dict[alias] = {
+                            "ndim" : ndim_f,
+                            "value": interleaved,
+                        }
+                    else:
+                        warnings.warn(
+                            f"[PYLOMSets.to_pylom_dataset] Field '{alias}' has unexpected "
+                            f"shape {arr.shape} and will be stored as-is."
+                        )
+                        field_dict[alias] = {"ndim": 1, "value": arr}
+        
+                order = np.arange(npoints, dtype=np.int32)
+                ds = Dataset(
+                    xyz=xyz,
+                    ptable=ptable,
+                    vars=var_dict,
+                    order=order,
+                    point=True,
+                    **field_dict,
+                )
+                return ds
+        
+            # ── ML tensor ────────────────────────────────────────────────────────────
+        
+            def create_jset(
+                self,
+                sol: 'Union[list[int], int, str]' = "all",
+                n: int = None,
+                save_path: 'Union[bool, str]' = False,
+                verbose: bool = False,
+            ):
+                """
+                Assemble inputs, aux and outputs into a joint ML tensor via SAM.Gardener.
+        
+                Follows the same interface as the equivalent method in CODASets,
+                NUMPYFILESets and NRL7301Sets_pylom.
+        
+                Parameters
+                ----------
+                sol : 'all', int or list[int]
+                    Which case indices to include.  'all' uses every case.
+                n : int or None
+                    If set, randomly subsample n cases.
+                save_path : str or False
+                    If a path string ending in '.h5' or '.pt', the result is saved.
+                verbose : bool
+                    Print progress information.
+        
+                Side-effects
+                ------------
+                Sets ``db.dict_tensors`` (SAM.Gardener result dict) and
+                ``db.df_data`` (DataFrame with one row per point×case).
+                """
+                db = self.db
+                dd = db.data_dict
+        
+                # ── inputs ───────────────────────────────────────────────────────────
+                if "inputs" not in dd or not dd["inputs"]:
+                    raise ValueError(
+                        "data_dict['inputs'] is empty.  "
+                        "Call extract_inputs() before create_jset()."
+                    )
+        
+                input_keys  = list(dd["inputs"].keys())
+                ptos_key    = next(
+                    (k for k in input_keys if k in ("ptos", "xyz")), None
+                )
+                if ptos_key is None:
+                    raise ValueError(
+                        "No coordinate array ('ptos' or 'xyz') found in "
+                        "data_dict['inputs'].  Make sure to map 'ptos': 'xyz' in "
+                        "extract_inputs()."
+                    )
+        
+                tensor_ptos = torch.from_numpy(np.asarray(dd["inputs"][ptos_key]))
+                flcc_arrays = [
+                    torch.from_numpy(np.asarray(dd["inputs"][k]).reshape(-1, 1)
+                                    if np.asarray(dd["inputs"][k]).ndim == 1
+                                    else np.asarray(dd["inputs"][k]))
+                    for k in input_keys
+                    if k != ptos_key
+                ]
+                tensor_flcc = torch.cat(flcc_arrays, dim=1) if flcc_arrays else torch.empty(0)
+        
+                # ── aux ───────────────────────────────────────────────────────────────
+                tensors_aux = [
+                    torch.from_numpy(np.asarray(v))
+                    for v in dd.get("aux", {}).values()
+                ]
+        
+                # ── outputs ───────────────────────────────────────────────────────────
+                if "outputs" not in dd or not dd["outputs"]:
+                    raise ValueError(
+                        "data_dict['outputs'] is empty.  "
+                        "Call extract_outputs() before create_jset()."
+                    )
+                tensors_out = [
+                    torch.from_numpy(np.asarray(v))
+                    for v in dd["outputs"].values()
+                ]
+        
+                # ── build joint tensor ───────────────────────────────────────────────
+                result = SAM.Gardener.create_final_tensor(
+                    tensor_ptos, tensor_flcc, tensors_out, tensors_aux,
+                    sol=sol, n=n, verbose=verbose,
+                )
+        
+                # ── optional save ────────────────────────────────────────────────────
+                if save_path:
+                    if save_path.endswith(".h5"):
+                        with h5py.File(save_path, "w") as hf:
+                            hf.create_dataset("tensor", data=result["tensor"].numpy())
+                            hf.create_dataset("scaled", data=result["scaled"].numpy())
+                            hf.create_dataset("mins",   data=result["mins"].numpy())
+                            hf.create_dataset("maxs",   data=result["maxs"].numpy())
+                    elif save_path.endswith(".pt"):
+                        torch.save(result, save_path)
+                    else:
+                        raise ValueError(
+                            "save_path extension not supported.  Use '.h5' or '.pt'."
+                        )
+                    if verbose:
+                        print(f"[PYLOMSets] jset saved → {save_path}")
+        
+                db.dict_tensors = result
+        
+                # ── df_data ───────────────────────────────────────────────────────────
+                columns = []
+                for k in input_keys:
+                    arr = np.asarray(dd["inputs"][k])
+                    if k == ptos_key:
+                        ndim = arr.shape[1] if arr.ndim > 1 else 1
+                        columns.extend(["x", "y", "z"][:ndim])
+                    else:
+                        ncols = arr.shape[1] if arr.ndim > 1 else 1
+                        if ncols == 1:
+                            columns.append(k)
+                        else:
+                            columns.extend([f"{k}_{i}" for i in range(ncols)])
+        
+                for section in ("aux", "outputs"):
+                    for k in dd.get(section, {}).keys():
+                        columns.append(k)
+        
+                try:
+                    db.df_data = pd.DataFrame(
+                        data=result["tensor"].numpy(), columns=columns
+                    )
+                except Exception:
+                    db.df_data = pd.DataFrame(result["tensor"].numpy())
+        
+                if verbose:
+                    print("[PYLOMSets] jset loaded in db.dict_tensors")
+                    print("[PYLOMSets] dataframe loaded in db.df_data")
+        
+            # ── convenience summary ────────────────────────────────────────────────
+        
+            def summary(self):
+                """Print a compact summary of what has been loaded into data_dict."""
+                dd = self.db.data_dict
+                print("── PYLOMSets summary ──────────────────────────────────")
+                for section in ("inputs", "outputs", "aux"):
+                    print(f"  [{section}]")
+                    for k, v in dd.get(section, {}).items():
+                        arr = np.asarray(v)
+                        print(f"    {k:25s}  shape={arr.shape}  dtype={arr.dtype}")
+                print("───────────────────────────────────────────────────────")
+
+            

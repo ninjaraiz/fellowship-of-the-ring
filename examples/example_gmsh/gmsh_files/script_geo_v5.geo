@@ -12,9 +12,9 @@ h0 = 0.1; // altura de extrusión
 nLayers = 10; // nº de capas
 
 lc_ff = 1e-1; //9e-2; 
-lc_a = 8e-5; //8e-5;
+lc_a = 1e-4; //8e-5;
 lc_ball = 1e-2; //5e-2;
-lc_box = 7e-3; //7e-4; 
+lc_box = 9e-3; //7e-4; 
 
 use_boundary_layer = 1; // 1 = activar capa límite | 0 = desactivar
 n_layers_BL = 10;
@@ -90,19 +90,18 @@ Field[5].DistMin = 1.0*c;
 Field[5].DistMax = 2.0*c;
 
 If (use_boundary_layer)
-  Transfinite Curve {100} = 4000 Using Progression 1.0; // 9500
+  Transfinite Curve {100} = 2000 Using Progression 1.0; // 9500
 
   Field[1] = BoundaryLayer;
   Field[1].CurvesList = {100};   // spline del perfil
   Field[1].Size      = lc_a;
-  Field[1].SizeFar   = lc_box;
+  Field[1].SizeFar   = lc_ball;
   Field[1].NbLayers  = n_layers_BL;
   Field[1].Thickness = 0.08*t;
 
   Field[1].Ratio     = 1.2;
   Field[1].Quads     = 1;
 
-  // Fans en LE/TE (ajustar IDs según tu geometría)
   Mesh.BoundaryLayerFanElements = 15;
   Field[1].FanPointsList = {1100, 1050};
   // Field[1].FanPointsSizesList = {lc_a/5, lc_a/5};
@@ -120,9 +119,9 @@ Field[7].ZMin = -t; Field[7].ZMax =  t;
 
 Field[8] = Min;
 If (use_boundary_layer) 
-  Field[8].FieldsList = {1, 5, 7};
+  Field[8].FieldsList = {1, 5};
 Else
-  Field[8].FieldsList = {5, 7};
+  Field[8].FieldsList = {5};
 EndIf
 
 Background Field = 8;
@@ -162,3 +161,4 @@ Physical Volume("Domain", 4) = {1};
 
 // Crear mallar y expotar:
 Mesh 3;
+
