@@ -3244,7 +3244,9 @@ class FRODO():
                 stage:int,
                 idx_to_print:Union[int, list[int], 'all'] = 'all',
                 external_vars:Union[dict, None] = None,
-                save_path:Union[bool, str]=False
+                save_path:Union[bool, str]=False,
+                nan_policy:Literal['fill', 'raise'] = 'fill',
+                nan_fill_value:float = 0.0,
                 
                 ):
                 """
@@ -3254,6 +3256,10 @@ class FRODO():
                     db (FRODO): FRODO instance containing data_dict with extracted inputs/outputs.
                     id_groups (tuple): IDs or tuple-combinations of IDs to convert into pyLOM Datasets.
                     save_path (Union[bool, str]): If True, saves datasets to a file; if str, saves to that path; if False, does not save.
+                    nan_policy (Literal['fill', 'raise']): pyLOM's HDF5 writer creates empty
+                        field datasets when any NaN is present. Use 'fill' to replace NaNs
+                        before saving or 'raise' to stop with a detailed error.
+                    nan_fill_value (float): Value used when nan_policy='fill'.
 
                 Returns:
                     list[pyLOM.Dataset]: List of pyLOM Dataset objects ready for pyLOM processing/export.
@@ -3265,6 +3271,9 @@ class FRODO():
                 d_list = []
                 if isinstance(id_groups, int):
                     id_groups = [id_groups]
+
+                if nan_policy not in ('fill', 'raise'):
+                    raise ValueError("nan_policy must be either 'fill' or 'raise'.")
                     
                 for id in id_groups:
                     key = f"CADGroup_{id}" #f"CADGroup_{key_suffix}"
@@ -3275,9 +3284,12 @@ class FRODO():
                 
                     ptable = SMEAGOL.PartitionTable.new(1,conec.shape[0],xyz.shape[0])
 
-                    fields = list(self.db.data_dict[key]['Vars'][str(stage)].keys())
-                    fields.remove('GlobalNumber')
-                    fields.remove('CADGroupID')
+                    npoints = xyz.shape[0]
+                    fields = [
+                        name
+                        for name in self.db.data_dict[key]['Vars'][str(stage)].keys()
+                        if name not in ('GlobalNumber', 'CADGroupID')
+                    ]
                     
                     if idx_to_print == 'all':
                         idx_to_print = list(range(self.db.data_dict[key]["FlCc"].shape[0]))
@@ -3286,8 +3298,9 @@ class FRODO():
                         idx_to_print = [idx_to_print]
                         
                     max_cases = self.db.data_dict[key]["FlCc"].shape[0]
-                    if any(i >= max_cases for i in idx_to_print):
+                    if any(i >= max_cases or i < 0 for i in idx_to_print):
                         raise IndexError("idx_to_print contains indices out of range.")
+                    case_idx = np.asarray(idx_to_print, dtype=np.int64)
                     
                     eltype = self.db.data_dict[key]["eltype"]
                     cell_order = self.db.data_dict[key]["cellOrder"]
@@ -3311,7 +3324,7 @@ class FRODO():
                             
                             if idx_to_print is not None:
                                 idx = np.asarray(idx_to_print)
-                                if idx.max() >= len(value):
+                                if idx.size > 0 and idx.max() >= len(value):
                                     raise IndexError(
                                         f"idx_to_print contiene índices fuera de rango. "
                                         f"Max idx: {idx.max()}, tamaño: {len(value)}"
@@ -3320,19 +3333,74 @@ class FRODO():
                         
                     field_dict = {}
 
+                    def _sanitize_pylom_field(name, value):
+                        if not np.issubdtype(value.dtype, np.floating):
+                            return np.ascontiguousarray(value)
+
+                        nan_mask = np.isnan(value)
+                        if not np.any(nan_mask):
+                            return np.ascontiguousarray(value)
+
+                        n_nan = int(np.count_nonzero(nan_mask))
+                        if nan_policy == 'raise':
+                            raise ValueError(
+                                f"Variable '{name}' contains {n_nan} NaN values. "
+                                "pyLOM's HDF5 writer stores fields with any NaN as empty. "
+                                "Use nan_policy='fill' or clean the source data."
+                            )
+
+                        warnings.warn(
+                            f"Variable '{name}' contains {n_nan} NaN values. "
+                            f"Replacing them with {nan_fill_value} before creating the pyLOM Dataset.",
+                            RuntimeWarning
+                        )
+                        value = value.copy()
+                        value[nan_mask] = nan_fill_value
+                        return np.ascontiguousarray(value)
+
                     for f in fields:
-                        var_array = self.db.data_dict[key]['Vars'][str(stage)][f]
+                        var_array = np.asarray(self.db.data_dict[key]['Vars'][str(stage)][f])
 
-                        if len(var_array.shape) == 2: #escalar
+                        if var_array.ndim == 2: # escalar
 
-                            value = var_array[:, idx_to_print]#[idx_points, cols]
+                            if var_array.shape[0] == npoints:
+                                if case_idx.size > 0 and case_idx.max() >= var_array.shape[1]:
+                                    raise IndexError(
+                                        f"idx_to_print contains indices out of range for "
+                                        f"scalar variable '{f}' with {var_array.shape[1]} cases."
+                                    )
+                                value = var_array[:, case_idx]
+                            elif var_array.shape[1] == npoints:
+                                if case_idx.size > 0 and case_idx.max() >= var_array.shape[0]:
+                                    raise IndexError(
+                                        f"idx_to_print contains indices out of range for "
+                                        f"scalar variable '{f}' with {var_array.shape[0]} cases."
+                                    )
+                                value = var_array[case_idx, :].T
+                            else:
+                                raise ValueError(
+                                    f"Variable '{f}' has shape {var_array.shape}, "
+                                    f"but neither axis matches npoints={npoints}."
+                                )
+                            value = _sanitize_pylom_field(f, value)
                             field_dict[f] = {
                                 'ndim': 1,
                                 'value': value
                             }
 
-                        elif len(var_array.shape) == 3:                    # (ndim, npoints, ncases)
-                            value = var_array[:, :, idx_to_print]           # (ndim, npoints, n_idx)
+                        elif var_array.ndim == 3:                           # (ndim, npoints, ncases)
+                            if var_array.shape[1] != npoints:
+                                raise ValueError(
+                                    f"Vector variable '{f}' has shape {var_array.shape}; "
+                                    f"expected axis 1 to match npoints={npoints}."
+                                )
+                            if case_idx.size > 0 and case_idx.max() >= var_array.shape[2]:
+                                raise IndexError(
+                                    f"idx_to_print contains indices out of range for "
+                                    f"variable '{f}' with {var_array.shape[2]} cases."
+                                )
+
+                            value = var_array[:, :, case_idx]               # (ndim, npoints, n_idx)
                             ndim_v, npoints_v, ncases_v = value.shape
 
                             # pyLOM espera en _fieldict: (ndim*npoints, ncases) con layout entrelazado
@@ -3345,13 +3413,20 @@ class FRODO():
                                 .reshape(npoints_v * ndim_v, ncases_v, order='C')   # (ndim*npoints, ncases)
                             )
                             # Forzar C-contiguous para que h5 no tenga problemas de strides
-                            value_interleaved = np.ascontiguousarray(value_interleaved)
+                            value_interleaved = _sanitize_pylom_field(f, value_interleaved)
 
                             field_dict[f] = {
                                 'ndim': ndim_v,
                                 'value': value_interleaved,
                             }
-                        print(f'{f}: \n', f'{field_dict[f]["value"].shape}\n')
+                        else:
+                            raise ValueError(
+                                f"Variable '{f}' has unsupported shape {var_array.shape}; "
+                                "expected a scalar field (npoints, ncases) or "
+                                "(ncases, npoints), or a vector field "
+                                "(ndim, npoints, ncases)."
+                            )
+                        # print(f'{f}: \n', f'{field_dict[f]["value"].shape}\n')
                     
                         
                     d = SMEAGOL.Dataset(
