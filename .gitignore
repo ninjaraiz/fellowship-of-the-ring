@@ -27,3 +27,6 @@ xfoil_out/
 **/*.log
 **/*.out
 **/*.err
+
+# Sbatch
+**/*.sh
