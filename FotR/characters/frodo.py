@@ -321,7 +321,7 @@ class FRODO():
             # ---------- interpolación ----------
             new_id = f"{gid}_merge_tmp_{id(db)}"
 
-            db.sets.create_group_by_interpolation(
+            db.sets.interpolate_msh2msh(
                 id_group_src=gid,
                 new_group_id=new_id,
                 new_mesh=ref_group,
@@ -952,177 +952,6 @@ class FRODO():
                         'pointOrder': pointOrder_base
                     })
                     
-            def extract_inputs_ant(
-                self,
-                id_groups: Union[int, tuple[int]],
-                vtu_type: Literal['volume', 'surface'] = 'surface',
-                cases_idx:Union[list[int], tuple[int], int, 'all']='all'
-                
-                ):
-                
-                """
-                Extract input mesh and metadata for one or multiple CADGroup IDs.
-
-                Args:
-                    id_groups (tuple): Tuple of IDs or tuples of IDs.
-                        - Example: (3,) for a single group.
-                        - Example: ((1,2), 3) to combine groups 1 and 2 into one key and also process group 3.
-                    vtu_type (Literal['volume', 'surface']): Type of .vtu file to load, default is 'surface'.
-                    cases_idx (Union[list[int], tuple[int], int, 'all']): Indices of simulations to process.
-                        - Example: [0, 2] to process the first and third simulations.
-                        
-                Populates self.data_dict with:
-                    - 'Coord', 'NodeCoord': Coordinates of centroids and nodes.
-                    - 'FlCc': Array of AoA and Mach for each simulation.
-                    - 'Conec': Unified connectivity arrays.
-                    - 'idx_sort', 'idx_sort_nodes': Sorting indices for centroids and nodes.
-                    - 'eltype', 'cellOrder', 'pointOrder': Mesh type and ordering arrays.
-
-                Returns:
-                    None. Updates self.data_dict in place.
-                """
-                
-                num_stages = self.metadata.get("num_stages", 1)
-                design_vars = self.metadata.get("design_vars", [])
-                
-                sim_keys_total = list(self.sim_metadata.keys())
-                    
-                # if cases_idx == 'all':
-                #     sim_keys = sim_keys_total
-                #     self.metadata['sim_keys'] = 'all'
-                # elif isinstance(cases_idx, int):
-                #     sim_keys = [self.case_per_idx(cases_idx)]
-                #     self.metadata['sim_keys'] = [cases_idx]
-                # elif isinstance(cases_idx, (list, tuple)):
-                #     sim_keys = [self.case_per_idx(i) for i in cases_idx]
-                #     self.metadata['sim_keys'] = cases_idx
-                # else:
-                #     raise ValueError("Invalid type for cases_idx. Must be 'all', int, list[int], or tuple[int].")
-                
-                if cases_idx == 'all':
-                    sim_keys = sim_keys_total
-                    self.metadata['sim_keys'] = 'all'
-                elif isinstance(cases_idx, int):
-                    sim_keys = [self.case_per_idx(cases_idx)]
-                    self.metadata['sim_keys'] = [cases_idx]
-                elif isinstance(cases_idx, (list, tuple)):
-                    sim_keys = [self.case_per_idx(i) for i in cases_idx]
-                    self.metadata['sim_keys'] = cases_idx
-                else:
-                    raise ValueError("Invalid type for cases_idx. Must be 'all', int, list[int], or tuple[int].")
-                
-                
-                ncases = len(sim_keys)
-                
-                for group_id in id_groups:
-
-                    if isinstance(group_id, tuple):
-                        ids_to_combine = group_id
-                        key_suffix = "_".join(map(str, ids_to_combine))
-                    elif isinstance(group_id, int):
-                        ids_to_combine = (group_id,)
-                        key_suffix = str(group_id)
-
-                    key = f"CADGroup_{key_suffix}"
-
-                    Coord_base = None
-                    NodeCoord_base = None
-
-                    Conec_base = None
-                    eltype_base = None
-                    cellOrder_base = None
-                    pointOrder_base = None
-
-                    FlCc = None
-                    idx_sort = None
-                    idx_sort_nodes = None
-
-                    for stage in range(num_stages):
-
-                        for case_i, sim_key in enumerate(sim_keys):
-
-                            try:
-                                mesh = self.load_vtu_from_stage(
-                                    case_name=sim_key,
-                                    stage=stage,
-                                    vtu_type=vtu_type
-                                )
-
-                                if "CADGroupID" not in mesh.cell_data:
-                                    raise ValueError("No se encuentra 'CADGroupID' en cell_data.")
-
-                                groups = mesh.cell_data["CADGroupID"]
-                                mask = np.isin(groups, ids_to_combine)
-
-                                celdas = mesh.extract_cells(mask)
-                                centroids = np.array(celdas.cell_centers().points)
-                                nodes = np.array(celdas.points)
-
-                                connectivity = SAM.Backpack.get_unified_connectivity(mesh)[mask]
-
-                                idx = np.lexsort((centroids[:, 2], centroids[:, 1], centroids[:, 0]))
-                                idx_nodes = np.lexsort((nodes[:, 2], nodes[:, 1], nodes[:, 0]))
-
-                                centroids_sorted = centroids[idx]
-                                nodes_sorted = nodes[idx_nodes]
-
-                                if stage == 0 and case_i == 0:
-
-                                    npoints = centroids.shape[0]
-                                    nnodes = nodes.shape[0]
-
-                                    idx_sort = np.zeros((num_stages, ncases, npoints), dtype=np.int32)
-                                    idx_sort_nodes = np.zeros((num_stages, ncases, nnodes), dtype=np.int32)
-
-                                    FlCc = np.zeros((ncases, len(design_vars)), dtype=np.float32)
-
-                                    Coord_base = centroids_sorted.copy()
-                                    NodeCoord_base = nodes_sorted.copy()
-
-                                    Conec_base = connectivity.copy()
-                                    eltype_base = celdas.celltypes.copy()
-                                    cellOrder_base = np.arange(celdas.n_cells)
-                                    pointOrder_base = np.arange(celdas.n_points)
-
-                                else:
-                                    if not SAM.Backpack.same_columns(
-                                        np.stack([Coord_base, centroids_sorted], axis=0)
-                                    ):
-                                        raise ValueError(
-                                            f"Inconsistent cell coordinates at stage {stage}, case {sim_key}"
-                                        )
-
-                                    if not SAM.Backpack.same_columns(
-                                        np.stack([NodeCoord_base, nodes_sorted], axis=0)
-                                    ):
-                                        raise ValueError(
-                                            f"Inconsistent node coordinates at stage {stage}, case {sim_key}"
-                                        )
-
-                                idx_sort[stage, case_i] = idx
-                                idx_sort_nodes[stage, case_i] = idx_nodes
-
-                                if stage == 0:
-                                    FlCc[case_i] = [self.sim_metadata[sim_key][p] for p in design_vars]
-
-                            except Exception as e:
-                                print(f"Error reading simulation's inputs {sim_key}, group {group_id}, stage {stage}: {e}")
-
-                    if key not in self.data_dict:
-                        self.data_dict[key] = {}
-
-                    self.data_dict[key].update({
-                        'Coord': Coord_base,
-                        'NodeCoord': NodeCoord_base,
-                        'FlCc': FlCc,
-                        'Conec': Conec_base,
-                        'idx_sort': idx_sort,
-                        'idx_sort_nodes': idx_sort_nodes,
-                        'eltype': eltype_base,
-                        'cellOrder': cellOrder_base,
-                        'pointOrder': pointOrder_base
-                    })
-   
             def extract_outputs(
                 self,
                 stage: int,
@@ -3502,9 +3331,27 @@ class FRODO():
                                 'value': value
                             }
 
-                        elif len(var_array.shape) == 3: # vectorial
-                            raise TypeError('Sin hacer')
+                        elif len(var_array.shape) == 3:                    # (ndim, npoints, ncases)
+                            value = var_array[:, :, idx_to_print]           # (ndim, npoints, n_idx)
+                            ndim_v, npoints_v, ncases_v = value.shape
 
+                            # pyLOM espera en _fieldict: (ndim*npoints, ncases) con layout entrelazado
+                            # PERO h5_save_dset llama reshape(value, info) asumiendo value 1D por caso
+                            # → necesitamos (ndim*npoints, ncases) con orden Fortran en el eje de componentes:
+                            # [pt0_c0, pt0_c1, pt0_c2, pt1_c0, pt1_c1, pt1_c2, ...]  por cada caso
+                            value_interleaved = (
+                                value                          # (ndim, npoints, ncases)
+                                .transpose(1, 0, 2)           # (npoints, ndim, ncases)
+                                .reshape(npoints_v * ndim_v, ncases_v, order='C')   # (ndim*npoints, ncases)
+                            )
+                            # Forzar C-contiguous para que h5 no tenga problemas de strides
+                            value_interleaved = np.ascontiguousarray(value_interleaved)
+
+                            field_dict[f] = {
+                                'ndim': ndim_v,
+                                'value': value_interleaved,
+                            }
+                        print(f'{f}: \n', f'{field_dict[f]["value"].shape}\n')
                     
                         
                     d = SMEAGOL.Dataset(
@@ -3923,7 +3770,7 @@ class FRODO():
 
                 # return idx_cells, used_nodes
             
-            def interpolate_volume_to_surface(
+            def interpolate_vol2surf(
                 self,
                 vol_group: str,
                 surf_group: str,
@@ -4092,7 +3939,7 @@ class FRODO():
 
                         raise ValueError(f"Formato no soportado para {var}")
             
-            def create_group_by_interpolation(
+            def interpolate_msh2msh(
                 self,
                 id_group_src: str,
                 new_group_id: str,
@@ -4168,14 +4015,18 @@ class FRODO():
                             continue
 
                         v = stage_data[var_name]
-
                         if v.ndim == 1:
                             v = v[:, None]
 
+                        if v.ndim == 3:
+                            shapes.append(v.shape[2])
+                            v = np.linalg.norm(v, ord = 2, axis = 0)
+                            valid_names.append(var_name + '_module')
+                        else:
+                            shapes.append(v.shape[1])
+                            valid_names.append(var_name)
+                            
                         var_list.append(v)
-                        shapes.append(v.shape[1])
-                        valid_names.append(var_name)
-
                     if not var_list:
                         continue
 
