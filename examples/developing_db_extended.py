@@ -1,5 +1,6 @@
 import sys
-sys.path.append('/home/m.jaraiz/repos/pyLowOrder/')
+sys.stdout = open(sys.stdout.fileno(), mode='w', buffering=1)
+# sys.path.append('/home/m.jaraiz/repos/pyLowOrder/')
 from FotR import FRODO
 
 def read_db(datafolder, case_idx):
@@ -39,7 +40,7 @@ def read_db(datafolder, case_idx):
             )
     
     return db
-    
+
 # Base de datos original
 case_idx = list(range(100))
 fuera = [64, 79, 87, 88, 94]
@@ -50,12 +51,12 @@ db_0 = read_db(
     datafolder = '/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3/',
     case_idx = case_idx,
     )
-    
+
 db_1 = read_db(
     datafolder = '/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3_rest/',
     case_idx = 'all',
 )
-    
+
 for stage in [0, 1]:
     db_0.sets.interpolate_vol2surf(
         vol_group = '4',
@@ -69,8 +70,7 @@ for stage in [0, 1]:
         surf_group = '3',
         stage = str(stage),
         vars = 'all',
-    )    
-    
+    )
 print(db_0.metadata['design_vars'])
 print(db_1.metadata['design_vars'])
 flcc = db_1.data_dict['CADGroup_3']['FlCc'][:, :-1]
@@ -78,8 +78,8 @@ design_vars = db_1.metadata['design_vars']
 db_1.metadata['design_vars'] = design_vars[:-1]
 db_1.data_dict['CADGroup_3']['FlCc'] = flcc
 print(db_0.metadata['design_vars'])
-print(db_1.metadata['design_vars'])    
-    
+print(db_1.metadata['design_vars'])
+
 db_completo = FRODO.merge_datasets(
     root_dir='/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3_extended',
     sources = [(db_0, '3'), (db_1, '3')],
@@ -93,16 +93,17 @@ db_completo = FRODO.merge_datasets(
         'save' : False
     }
     
-)    
+)
+
+db_completo.summary_data()
 
 import pandas as pd
 df_post = pd.read_csv(
     '/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3_extended/metadata/df_post.csv',
     sep=',',
     header=0,
-)    
-    
-d = []
+)
+
 for stage, factor in zip([0, 1], [1, 1]):
     vars = {
         'aoa' : {'idim':0, 'value':df_post['aoa'].values}, # Angle of attack
@@ -115,8 +116,15 @@ for stage, factor in zip([0, 1], [1, 1]):
         'varCD'  : {'idim':0, 'value':df_post[f'coefdrag_var_stage{stage}'].values},  # Var Drag coefficient
         'varCM'  : {'idim':0, 'value':df_post[f'coefmomenty_var_stage{stage}'].values},  # Var Momentum coefficient
     }
-    d.append(db_completo.sets.create_NN_pylom(id_groups=['3_completo',], stage=stage, idx_to_print='all', external_vars=vars, save_path='/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3_extended/outputs/'))
-  
+    _ = db_completo.sets.create_NN_pylom(
+        id_groups=['3_completo',],
+        stage=stage, idx_to_print='all',
+        external_vars=vars,
+        save_path='/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3_extended/outputs/',
+        nan_policy = 'fill')
+
+
+
 import plotly.express as px
 import matplotlib.pyplot as plt
 fig = px.scatter(
