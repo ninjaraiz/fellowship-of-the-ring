@@ -142,7 +142,7 @@ fig.add_shape(
     xref='x', yref='y'
 )
 
-plt.savefig('./pictures/coeflift_mean_comparison.png')
+fig.savefig('./pictures/coeflift_mean_comparison.png')
 
 fig = px.scatter(
     df_post,
@@ -158,7 +158,7 @@ fig.add_shape(
     xref='x', yref='y'
 )
 
-plt.savefig('./pictures/coefdrag_mean_comparison.png')
+fig.savefig('./pictures/coefdrag_mean_comparison.png')
 
 fig = px.scatter(
     df_post,
@@ -167,7 +167,7 @@ fig = px.scatter(
     color="mach",
     title="Polar CL vs AoA"
 )
-plt.savefig('./pictures/polar_cl.png')
+fig.savefig('./pictures/polar_cl.png')
 
 fig = px.scatter(
     df_post,
@@ -175,4 +175,4 @@ fig = px.scatter(
     y="coeflift_mean_stage1",
     color="aoa"
 )
-plt.savefig('./pictures/cl_cd.png')
+fig.savefig('./pictures/cl_cd.png')

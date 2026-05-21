@@ -4093,15 +4093,20 @@ class FRODO():
                         if v.ndim == 1:
                             v = v[:, None]
 
-                        if v.ndim == 3:
-                            shapes.append(v.shape[2])
-                            v = np.linalg.norm(v, ord = 2, axis = 0)
-                            valid_names.append(var_name + '_module')
-                        else:
-                            shapes.append(v.shape[1])
+                        if v.ndim == 3:  # (ndim, npoints, ncases)
+                            ndim_v  = v.shape[0]
+                            ncases_v = v.shape[2]
+                            # Aplanar a (npoints, ndim*ncases) para que el interpolador lo trate
+                            # como ndim*ncases snapshots independientes
+                            v_flat = v.transpose(1, 0, 2).reshape(v.shape[1], ndim_v * ncases_v)
+                            shapes.append(('vec', ndim_v, ncases_v))   # tupla para unstack vectorial
                             valid_names.append(var_name)
+                            var_list.append(v_flat)
+                        else:                          # (npoints, ncases) — escalar
+                            shapes.append(v.shape[1])  # int para unstack escalar
+                            valid_names.append(var_name)
+                            var_list.append(v)
                             
-                        var_list.append(v)
                     if not var_list:
                         continue
 
@@ -4137,10 +4142,19 @@ class FRODO():
                     # Unstack
                     # -------------------------
                     idx = 0
-                    for var_name, dim in zip(valid_names, shapes):
-                        self.db.data_dict[new_group_key]["Vars"][stage][var_name] = \
-                            var_dst_stack[:, idx:idx+dim]
-                        idx += dim
+                    for var_name, shape in zip(valid_names, shapes):
+                        if isinstance(shape, tuple):                     # vectorial
+                            _, ndim_v, ncases_v = shape
+                            total_cols = ndim_v * ncases_v
+                            chunk = var_dst_stack[:, idx:idx+total_cols]  # (npoints_dst, ndim*ncases)
+                            # Reconstruir (ndim, npoints_dst, ncases)
+                            reconstructed = chunk.reshape(chunk.shape[0], ndim_v, ncases_v).transpose(1, 0, 2)
+                            self.db.data_dict[new_group_key]["Vars"][stage][var_name] = reconstructed
+                            idx += total_cols
+                        else:                                             # escalar
+                            self.db.data_dict[new_group_key]["Vars"][stage][var_name] = \
+                                var_dst_stack[:, idx:idx+shape]
+                            idx += shape
                            
         class NRL7301Sets():
             
