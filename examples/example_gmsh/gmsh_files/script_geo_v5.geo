@@ -11,13 +11,13 @@ ExtrudeDirection = 2;
 h0 = 0.1; // altura de extrusión
 nLayers = 10; // nº de capas
 
-lc_ff = 1e-1; //9e-2; 
-lc_a = 1e-4; //8e-5;
-lc_ball = 1e-2; //5e-2;
-lc_box = 9e-3; //7e-4; 
+lc_ff = 1e-1; //1e-1; 
+lc_a = 9e-5; //3e-6;
+lc_ball = 2e-2; //1e-2;
+lc_box = 7e-4; //7e-4; 
 
 use_boundary_layer = 1; // 1 = activar capa límite | 0 = desactivar
-n_layers_BL = 10;
+n_layers_BL = 10; // 6
 //--------------------------------------------------//
 // Geometry Tolerance
 //--------------------------------------------------//
@@ -61,10 +61,13 @@ Curve Loop(1) = {5,6,7,8};
 If (geometry_type == 1)
   Spline(100) = {1001:1001+n_points-2, 1001-2+n_points*2:1001-1+n_points, 1001};
 ElseIf (geometry_type == 2)
-  Spline(100) = {1001:1000+n_points, 1001};
+  // Spline(100) = {1001:1000+n_points, 1001};
+  Spline(101) = {1000+n_points:1000+n_points/2};
+  Spline(102) = {1000+n_points, 1001:1000+n_points/2};
 EndIf
 
-Curve Loop(2) = {100};
+// Curve Loop(2) = {100};
+Curve Loop(2) = {101, -102};
 
 //--------------------------------------------------//
 // Superficie del dominio = círculo menos airfoil
@@ -76,8 +79,8 @@ Plane Surface(1) = {1,2};
 //--------------------------------------------------//
 
 Include "./includes/parabola.geo";
-// Spline(200) = {2001:2000+n_points_2001};
-// Curve Loop(3) = {200};
+// Spline(2000) = {2001:2000+n_points_2001};
+// Curve Loop(3) = {20};
 
 Field[4] = Distance;
 Field[4].PointsList = {2001:2000+n_points_2001};
@@ -90,20 +93,25 @@ Field[5].DistMin = 1.0*c;
 Field[5].DistMax = 2.0*c;
 
 If (use_boundary_layer)
-  Transfinite Curve {100} = 2000 Using Progression 1.0; // 9500
-
+  // Transfinite Curve {100} = 4500 Using Progression 1.0; // 2000
+  Transfinite Curve{101} = 1000 Using Progression 1.0;
+  Transfinite Curve{102} = 1000 Using Progression 1.0; 
   Field[1] = BoundaryLayer;
   Field[1].CurvesList = {100};   // spline del perfil
   Field[1].Size      = lc_a;
-  Field[1].SizeFar   = lc_ball;
+  Field[1].SizeFar   = lc_box;
   Field[1].NbLayers  = n_layers_BL;
-  Field[1].Thickness = 0.08*t;
+  Field[1].Thickness = 0.04*t;
 
-  Field[1].Ratio     = 1.2;
+  Field[1].Ratio     = 1.2; // 1.2
   Field[1].Quads     = 1;
 
-  Mesh.BoundaryLayerFanElements = 15;
-  Field[1].FanPointsList = {1100, 1050};
+  Mesh.BoundaryLayerFanElements = 0; // 15
+  Mesh.Algorithm = 8;
+
+  Mesh.Optimize = 1;
+  Mesh.OptimizeNetgen = 1;
+  // Field[1].FanPointsList = {1100, 1050};
   // Field[1].FanPointsSizesList = {lc_a/5, lc_a/5};
 
   BoundaryLayer Field = 1;
@@ -112,7 +120,7 @@ EndIf
 Field[7] = Box;
 Field[7].VIn  = lc_box;
 Field[7].VOut = lc_ball;
-Field[7].Thickness = 3*c;
+Field[7].Thickness = 1*c;
 Field[7].XMin = -0.3*c; Field[7].XMax = 0.7*c;
 Field[7].YMin = -2.0*c; Field[7].YMax =  2.0*c;
 Field[7].ZMin = -t; Field[7].ZMax =  t;
@@ -134,31 +142,31 @@ Mesh.CharacteristicLengthFromCurvature = 0;
 
 Mesh.CharacteristicLengthFromPoints = 0;
 
-// --------------------------------------------------//
-// Extrude Mesh
-// --------------------------------------------------//
-If (ExtrudeDirection == 2) // extrusión en Y
-  Extrude {0, h0, 0} {
-    Surface{1};
-    Layers{nLayers};
-    Recombine;
-  }
-ElseIf (ExtrudeDirection == 3) // extrusión en Z
-  Extrude {0, 0, h0} {
-    Surface{1};
-    Layers{nLayers};
-    Recombine;
-  }
-EndIf
+// // --------------------------------------------------//
+// // Extrude Mesh
+// // --------------------------------------------------//
+// If (ExtrudeDirection == 2) // extrusión en Y
+//   Extrude {0, h0, 0} {
+//     Surface{1};
+//     Layers{nLayers};
+//     Recombine;
+//   }
+// ElseIf (ExtrudeDirection == 3) // extrusión en Z
+//   Extrude {0, 0, h0} {
+//     Surface{1};
+//     Layers{nLayers};
+//     Recombine;
+//   }
+// EndIf
 
-// --------------------------------------------------//
-// Physical Entities 3D
-// --------------------------------------------------//
-Physical Surface("FarField", 1) = {2, 3, 4, 5};
-Physical Surface("SymmetryPlane", 2) = {7, 1};
-Physical Surface("Airfoil", 3) = {6};
-Physical Volume("Domain", 4) = {1};
+// // --------------------------------------------------//
+// // Physical Entities 3D
+// // --------------------------------------------------//
+// Physical Surface("FarField", 1) = {2, 3, 4, 5};
+// Physical Surface("SymmetryPlane", 2) = {7, 1};
+// Physical Surface("Airfoil", 3) = {6};
+// Physical Volume("Domain", 4) = {1};
 
 // Crear mallar y expotar:
-Mesh 3;
+Mesh 2;
 
