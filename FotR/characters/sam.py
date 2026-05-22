@@ -1754,7 +1754,7 @@ class SAM():
                 print(f'\tFiles saved in {folder_to_save}\n')
             if features is None:
                 # raise ValueError("Debe especificarse la lista de 'features' (columnas numéricas para el GMM).")
-                raise ValueError("The 'features' list (numerical columns for GMM) must be specified.")
+                raise Valu8eError("The 'features' list (numerical columns for GMM) must be specified.")
 
             df_result = df_data.copy()
             df_result["clusters_GMM"] = -1 
