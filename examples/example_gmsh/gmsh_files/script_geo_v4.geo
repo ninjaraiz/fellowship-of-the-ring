@@ -9,10 +9,10 @@ SetFactory("OpenCASCADE");
 ExtrudeDirection = 2;
 
 h0 = 0.1; // altura de extrusión
-nLayers = 10; // nº de capas
+nLayers = 1; // nº de capas
 
 lc_ff = 1e-1; //1e-1; 
-lc_a = 1e-6; //3e-6;
+lc_a = 2e-6; //3e-6;
 lc_ball = 2e-2; //1e-2;
 lc_box = 1e-3; //7e-4; 
 
@@ -168,6 +168,6 @@ Physical Surface("Airfoil", 3) = {6};
 Physical Volume("Domain", 4) = {1};
 
 // Crear mallar y expotar:
-Mesh.ElementOrder = 4;
-// Mesh 3;
+Mesh.ElementOrder = 2;
+Mesh 3;
 
