@@ -9,12 +9,12 @@ SetFactory("OpenCASCADE");
 ExtrudeDirection = 2;
 
 h0 = 0.1; // altura de extrusión
-nLayers = 10; // nº de capas
+nLayers = 1; // nº de capas
 
 lc_ff = 1e-1; //1e-1; 
-lc_a = 9e-5; //3e-6;
+lc_a = 2e-6; //3e-6;
 lc_ball = 2e-2; //1e-2;
-lc_box = 7e-4; //7e-4; 
+lc_box = 1e-3; //7e-4; 
 
 use_boundary_layer = 1; // 1 = activar capa límite | 0 = desactivar
 n_layers_BL = 10; // 6
@@ -94,16 +94,16 @@ Field[5].DistMax = 2.0*c;
 
 If (use_boundary_layer)
   // Transfinite Curve {100} = 4500 Using Progression 1.0; // 2000
-  Transfinite Curve{101} = 1000 Using Progression 1.0;
-  Transfinite Curve{102} = 1000 Using Progression 1.0; 
+  Transfinite Curve{101} = 3000 Using Progression 1.0;
+  Transfinite Curve{102} = 3000 Using Progression 1.0; 
   Field[1] = BoundaryLayer;
-  Field[1].CurvesList = {100};   // spline del perfil
+  Field[1].CurvesList = {101, 102};   // spline del perfil
   Field[1].Size      = lc_a;
   Field[1].SizeFar   = lc_box;
   Field[1].NbLayers  = n_layers_BL;
-  Field[1].Thickness = 0.04*t;
+  Field[1].Thickness = 0.03*t;
 
-  Field[1].Ratio     = 1.2; // 1.2
+  Field[1].Ratio     = 1.15; // 1.2
   Field[1].Quads     = 1;
 
   Mesh.BoundaryLayerFanElements = 0; // 15
@@ -119,17 +119,17 @@ EndIf
 
 Field[7] = Box;
 Field[7].VIn  = lc_box;
-Field[7].VOut = lc_ball;
+Field[7].VOut = lc_ff;
 Field[7].Thickness = 1*c;
-Field[7].XMin = -0.3*c; Field[7].XMax = 0.7*c;
+Field[7].XMin = -0.7*c; Field[7].XMax = 0.7*c;
 Field[7].YMin = -2.0*c; Field[7].YMax =  2.0*c;
 Field[7].ZMin = -t; Field[7].ZMax =  t;
 
 Field[8] = Min;
 If (use_boundary_layer) 
-  Field[8].FieldsList = {1, 5};
+  Field[8].FieldsList = {1, 5, 7};
 Else
-  Field[8].FieldsList = {5};
+  Field[8].FieldsList = {5, 7};
 EndIf
 
 Background Field = 8;
