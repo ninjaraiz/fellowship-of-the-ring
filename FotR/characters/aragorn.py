@@ -2,6 +2,9 @@ import os
 import subprocess
 import tempfile
 import time
+import resource
+import psutil
+import signal
 import logging
 from pathlib import Path
 from typing import Any, Callable, Union
@@ -104,13 +107,17 @@ class ARAGORN:
  
     def __init__(
         self,
-        default_workdir: Union[str, Path, None] = None,
-        default_parser: Union[Callable, None] = None,
-        timeout: Union[float, None] = 120,
+        default_workdir=None,
+        default_parser=None,
+        timeout=120,
+        max_ram_gb=None,
+        default_n_cpus=None,
     ):
         self.default_workdir = Path(default_workdir) if default_workdir else Path(".")
         self.default_parser = default_parser
         self.timeout = timeout
+        self.max_ram_gb = max_ram_gb
+        self.default_n_cpus = default_n_cpus
  
         # Almacén principal de resultados
         # outputs[run_id] = RunResult
@@ -129,6 +136,21 @@ class ARAGORN:
 
         return env
 
+    def _limit_memory(self, max_ram_gb):
+        """
+        Limita memoria virtual del proceso hijo.
+        Linux-only.
+        """
+        if max_ram_gb is None:
+            return
+
+        limit_bytes = int(max_ram_gb * 1024**3)
+
+        resource.setrlimit(
+            resource.RLIMIT_AS,
+            (limit_bytes, limit_bytes)
+        )
+        
     def get_available_cpus(self):
         """
         Detecta CPUs disponibles (SLURM-aware).
@@ -155,7 +177,8 @@ class ARAGORN:
         stdin_mode: bool = True,
         extra_args: Union[list, None] = None,
         overwrite: bool = True,
-        n_cpus: Union[int, None] = None
+        n_cpus: Union[int, None] = None,
+        max_ram_gb: Union[float, None] = None
     ) -> RunResult:
         """
         Ejecuta un programa con el script dado.
@@ -189,6 +212,12 @@ class ARAGORN:
         """
         if n_cpus is not None:
             env = self._inject_cpu_env(env, n_cpus)
+        else:
+            n_cpus = self.default_n_cpus
+            
+        if max_ram_gb is None:
+            max_ram_gb = self.max_ram_gb
+            
         # Resolver parámetros con herencia de defaults
         parser   = parser   or self.default_parser
         workdir  = Path(workdir) if workdir else self.default_workdir
@@ -217,7 +246,9 @@ class ARAGORN:
             env=env,
             stdin_mode=stdin_mode,
             extra_args=extra_args or [],
+            max_ram_gb=max_ram_gb,
         )
+        
         elapsed = time.perf_counter() - t0
  
         # 4. Parsear resultados
@@ -345,28 +376,27 @@ class ARAGORN:
         env: Union[dict, None],
         stdin_mode: bool,
         extra_args: list,
+        max_ram_gb: Union[float, None] = None,
     ) -> subprocess.CompletedProcess:
-        """
-        Lanza el proceso externo.
- 
-        En stdin_mode=True el script se pasa por stdin (XFoil, Construct2D...).
-        En stdin_mode=False el fichero de script se pasa como primer argumento
-        (flujos más parecidos a un batch file).
-        """
-        # Construir entorno del proceso
+
         proc_env = os.environ.copy()
+
         if env:
             proc_env.update(env)
- 
+
         if stdin_mode:
             cmd = [program] + extra_args
             stdin_source = open(script_path, "r", encoding="utf-8")
         else:
             cmd = [program, str(script_path)] + extra_args
             stdin_source = subprocess.DEVNULL
- 
+
+        def preexec():
+            self._limit_memory(max_ram_gb)
+
         try:
-            proc = subprocess.run(
+
+            process = subprocess.Popen(
                 cmd,
                 stdin=stdin_source,
                 stdout=subprocess.PIPE,
@@ -374,25 +404,70 @@ class ARAGORN:
                 text=True,
                 cwd=workdir,
                 env=proc_env,
-                timeout=self.timeout,
+                preexec_fn=preexec if max_ram_gb else None,
+                start_new_session=True,
             )
-        except subprocess.TimeoutExpired as exc:
-            log.warning("Timeout (%ss) ejecutando '%s'", self.timeout, program)
-            # Devolver un resultado sintético de error para no interrumpir flujos batch
+
+            ps_proc = psutil.Process(process.pid)
+
+            t0 = time.time()
+
+            while True:
+
+                if process.poll() is not None:
+                    break
+
+                if self.timeout is not None:
+                    if time.time() - t0 > self.timeout:
+                        os.killpg(process.pid, signal.SIGTERM)
+
+                        return subprocess.CompletedProcess(
+                            args=cmd,
+                            returncode=-1,
+                            stdout="",
+                            stderr=f"TIMEOUT after {self.timeout}s",
+                        )
+
+                if max_ram_gb is not None:
+
+                    mem = ps_proc.memory_info().rss
+
+                    for child in ps_proc.children(recursive=True):
+                        try:
+                            mem += child.memory_info().rss
+                        except psutil.NoSuchProcess:
+                            pass
+
+                    mem_gb = mem / 1024**3
+
+                    if mem_gb > max_ram_gb:
+                        process.kill()
+
+                        return subprocess.CompletedProcess(
+                            args=cmd,
+                            returncode=-9,
+                            stdout="",
+                            stderr=f"Memory limit exceeded ({mem_gb:.2f} GB > {max_ram_gb} GB)",
+                        )
+
+                time.sleep(0.2)
+
+            stdout, stderr = process.communicate()
+
             return subprocess.CompletedProcess(
                 args=cmd,
-                returncode=-1,
-                stdout=exc.stdout or "",
-                stderr=f"TIMEOUT after {self.timeout}s",
+                returncode=process.returncode,
+                stdout=stdout,
+                stderr=stderr,
             )
+
         except FileNotFoundError:
             log.error("Ejecutable no encontrado: '%s'", program)
             raise
+
         finally:
             if stdin_mode and hasattr(stdin_source, "close"):
                 stdin_source.close()
- 
-        return proc
  
     def _parse(
         self,

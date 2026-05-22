@@ -30,3 +30,4 @@ xfoil_out/
 
 # Sbatch
 **/*.sh
+**/*.script

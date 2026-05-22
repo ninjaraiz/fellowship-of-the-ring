@@ -14,7 +14,8 @@ class GmshCase:
         self.geo_file = Path(geo_file)
         self.workdir = Path(workdir)
         self.mesh_name = mesh_name
-
+        self.n_cpus = None
+        
         self.dim = dim              # 2 o 3
         self.format = format        # msh2 recomendado
         self.extra_args = []
@@ -30,6 +31,10 @@ class GmshCase:
 
     def set_format(self, fmt: str):
         self.format = fmt
+        return self
+
+    def set_n_cpus(self, n: int):
+        self.n_cpus = n
         return self
 
     def add_args(self, *args):
@@ -50,20 +55,16 @@ class GmshCase:
         args = [
             f"-{self.dim}",
             "-format", self.format,
-            "-o", str(output_path)
+            "-o", str(output_path),
         ]
+
+        # CPUs para gmsh
+        if self.n_cpus is not None:
+            args += ["-nt", str(self.n_cpus)]
 
         args += self.extra_args
 
         return args
-
-    # def prepare_case(self):
-    #     """
-    #     Copia el .geo al working dir para evitar problemas de rutas.
-    #     """
-    #     target_geo = self.workdir / self.geo_file.name
-    #     shutil.copy(self.geo_file, target_geo)
-    #     return target_geo
 
     def get_mesh_path(self):
         return self.workdir / self.mesh_name
