@@ -4777,5 +4777,3 @@ class FRODO():
                         arr = np.asarray(v)
                         print(f"    {k:25s}  shape={arr.shape}  dtype={arr.dtype}")
                 print("───────────────────────────────────────────────────────")
-
-            

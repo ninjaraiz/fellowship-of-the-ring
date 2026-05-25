@@ -12,6 +12,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
+import matplotlib.ticker as mticker
 from scipy.spatial import Delaunay
 
 import seaborn as sns
@@ -1756,6 +1757,9 @@ class SAM():
                 # raise ValueError("Debe especificarse la lista de 'features' (columnas numéricas para el GMM).")
                 raise Valu8eError("The 'features' list (numerical columns for GMM) must be specified.")
 
+            def fmt(x, pos):
+                return f"{x:.2f}"
+            
             df_result = df_data.copy()
             df_result["clusters_GMM"] = -1 
 
@@ -1904,6 +1908,9 @@ class SAM():
                     axes[0].plot(list(n_components_range), bics, marker="o", color="steelblue")
                     axes[0].set_title(f"BIC evolution ({group_key})" if group_key else "BIC evolution")
                     axes[0].set_xlabel("Number of components")
+                    axes[0].xaxis.set_major_formatter(mticker.FuncFormatter(fmt))
+                    axes[0].yaxis.set_major_formatter(mticker.FuncFormatter(fmt))
+                    # axes[0].set_xticks(list(n_components_range), labels=[str(n) for n in n_components_range])
                     axes[0].set_ylabel("BIC")
                     axes[0].grid(True)
 
@@ -1930,18 +1937,15 @@ class SAM():
 
                     plt.xlabel(xlabel)
                     plt.ylabel(ylabel)
-                    plt.title(f"GMM Clusters ({group_key})" if group_key else "GMM Clusters")
+                    plt.gca().xaxis.set_major_formatter(mticker.FuncFormatter(fmt))
+                    plt.gca().yaxis.set_major_formatter(mticker.FuncFormatter(fmt))
+                    group_str = "_".join(f"{x:.2f}" for x in group_key)
                     plt.colorbar(scatter, label="Cluster ID")
                     plt.grid(True)
+                    plt.title(f"GMM Clusters ({group_str})")
+                    fig.suptitle(f"GMM Study — Group: {group_str}")
 
-
-                    fig.suptitle(f"GMM Study — Group: {group_key}" if group_key else "GMM Study", fontsize=12)
-
-                    filename = (
-                        f"GMM_{'_'.join(map(str, group_key))}.png"
-                        if group_key is not None
-                        else "GMM_global.png"
-                    )
+                    filename = f"GMM_{group_str}.png"
                     plt.savefig(os.path.join(folder_to_save, "pictures_case", filename), dpi=150, bbox_inches="tight")
                     plt.close(fig)
                         
@@ -2003,6 +2007,8 @@ class SAM():
                 axes[0].set_title("BIC distribution vs number of clusters")
                 axes[0].set_xlabel("Number of components")
                 axes[0].set_ylabel("BIC")
+                axes[0].xaxis.set_major_formatter(mticker.FuncFormatter(fmt))
+                
                 axes[0].grid(True, linestyle="--", alpha=0.4)
 
                 # --- AIC boxplot ---
@@ -2029,6 +2035,7 @@ class SAM():
                 axes[1].set_title("AIC distribution vs number of clusters")
                 axes[1].set_xlabel("Number of components")
                 axes[1].set_ylabel("AIC")
+                axes[1].xaxis.set_major_formatter(mticker.FuncFormatter(fmt))
                 axes[1].grid(True, linestyle="--", alpha=0.4)
 
                 fig.suptitle("Global GMM model selection (BIC / AIC)", fontsize=13)
@@ -2091,12 +2098,17 @@ class SAM():
                     annot_enable = n_rows * n_cols <= 225  # solo si < 15x15
                     from matplotlib.patches import Patch
                     cluster_vals = np.sort(df_opt.stack().dropna().unique())
-                    n_clusters_vals = len(cluster_vals)
-                    cmap = plt.cm.get_cmap("tab10", n_clusters_vals)
-                    
+
+                    boundaries = np.concatenate([
+                        cluster_vals - 0.5,
+                        [cluster_vals[-1] + 0.5]
+                    ])
+
+                    cmap = plt.cm.get_cmap("tab10", len(cluster_vals))
+
                     norm = mcolors.BoundaryNorm(
-                        boundaries=np.arange(cluster_vals.min() - 0.5, cluster_vals.max() + 1.5),
-                        ncolors=n_clusters_vals
+                        boundaries=boundaries,
+                        ncolors=len(cluster_vals)
                     )
                     ax = sns.heatmap(
                         df_opt,
@@ -2125,9 +2137,24 @@ class SAM():
 
                     plt.title("Heatmap — Optimal number of clusters (BIC)", fontsize=12)
                     plt.xlabel(groupby[1])
+                    x_labels = [f"{float(x):.2f}" for x in df_opt.columns]
+                    y_labels = [f"{float(y):.2f}" for y in df_opt.index]
+
+                    step = max(1, len(df_opt.columns)//15)
+
+                    ax.set_xticks(np.arange(0, len(df_opt.columns), step) + 0.5)
+                    ax.set_xticklabels(
+                        [f"{float(df_opt.columns[i]):.2f}" for i in range(0, len(df_opt.columns), step)],
+                        rotation=45,
+                        ha="right"
+                    )
+                    ax.set_yticks(np.arange(0, len(df_opt.index), step) + 0.5)
+                    ax.set_yticklabels(
+                        [f"{float(df_opt.index[i]):.2f}" for i in range(0, len(df_opt.index), step)],
+                        rotation=45,
+                        ha="right"
+                    )
                     plt.ylabel(groupby[0])
-                    plt.xticks(rotation=45, ha="right")
-                    plt.yticks(rotation=0)
                     plt.tight_layout()
                     plt.savefig(os.path.join(folder_to_save, 'heatmap_optimal_clusters.png'))
                     plt.show()
