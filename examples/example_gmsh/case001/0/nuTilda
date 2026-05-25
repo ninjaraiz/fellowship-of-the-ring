@@ -20,28 +20,23 @@ internalField   uniform 0;
 
 boundaryField
 {
-    inlet
+    FarField
     {
-        type            fixedValue;
-        value           uniform 0;
+        type fixedValue;
+        value uniform nuTildaInf;
     }
 
-    outlet
+    Airfoil
     {
-        type            zeroGradient;
+        type    zeroGradient;
     }
 
-    upperWall
+    front
     {
-        type            zeroGradient;
+        type            empty;
     }
 
-    lowerWall
-    {
-        type            zeroGradient;
-    }
-
-    frontAndBack
+    back
     {
         type            empty;
     }

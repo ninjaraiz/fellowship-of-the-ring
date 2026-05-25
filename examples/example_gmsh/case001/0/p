@@ -20,7 +20,7 @@ internalField   uniform 0;
 
 boundaryField
 {
-    Farfield
+    FarField
     {
         type freestreamPressure;
         freestreamValue uniform 0;
@@ -36,7 +36,7 @@ boundaryField
         type            empty;
     }
 
-    airfoil
+    Airfoil
     {
         type            zeroGradient;
     }

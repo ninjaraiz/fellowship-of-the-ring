@@ -20,33 +20,26 @@ internalField   uniform 0;
 
 boundaryField
 {
-    inlet
+    FarField:
     {
-        type            calculated;
-        value           uniform 0;
+        type calculated;
+        value uniform 0;
     }
 
-    outlet
+    Airfoil:
     {
-        type            calculated;
-        value           uniform 0;
+        type nutkWallFunction;
+        value uniform 0;
     }
 
-    upperWall
+    front:
     {
-        type            nutkWallFunction;
-        value           uniform 0;
+        type empty;
     }
 
-    lowerWall
+    back:
     {
-        type            nutkWallFunction;
-        value           uniform 0;
-    }
-
-    frontAndBack
-    {
-        type            empty;
+        type empty;
     }
 }
 

@@ -18,13 +18,13 @@ dimensions      [0 2 -2 0 0 0 0];
 
 internalField   uniform 0.375;
 
-kInf = 1.5 * (Uinf * I)^2   //Duda de que funcione
+// kInf = 1.5 * (Uinf * I)^2   //Duda de que funcione
 boundaryField
 {
-    Farfield
+    FarField
     {
         type fixedValue;
-        value uniform kInf;
+        value uniform 0.54;
     }
 
     front

@@ -16,14 +16,14 @@ FoamFile
 
 dimensions      [0 1 -1 0 0 0 0];
 
-internalField   uniform (0 0 0);
+internalField   uniform (30 0 0);
 
 boundaryField
 {
-    Farfield
+    FarField
     {
         type freestreamVelocity;
-        freestreamValue uniform (Uinf 0 0);
+        freestreamValue uniform (30 0 0);
     }
 
     front
@@ -36,7 +36,7 @@ boundaryField
         type            empty;
     }
 
-    airfoil
+    Airfoil
     {
         type            noSlip;
     }

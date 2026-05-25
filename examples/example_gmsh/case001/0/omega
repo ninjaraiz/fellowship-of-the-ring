@@ -16,36 +16,30 @@ FoamFile
 
 dimensions      [0 0 -1 0 0 0 0];
 
-internalField   uniform 440.15;
+internalField uniform 5;
 
 boundaryField
 {
-    inlet
+    FarField
     {
-        type            fixedValue;
-        value           $internalField;
+        type fixedValue;
+        value uniform 5;
     }
 
-    outlet
+    Airfoil
     {
-        type            zeroGradient;
+        type omegaWallFunction;
+        value uniform 0;
     }
 
-    upperWall
+    front
     {
-        type            omegaWallFunction;
-        value           $internalField;
+        type empty;
     }
 
-    lowerWall
+    back
     {
-        type            omegaWallFunction;
-        value           $internalField;
-    }
-
-    frontAndBack
-    {
-        type            empty;
+        type empty;
     }
 }
 
