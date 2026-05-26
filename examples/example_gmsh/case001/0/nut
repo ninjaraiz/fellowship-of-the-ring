@@ -5,14 +5,15 @@
 |   \\  /    A nd           | Website:  www.openfoam.com                      |
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 FoamFile
 {
     version     2.0;
     format      ascii;
     class       volScalarField;
+    location    "0";
     object      nut;
 }
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 dimensions      [0 2 -1 0 0 0 0];
 
@@ -20,28 +21,27 @@ internalField   uniform 0;
 
 boundaryField
 {
-    FarField:
+    FarField
     {
-        type calculated;
-        value uniform 0;
+        type            calculated;
+        value           uniform 0;
     }
 
-    Airfoil:
+    Airfoil
     {
-        type nutkWallFunction;
-        value uniform 0;
+        type            nutkWallFunction;
+        value           uniform 0;
     }
 
-    front:
+    front
     {
-        type empty;
+        type            empty;
     }
 
-    back:
+    back
     {
-        type empty;
+        type            empty;
     }
 }
-
 
 // ************************************************************************* //

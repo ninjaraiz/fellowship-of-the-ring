@@ -20,15 +20,15 @@ FoamFile
 (
     front
     {
-        type            patch;
-        physicalType    patch;
+        type            empty;
+        physicalType    empty;
         nFaces          377642;
         startFace       632356;
     }
     back
     {
-        type            patch;
-        physicalType    patch;
+        type            empty;
+        physicalType    empty;
         nFaces          377642;
         startFace       1009998;
     }
@@ -41,8 +41,8 @@ FoamFile
     }
     Airfoil
     {
-        type            patch;
-        physicalType    patch;
+        type            wall;
+        physicalType    wall;
         nFaces          5999;
         startFace       1387832;
     }
