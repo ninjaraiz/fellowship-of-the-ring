@@ -46,7 +46,12 @@ runTimeModifiable true;
 
 functions
 {
-    #includeFunc streamlines
+    residuals
+    {
+        type residuals;
+        libs ("libutilityFunctionObjects.so");
+        fields (p U k omega);
+    }
 }
 
 
