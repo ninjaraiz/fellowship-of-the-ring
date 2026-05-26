@@ -162,25 +162,25 @@ EndIf
 // --------------------------------------------------//
 // Physical Entities 3D
 // --------------------------------------------------//
-// Physical Surface("FarField", 1) = {2, 3, 4, 5};
-// Physical Surface("SymmetryPlane", 2) = {7, 1};
-// Physical Surface("Airfoil", 3) = {6};
-// Physical Volume("Domain", 4) = {1};
+Physical Surface("FarField", 1) = {2, 3, 4, 5};
+Physical Surface("SymmetryPlane", 2) = {7, 1};
+Physical Surface("Airfoil", 3) = {6};
+Physical Volume("Domain", 4) = {1};
 
 
-Physical Surface("FarField", 1) = {2,3,4,5};
+// Physical Surface("FarField", 1) = {2,3,4,5};
 
-Physical Surface("Airfoil", 2) = {6};
+// Physical Surface("Airfoil", 2) = {6};
 
-// caras thin-direction
-Physical Surface("front", 3) = {1};
-Physical Surface("back", 4) = {7};
+// // caras thin-direction
+// Physical Surface("front", 3) = {1};
+// Physical Surface("back", 4) = {7};
 
-Physical Volume("Domain", 5) = {1};
+// Physical Volume("Domain", 5) = {1};
 
 
 // Crear mallar y expotar:
 Mesh.ElementOrder = 1;
 Mesh.MshFileVersion = 2.2;
-Mesh 3;
+// Mesh 3;
 
