@@ -26,6 +26,9 @@ xfoil_out/
 **/*.vtf
 **/*.msh
 
+# Outputs GMM
+**/example_GMM/
+
 # Logs
 **/*.log
 **/*.out
