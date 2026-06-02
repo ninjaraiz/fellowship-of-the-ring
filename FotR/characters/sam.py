@@ -1365,7 +1365,170 @@ class SAM():
             return points[order], order
         
         @staticmethod
-        def surface_derivative(X, f, order=1, min_ds=1e-6):
+        def surface_derivative(X, f, order=1, min_ds=1e-6, stencil_width=1, poly_order=None):
+            """
+            Derivada respecto a la longitud de arco con filtrado de puntos duplicados/cercanos.
+
+            Parámetros
+            ----------
+            X             : array (N, D) — coordenadas de los puntos sobre la curva.
+            f             : array (N,) o (N, M) — campo escalar (uno o varios casos).
+            order         : 1 ó 2 — orden de la derivada deseada.
+            min_ds        : float — distancia mínima entre puntos consecutivos.
+            stencil_width : int ≥ 1 — número de vecinos a cada lado del punto central.
+                            Con stencil_width=1 se recupera el comportamiento original
+                            (diferencias finitas de 3 puntos). Con stencil_width=k se
+                            usan 2k+1 puntos para ajustar un polinomio local.
+            poly_order    : int o None — grado del polinomio de ajuste local.
+                            Si es None se elige automáticamente:
+                            min(2*stencil_width, 4)   para order=1
+                            min(2*stencil_width, 4)   para order=2  (mínimo 2)
+                            Debe ser ≥ order y < 2*stencil_width+1.
+            """
+            # ── helpers internos ────────────────────────────────────────────────────
+            def _filter_close(Xarr, farr, is_torch_local):
+                if is_torch_local:
+                    dX = Xarr[1:] - Xarr[:-1]
+                    ds = torch.sqrt(torch.sum(dX**2, dim=1))
+                    keep = torch.cat([torch.tensor([True], device=Xarr.device), ds >= min_ds])
+                else:
+                    dX = Xarr[1:] - Xarr[:-1]
+                    ds = np.sqrt(np.sum(dX**2, axis=1))
+                    keep = np.concatenate([[True], ds >= min_ds])
+                return Xarr[keep], farr[keep]
+
+            def _arc_length(Xarr, is_torch_local):
+                if is_torch_local:
+                    dX = Xarr[1:] - Xarr[:-1]
+                    ds = torch.sqrt(torch.sum(dX**2, dim=1))
+                    s = torch.zeros(Xarr.shape[0], dtype=torch.float64, device=Xarr.device)
+                    s[1:] = torch.cumsum(ds, dim=0)
+                else:
+                    dX = Xarr[1:] - Xarr[:-1]
+                    ds = np.sqrt(np.sum(dX**2, axis=1))
+                    s = np.zeros(Xarr.shape[0])
+                    s[1:] = np.cumsum(ds)
+                return s
+
+            def _ls_derivative_np(s_arr, f_col, sw, pord, deriv_order):
+                """
+                Derivada por regresión polinómica local (numpy).
+                Para cada punto i, ajusta un polinomio de grado pord sobre los
+                2*sw+1 vecinos más próximos (o menos en los extremos) y evalúa
+                la derivada analítica del polinomio en s_i.
+                """
+                N = len(s_arr)
+                out = np.zeros(N)
+                for i in range(N):
+                    lo = max(0, i - sw)
+                    hi = min(N - 1, i + sw)
+                    s_loc = s_arr[lo:hi+1] - s_arr[i]   # centrado en s_i → s_i = 0
+                    f_loc = f_col[lo:hi+1]
+                    # Ajuste polinómico por mínimos cuadrados
+                    coeffs = np.polyfit(s_loc, f_loc, pord)
+                    # Derivar el polinomio simbólicamente con numpy
+                    p = np.poly1d(coeffs)
+                    dp = p.deriv(deriv_order)
+                    out[i] = dp(0.0)               # evaluar en s_i (centrado)
+                return out
+
+            def _ls_derivative_torch(s_arr, f_col, sw, pord, deriv_order):
+                """
+                Derivada por regresión polinómica local (torch, en numpy internamente
+                para polyfit y vuelta a torch).
+                """
+                s_np = s_arr.cpu().numpy()
+                f_np = f_col.cpu().numpy()
+                out_np = _ls_derivative_np(s_np, f_np, sw, pord, deriv_order)
+                return torch.tensor(out_np, dtype=torch.float64, device=s_arr.device)
+
+            # ── resolución del grado del polinomio ──────────────────────────────────
+            max_poly = 2 * stencil_width          # grado máximo sin sobreajuste
+            min_poly = max(order, 1)              # grado mínimo para derivar 'order' veces
+            if poly_order is None:
+                poly_order = min(max(min_poly, 2), max_poly)
+            else:
+                if poly_order < min_poly:
+                    raise ValueError(
+                        f"poly_order={poly_order} es menor que order={order}. "
+                        f"El grado del polinomio debe ser >= order."
+                    )
+                if poly_order > max_poly:
+                    raise ValueError(
+                        f"poly_order={poly_order} excede el máximo permitido por "
+                        f"stencil_width={stencil_width} ({max_poly}). "
+                        f"Sube stencil_width o baja poly_order."
+                    )
+
+            use_ls = stencil_width > 1            # stencil_width=1 → comportamiento original
+
+            # ── rama TORCH ──────────────────────────────────────────────────────────
+            is_torch = torch.is_tensor(X)
+            if is_torch:
+                X = X.to(torch.float64)
+                f = f.to(torch.float64)
+                squeeze = f.ndim == 1
+                if squeeze:
+                    f = f[:, None]
+
+                X, f = _filter_close(X, f, True)
+                s = _arc_length(X, True)
+
+                if not use_ls:
+                    # Comportamiento original: torch.gradient (diferencias finitas)
+                    df = torch.gradient(f, spacing=(s,), dim=0)[0]
+                    if order == 1:
+                        return df.squeeze() if squeeze else df
+                    d2f = torch.gradient(df, spacing=(s,), dim=0)[0]
+                    return d2f.squeeze() if squeeze else d2f
+                else:
+                    # Regresión polinómica local columna a columna
+                    n_cases = f.shape[1]
+                    if order == 1:
+                        out = torch.stack([
+                            _ls_derivative_torch(s, f[:, c], stencil_width, poly_order, 1)
+                            for c in range(n_cases)
+                        ], dim=1)
+                    else:
+                        out = torch.stack([
+                            _ls_derivative_torch(s, f[:, c], stencil_width, poly_order, 2)
+                            for c in range(n_cases)
+                        ], dim=1)
+                    return out.squeeze() if squeeze else out
+
+            # ── rama NUMPY ──────────────────────────────────────────────────────────
+            else:
+                X = np.asarray(X, dtype=np.float64)
+                f = np.asarray(f, dtype=np.float64)
+                squeeze = f.ndim == 1
+                if squeeze:
+                    f = f[:, None]
+
+                X, f = _filter_close(X, f, False)
+                s = _arc_length(X, False)
+
+                if not use_ls:
+                    df = np.gradient(f, s, axis=0)
+                    if order == 1:
+                        return df.squeeze() if squeeze else df
+                    d2f = np.gradient(df, s, axis=0)
+                    return d2f.squeeze() if squeeze else d2f
+                else:
+                    n_cases = f.shape[1]
+                    if order == 1:
+                        out = np.stack([
+                            _ls_derivative_np(s, f[:, c], stencil_width, poly_order, 1)
+                            for c in range(n_cases)
+                        ], axis=1)
+                    else:
+                        out = np.stack([
+                            _ls_derivative_np(s, f[:, c], stencil_width, poly_order, 2)
+                            for c in range(n_cases)
+                        ], axis=1)
+                    return out.squeeze() if squeeze else out
+                
+        @staticmethod
+        def surface_derivative_ant(X, f, order=1, min_ds=1e-6):
             """
             Derivada respecto a la longitud de arco con filtrado de puntos duplicados/cercanos.
             """
