@@ -182,6 +182,21 @@ class FRODO():
         else:
             raise KeyError(f'Attribute data_dict not found. Please run extract_input() at least.')
     
+    def copy(self):
+        """
+        Crea una copia profunda del objeto FRODO, incluyendo data_dict y sim_metadata.
+        """
+        new_db = FRODO.__new__(FRODO)
+        new_db.format = self.format
+        new_db.root_dir = self.root_dir
+        new_db.sim_metadata = copy.deepcopy(self.sim_metadata)
+        new_db.data_dict = copy.deepcopy(self.data_dict)
+        new_db.kwargs = copy.deepcopy(self.kwargs)
+        new_db.update_df_state = self.update_df_state
+        new_db.name = self.name + "_copy"
+        new_db._set_subclases()
+        return new_db
+    
     @staticmethod
     def merge_datasets(
         root_dir:str,
@@ -4623,8 +4638,9 @@ class FRODO():
             def create_jset(
                 self,
                 sol: 'Union[list[int], int, str]' = "all",
-                n: int = None,
                 save_path: 'Union[bool, str]' = False,
+                idx_flcc: Union[list[int], tuple[int], 'all'] = 'all',
+                ref:Union[dict, None] = None,
                 verbose: bool = False,
             ):
                 """
@@ -4637,8 +4653,6 @@ class FRODO():
                 ----------
                 sol : 'all', int or list[int]
                     Which case indices to include.  'all' uses every case.
-                n : int or None
-                    If set, randomly subsample n cases.
                 save_path : str or False
                     If a path string ending in '.h5' or '.pt', the result is saved.
                 verbose : bool
@@ -4700,7 +4714,7 @@ class FRODO():
                 # ── build joint tensor ───────────────────────────────────────────────
                 result = SAM.Gardener.create_final_tensor(
                     tensor_ptos, tensor_flcc, tensors_out, tensors_aux,
-                    sol=sol, n=n, verbose=verbose,
+                    sol=sol, idx_flcc=idx_flcc, ref=ref, verbose=verbose,
                 )
         
                 # ── optional save ────────────────────────────────────────────────────
@@ -4763,5 +4777,3 @@ class FRODO():
                         arr = np.asarray(v)
                         print(f"    {k:25s}  shape={arr.shape}  dtype={arr.dtype}")
                 print("───────────────────────────────────────────────────────")
-
-            

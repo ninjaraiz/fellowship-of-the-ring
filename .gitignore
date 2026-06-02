@@ -18,6 +18,9 @@ venv/
 xfoil_out/
 **/*.dat
 
+# Outputs GMM
+**/example_GMM/
+
 # Outputs mallas
 **/*.h5
 **/*.vtf
