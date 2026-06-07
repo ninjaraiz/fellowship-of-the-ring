@@ -186,7 +186,7 @@ else:
         tensor_gradTx
     )
 
-for stencil in range(1, 8):
+for stencil in range(3, 8):
     # ── derivada por longitud de arco ─────────────────────────────────────────
     dcp_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
     dcp2_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
@@ -195,8 +195,8 @@ for stencil in range(1, 8):
             X=tensor_ptos,
             f=tensor_cp_filtered[:, case],
             order=1,
-            stencil_width=5,   # usa 11 puntos (5 a cada lado) → mucho más suave
-            poly_order=3,      # polinomio cúbico local
+            stencil_width=stencil,   
+            poly_order=5,
         )
     dcp_ds_filtered = SGS(dcp_ds, window_length=5, polyorder=2) if activate_filter else dcp_ds
     for case in range(tensor_cp_filtered.shape[1]):
@@ -204,8 +204,8 @@ for stencil in range(1, 8):
             X=tensor_ptos,
             f=dcp_ds_filtered[:, case],
             order=1,
-            stencil_width=7,   # usa 11 puntos (5 a cada lado) → mucho más suave
-            poly_order=3,      # polinomio cúbico local
+            stencil_width=stencil,
+            poly_order=5,
         )
         
     dcp_ds_log = symlog(dcp_ds_filtered, linthresh=1e-4)
@@ -262,73 +262,73 @@ for stencil in range(1, 8):
         plot_global_analysis=True,
         verbose = True
     )
-    case = 20
-    scale = 7
-    markersize_dcp = 1
-    def get_column_from_df(column, case, df):
-        if isinstance(column, (list, tuple)):
-            lista = []
-            for col in column:
-                lista.append(df.groupby(['aoa', 'mach']).get_group((df['aoa'].unique()[case], df['mach'].unique()[case]))[col])
-            return lista
+    # case = 20
+    # scale = 7
+    # markersize_dcp = 1
+    # def get_column_from_df(column, case, df):
+    #     if isinstance(column, (list, tuple)):
+    #         lista = []
+    #         for col in column:
+    #             lista.append(df.groupby(['aoa', 'mach']).get_group((df['aoa'].unique()[case], df['mach'].unique()[case]))[col])
+    #         return lista
         
-        if isinstance(column, str):
-            serie = df_data_complete.groupby(['aoa', 'mach']).get_group((df_data_complete['aoa'].unique()[case], df_data_complete['mach'].unique()[case]))[column]
-            return serie
+    #     if isinstance(column, str):
+    #         serie = df_data_complete.groupby(['aoa', 'mach']).get_group((df_data_complete['aoa'].unique()[case], df_data_complete['mach'].unique()[case]))[column]
+    #         return serie
         
-    [x, z, cp, clusters] = get_column_from_df(['x', 'z', 'cp', 'clusters_GMM'], case, df_data_complete)
+    # [x, z, cp, clusters] = get_column_from_df(['x', 'z', 'cp', 'clusters_GMM'], case, df_data_complete)
 
-    fig, ax = plt.subplots(2, 1, figsize=(12, 2*6))
-    # ax = ax.flatten()
-    ax[0].scatter(
-        x, z,
-        c='black', s=1
-    )
-    ax00 = ax[0].twinx()
-    ax00.scatter(
-        x, dcp_ds_filtered[:, case], c='blue', s=markersize_dcp
-    )
+    # fig, ax = plt.subplots(2, 1, figsize=(12, 2*6))
+    # # ax = ax.flatten()
+    # ax[0].scatter(
+    #     x, z,
+    #     c='black', s=1
+    # )
+    # ax00 = ax[0].twinx()
+    # ax00.scatter(
+    #     x, dcp_ds_filtered[:, case], c='blue', s=markersize_dcp
+    # )
 
-    ax01 = ax[0].twinx()
-    ax01.scatter(
-        x, dcp2_ds[:, case], c='red', s=markersize_dcp
-    )
-    ax[0].set_ylim(bottom = z.min()*scale, top = z.max()*scale)
-    # Poner un tercer eje a la izquierda con cp
-    ax_cp = ax[0].twinx()
-    ax_cp.scatter(
-        x, tensor_cp_filtered[:, case], c='green', s=markersize_dcp
-    )
-    ax_cp.spines['left'].set_position(('outward', 60))
-    ax_cp.spines['left'].set_color('green')
-    ax_cp.tick_params(axis='y', colors='green')
-    ax_cp.invert_yaxis()
-    # Arreglar ejes de los twinx
-    ax00.set_yscale('log')
-    ax01.set_yscale('log')
-    #separar ejes secundarios y poner del mismo color que los puntos
-    ax00.spines['right'].set_position(('outward', 60))
-    ax01.spines['right'].set_position(('outward', 120))
-    ax00.spines['right'].set_color('blue')
-    ax01.spines['right'].set_color('red')
-    ax00.tick_params(axis='y', colors='blue')
-    ax01.tick_params(axis='y', colors='red')
-    ax[0].set_xlabel('x')
-    ax[0].set_ylabel('z')
-    ax00.set_ylabel('dcp/ds', color='blue')
-    ax01.set_ylabel('d2cp/ds2', color='red')
-    ax[0].set_title(f'Case {case}')
+    # ax01 = ax[0].twinx()
+    # ax01.scatter(
+    #     x, dcp2_ds[:, case], c='red', s=markersize_dcp
+    # )
+    # ax[0].set_ylim(bottom = z.min()*scale, top = z.max()*scale)
+    # # Poner un tercer eje a la izquierda con cp
+    # ax_cp = ax[0].twinx()
+    # ax_cp.scatter(
+    #     x, tensor_cp_filtered[:, case], c='green', s=markersize_dcp
+    # )
+    # ax_cp.spines['left'].set_position(('outward', 60))
+    # ax_cp.spines['left'].set_color('green')
+    # ax_cp.tick_params(axis='y', colors='green')
+    # ax_cp.invert_yaxis()
+    # # Arreglar ejes de los twinx
+    # ax00.set_yscale('log')
+    # ax01.set_yscale('log')
+    # #separar ejes secundarios y poner del mismo color que los puntos
+    # ax00.spines['right'].set_position(('outward', 60))
+    # ax01.spines['right'].set_position(('outward', 120))
+    # ax00.spines['right'].set_color('blue')
+    # ax01.spines['right'].set_color('red')
+    # ax00.tick_params(axis='y', colors='blue')
+    # ax01.tick_params(axis='y', colors='red')
+    # ax[0].set_xlabel('x')
+    # ax[0].set_ylabel('z')
+    # ax00.set_ylabel('dcp/ds', color='blue')
+    # ax01.set_ylabel('d2cp/ds2', color='red')
+    # ax[0].set_title(f'Case {case}')
 
-    ax[1].scatter(
-        x, z, c='black', s=markersize_dcp, alpha=0.7)
-    ax[1].set_xlabel('x')
-    ax[1].set_ylabel('z')
-    ax[1].set_ylim(z.min() - 0.1, z.max() + 0.1)
-    ax10 = ax[1].twinx()
-    ax10.scatter(
-        x, cp, c=clusters, s=markersize_dcp, alpha=0.7, cmap='viridis')
-    ax10.set_ylabel('cP')
-    ax10.invert_yaxis()
+    # ax[1].scatter(
+    #     x, z, c='black', s=markersize_dcp, alpha=0.7)
+    # ax[1].set_xlabel('x')
+    # ax[1].set_ylabel('z')
+    # ax[1].set_ylim(z.min() - 0.1, z.max() + 0.1)
+    # ax10 = ax[1].twinx()
+    # ax10.scatter(
+    #     x, cp, c=clusters, s=markersize_dcp, alpha=0.7, cmap='viridis')
+    # ax10.set_ylabel('cP')
+    # ax10.invert_yaxis()
 
-    fig.suptitle(f'Case {case} - features: {features} - sep: {sep}')
-    fig.savefig(os.path.join(config['folder_to_save'][pc], f'{folder_name}/sep_{sep}/c_{n_clusters}/example_case20_s_{stencil}.png'))
+    # fig.suptitle(f'Case {case} - features: {features} - sep: {sep}')
+    # fig.savefig(os.path.join(config['folder_to_save'][pc], f'{folder_name}/sep_{sep}/c_{n_clusters}/example_case20_s_{stencil}.png'))

@@ -1367,23 +1367,128 @@ class SAM():
         @staticmethod
         def surface_derivative(X, f, order=1, min_ds=1e-6, stencil_width=1, poly_order=None):
             """
-            Derivada respecto a la longitud de arco con filtrado de puntos duplicados/cercanos.
+            Compute first- or second-order derivatives of a scalar field with respect
+            to the arc length of a discrete curve or surface contour.
 
-            Parámetros
-            ----------
-            X             : array (N, D) — coordenadas de los puntos sobre la curva.
-            f             : array (N,) o (N, M) — campo escalar (uno o varios casos).
-            order         : 1 ó 2 — orden de la derivada deseada.
-            min_ds        : float — distancia mínima entre puntos consecutivos.
-            stencil_width : int ≥ 1 — número de vecinos a cada lado del punto central.
-                            Con stencil_width=1 se recupera el comportamiento original
-                            (diferencias finitas de 3 puntos). Con stencil_width=k se
-                            usan 2k+1 puntos para ajustar un polinomio local.
-            poly_order    : int o None — grado del polinomio de ajuste local.
-                            Si es None se elige automáticamente:
-                            min(2*stencil_width, 4)   para order=1
-                            min(2*stencil_width, 4)   para order=2  (mínimo 2)
-                            Debe ser ≥ order y < 2*stencil_width+1.
+            Overview
+            --------
+            Given a set of ordered points X = [x_i, y_i, z_i] defining a curve in
+            physical space and a scalar field f evaluated at those points, this
+            function computes:
+
+                df/ds      (first derivative)
+
+            or
+
+                d²f/ds²    (second derivative)
+
+            where s is the cumulative arc length along the curve.
+
+            Unlike standard derivatives with respect to Cartesian coordinates,
+            the derivative is taken along the geometry itself, making it suitable
+            for aerodynamic surface analyses, pressure distributions, boundary-layer
+            studies, shock detection, and other CFD applications.
+
+            Methodology
+            -----------
+            1. Arc-length parametrization
+            --------------------------
+            The discrete arc-length coordinate is computed from the cumulative
+            Euclidean distance between consecutive points:
+
+                ds_i = ||X_(i+1) - X_i||
+
+                s_0 = 0
+                s_i = Σ ds_k
+
+            This transforms the problem into computing derivatives of f(s).
+
+            2. Filtering of nearly coincident points
+            -------------------------------------
+            Consecutive points separated by less than 'min_ds' are removed before
+            differentiation. This prevents numerical instabilities caused by
+            extremely small spacings in finite-difference or polynomial fitting
+            procedures.
+
+            3. Differentiation methods
+            -----------------------
+
+            A) stencil_width = 1
+                -----------------
+                Standard finite-difference gradients are used through
+                numpy.gradient() or torch.gradient().
+
+                For interior points, the approximation is equivalent to a
+                second-order central difference:
+
+                    df/ds ≈ (f_(i+1) - f_(i-1))
+                            / (s_(i+1) - s_(i-1))
+
+                This mode is computationally inexpensive but more sensitive
+                to numerical noise.
+
+            B) stencil_width > 1
+                -----------------
+                Local polynomial regression is used.
+
+                For each point, a neighborhood of:
+
+                    2 * stencil_width + 1
+
+                points is selected. A polynomial of degree 'poly_order' is then
+                fitted by least squares:
+
+                    p(s) = a₀ + a₁s + a₂s² + ... + aₙsⁿ
+
+                after shifting the local coordinate system so that the current
+                point is located at s = 0.
+
+                The derivative is obtained analytically from the fitted polynomial:
+
+                    p'(0)   for first derivatives
+                    p''(0)  for second derivatives
+
+                This approach behaves similarly to a generalized Savitzky-Golay
+                differentiation scheme but naturally supports non-uniform point
+                spacing.
+
+            Advantages of Local Polynomial Regression
+            -----------------------------------------
+            Compared with finite differences, local polynomial fitting:
+
+            - Reduces sensitivity to measurement or numerical noise.
+            - Produces smoother derivative fields.
+            - Handles irregular point spacing naturally.
+            - Preserves physically meaningful gradients and curvatures.
+            - Is especially useful when differentiating CFD quantities such as
+            pressure coefficients, density gradients, temperature gradients,
+            or wall quantities.
+
+            Parameter Selection
+            -------------------
+            The polynomial degree must satisfy:
+
+                order <= poly_order <= 2 * stencil_width
+
+            where:
+
+            - order       : requested derivative order (1 or 2)
+            - poly_order  : local polynomial degree
+            - stencil_width : number of neighbors used on each side
+
+            Typical values for CFD applications:
+
+                stencil_width = 3–7
+                poly_order    = 2–4
+
+            Higher stencil widths increase robustness and smoothness, while
+            higher polynomial degrees improve local accuracy but may become
+            more sensitive to noise.
+
+            Returns
+            -------
+            Array with the same shape as the input field containing the derivative
+            with respect to arc length.
             """
             # ── helpers internos ────────────────────────────────────────────────────
             def _filter_close(Xarr, farr, is_torch_local):
