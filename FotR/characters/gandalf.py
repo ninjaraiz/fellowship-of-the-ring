@@ -271,11 +271,13 @@ class GANDALF:
         
         self.folder_fmt = folder_fmt
         self.folders_name = []
+        df_cases = self.df_cases.copy()
+        df_cases['exist'] = None
+        df_cases['folder'] = None
         n_cases = self.case_tensor.shape[0]
         print(f"Creating {n_cases} simulation folders in {self.root_dir}")
 
         for i, row in enumerate(self.case_tensor):
-
             case_dict = {var: float(row[j]) for j, var in enumerate(self.design_vars)}
 
             try:
@@ -285,15 +287,18 @@ class GANDALF:
             
             self.folders_name.append(folder_name)
             case_dir = os.path.join(self.root_dir, 'outputs', folder_name)
+            mask_created = (df_cases[self.design_vars[0]] == row[0]) & (df_cases[self.design_vars[1]] == row[1])
             if os.path.exists(case_dir):
                 if overwrite:
                     shutil.rmtree(case_dir)
                 else:
+                    df_cases.loc[mask_created, 'exist'] = True
                     print(f"Folder {case_dir} already exists. Skipping...")
                     continue
 
             os.makedirs(case_dir, exist_ok=True)
-
+            df_cases.loc[mask_created, 'exist'] = False
+            df_cases.loc[mask_created, 'folder'] = folder_name
             for f in base_files:
                 src = os.path.join(script_dir, f)
                 dst = os.path.join(case_dir, f)
@@ -330,6 +335,7 @@ class GANDALF:
         }
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=4)
+        self.df_cases = df_cases
         self.df_cases.to_csv(os.path.join(self.root_dir, 'metadata','df_cases.csv'), sep=',', index=False)
                     
     def assign_jobs(
@@ -380,6 +386,14 @@ class GANDALF:
 
         # Asignar casos de forma balanceada
         for caso in casos:
+            exists = self.df_cases.loc[
+                self.df_cases['folder'] == caso,
+                'exist'
+            ]
+
+            if not exists.empty and exists.iloc[0]:
+                print(f"Folder {caso} already exists. Skipping...")
+                continue
             nodo_menos_cargado = min(
                 asignaciones.keys(),
                 key=lambda n: len(asignaciones[n])

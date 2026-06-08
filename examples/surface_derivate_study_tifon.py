@@ -114,7 +114,7 @@ from scipy.signal import savgol_filter
 activate_filter = False
 
 window_length = 101   # debe ser impar
-polyorder = 3
+polyorder = 2
 
 def SGS(tensor, window_length=21, polyorder=3):
 
@@ -186,7 +186,7 @@ else:
         tensor_gradTx
     )
 
-for stencil in range(3, 8):
+for stencil in range(8, 12):
     # ── derivada por longitud de arco ─────────────────────────────────────────
     dcp_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
     dcp2_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
@@ -248,7 +248,7 @@ for stencil in range(3, 8):
     folder_name = '_'.join(features)
     df_data_complete, _ = SAM.Weapons.GMM(
         df_data=db_one.df_data,
-        BIC_study=False,
+        BIC_study=True,
         groupby=["aoa", "mach"],
         nclusters=n_clusters,
         features=features,
