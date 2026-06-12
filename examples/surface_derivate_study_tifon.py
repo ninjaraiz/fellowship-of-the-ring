@@ -185,8 +185,8 @@ else:
         tensor_gradrhox,
         tensor_gradTx
     )
-
-for stencil in range(8, 12):
+scale_log = False
+for stencil in range(10, 200, 10):
     # ── derivada por longitud de arco ─────────────────────────────────────────
     dcp_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
     dcp2_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
@@ -196,7 +196,7 @@ for stencil in range(8, 12):
             f=tensor_cp_filtered[:, case],
             order=1,
             stencil_width=stencil,   
-            poly_order=5,
+            poly_order=polyorder,
         )
     dcp_ds_filtered = SGS(dcp_ds, window_length=5, polyorder=2) if activate_filter else dcp_ds
     for case in range(tensor_cp_filtered.shape[1]):
@@ -205,13 +205,13 @@ for stencil in range(8, 12):
             f=dcp_ds_filtered[:, case],
             order=1,
             stencil_width=stencil,
-            poly_order=5,
+            poly_order=polyorder,
         )
         
-    dcp_ds_log = symlog(dcp_ds_filtered, linthresh=1e-4)
-    dcp2_ds_log = symlog(dcp2_ds, linthresh=1e-4)
-    gradrhox_log = symlog(tensor_gradrhox_filtered, linthresh=1e-4)
-    gradTx_log = symlog(tensor_gradTx_filtered, linthresh=1e-4)
+    dcp_ds_log = symlog(dcp_ds_filtered, linthresh=1e-4) if scale_log else dcp_ds_filtered
+    dcp2_ds_log = symlog(dcp2_ds, linthresh=1e-4) if scale_log else dcp2_ds
+    # gradrhox_log = symlog(tensor_gradrhox_filtered, linthresh=1e-4) if scale_log else tensor_gradrhox_filtered
+    # gradTx_log = symlog(tensor_gradTx_filtered, linthresh=1e-4) if scale_log else tensor_gradTx_filtered
     
     db_one = db.copy()
     db_one.sets.add_aux(
@@ -224,17 +224,17 @@ for stencil in range(8, 12):
         array = dcp2_ds_log.numpy(),
         notes = 'Log dcp2_ds')
 
-    db_one.sets.add_aux(
-        array_name = 'gradrhox_log',
-        array = gradrhox_log.numpy(),
-        notes = 'Log gradrhox'
-    )
+    # db_one.sets.add_aux(
+    #     array_name = 'gradrhox_log',
+    #     array = gradrhox_log.numpy(),
+    #     notes = 'Log gradrhox'
+    # )
 
-    db_one.sets.add_aux(
-        array_name = 'gradTx_log',
-        array = gradTx_log.numpy(),
-        notes = 'Log gradTx'
-    )
+    # db_one.sets.add_aux(
+    #     array_name = 'gradTx_log',
+    #     array = gradTx_log.numpy(),
+    #     notes = 'Log gradTx'
+    # )
 
     db_one.data_dict['inputs']['ptos'] = tensor_ptos.numpy()
     db_one.data_dict['outputs']['cp'] = tensor_cp_filtered.numpy()
