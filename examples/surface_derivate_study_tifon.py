@@ -185,8 +185,8 @@ else:
         tensor_gradrhox,
         tensor_gradTx
     )
-scale_log = False
-for stencil in range(10, 200, 10):
+scale_log = True
+for stencil in range(10, 420, 20):
     # ── derivada por longitud de arco ─────────────────────────────────────────
     dcp_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
     dcp2_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
