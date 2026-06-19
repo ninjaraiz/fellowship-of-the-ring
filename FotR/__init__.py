@@ -4,6 +4,8 @@ from .characters.sam import SAM
 from .characters.gandalf import GANDALF
 from .characters.legolas import LEGOLAS
 from .characters.aragorn import ARAGORN, RunResult
+from .characters.gimli import GIMLI
+
 __all__ = [
     "FRODO",
     "EarendilsLight",
@@ -11,5 +13,6 @@ __all__ = [
     "GANDALF",
     "LEGOLAS",
     "ARAGORN",
+    "GIMLI",
     "RunResult"
 ]
