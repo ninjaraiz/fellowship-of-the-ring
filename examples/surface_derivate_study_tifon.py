@@ -80,8 +80,8 @@ db.extract_outputs(
         'cp': 'BoundaryValues_CoefPressure',
         # 'gradrho': 'AugStateGrad_DensityGradient_interp',  # field del Dataset → data_dict['outputs']['cp']
         # 'gradT': 'AugStateGrad_TemperatureGradient_interp',
-        'T': 'AugState_Temperature_interp',
-        'rho': 'State_Density_interp'
+        # 'T': 'AugState_Temperature_interp',
+        # 'rho': 'State_Density_interp'
         }
     
 )
@@ -92,8 +92,8 @@ aoa   = db.sets.get_variable('aoa') # (500,)
 mach = db.sets.get_variable('mach')   # (500,)
 cp  = db.sets.get_field('cp')     # (npoints, 500)
 
-T = db.sets.get_field('T')
-rho = db.sets.get_field('rho')
+# T = db.sets.get_field('T')
+# rho = db.sets.get_field('rho')
 
 # gradrhox = db.sets.get_field('gradrho')[0, :, :]#np.linalg.norm(db.sets.get_field('gradrho'), ord=2,axis=0)
 # gradTx = db.sets.get_field('gradT')[0, :, :]#np.linalg.norm(db.sets.get_field('gradT'), ord=2,axis=0)
@@ -103,8 +103,8 @@ from FotR import SAM
 xyz_sort, order_sort = SAM.Weapons.sort_by_centroid(xyz)
 cp_sort = cp[order_sort, :]
 
-T_sort = T[order_sort, :]
-rho_sort = rho[order_sort, :]
+# T_sort = T[order_sort, :]
+# rho_sort = rho[order_sort, :]
 
 # gradrhox_sort = gradrhox[order_sort, :]
 # gradTx_sort = gradTx[order_sort, :]
@@ -117,8 +117,8 @@ def segmentar_tensor(tensor, sep):
 tensor_ptos = segmentar_tensor(xyz_sort, sep)
 tensor_cp = segmentar_tensor(cp_sort, sep)
 
-tensor_rho = segmentar_tensor(rho_sort, sep)
-tensor_T = segmentar_tensor(T, sep)
+# tensor_rho = segmentar_tensor(rho_sort, sep)
+# tensor_T = segmentar_tensor(T, sep)
 
 # tensor_gradrhox = segmentar_tensor(gradrhox_sort, sep)
 # tensor_gradTx = segmentar_tensor(gradTx_sort, sep)
@@ -183,13 +183,13 @@ if activate_filter:
         tensor_cp_filtered,
         # tensor_gradrhox_filtered,
         # tensor_gradTx_filtered
-        tensor_rho_filtered,
-        tensor_T_filtered
+        # tensor_rho_filtered,
+        # tensor_T_filtered
     ) = SGS(
         [
             tensor_cp,
-            tensor_T,
-            tensor_rho,
+            # tensor_T,
+            # tensor_rho,
             # tensor_gradrhox,
             # tensor_gradTx
             ],
@@ -199,30 +199,20 @@ if activate_filter:
 else:
     (
         tensor_cp_filtered,
-        tensor_rho_filtered,
-        tensor_T_filtered,
+        # tensor_rho_filtered,
+        # tensor_T_filtered,
         
         # tensor_gradrhox_filtered,
         # tensor_gradTx_filtered
     ) = (
         tensor_cp,
-        tensor_T,
-        tensor_rho,
+        # tensor_T,
+        # tensor_rho,
         
         # tensor_gradrhox,
         # tensor_gradTx
     )
     
-# def derivar_y_filtrar(tensor, tensor_ptos, d_tensor_ds, order, stencil, poly_order):
-#     d_tensor_ds = torch.zeros(tensor.shape, dtype=torch.float64)
-#     for case in range(tensor.shape[-1]):
-#         d_tensor_ds[:, case] = SAM.Weapons.surface_derivative(
-#                 X=tensor_ptos,
-#                 f=tensor_cp_filtered[:, case],
-#                 order=order,
-#                 stencil_width=stencil,   
-#                 poly_order=poly_order,
-#             )
     
 scale_log = True
 for stencil in range(10, 420, 20):
@@ -230,11 +220,11 @@ for stencil in range(10, 420, 20):
     dcp_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
     dcp2_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
     
-    drho_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
-    drho2_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
+    # drho_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
+    # drho2_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
     
-    dT_ds = torch.zeros(tensor_T_filtered.shape, dtype=torch.float64)
-    dT2_ds = torch.zeros(tensor_T_filtered.shape, dtype=torch.float64)
+    # dT_ds = torch.zeros(tensor_T_filtered.shape, dtype=torch.float64)
+    # dT2_ds = torch.zeros(tensor_T_filtered.shape, dtype=torch.float64)
     
     for case in range(tensor_cp_filtered.shape[1]):
         dcp_ds[:, case] = SAM.Weapons.surface_derivative(
@@ -245,25 +235,25 @@ for stencil in range(10, 420, 20):
             poly_order=polyorder,
         )
         
-        drho_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=tensor_rho_filtered[:, case],
-            order=1,
-            stencil_width=stencil,   
-            poly_order=polyorder,
-        )
+        # drho_ds[:, case] = SAM.Weapons.surface_derivative(
+        #     X=tensor_ptos,
+        #     f=tensor_rho_filtered[:, case],
+        #     order=1,
+        #     stencil_width=stencil,   
+        #     poly_order=polyorder,
+        # )
         
-        dT_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=tensor_T_filtered[:, case],
-            order=1,
-            stencil_width=stencil,   
-            poly_order=polyorder,
-        )
+        # dT_ds[:, case] = SAM.Weapons.surface_derivative(
+        #     X=tensor_ptos,
+        #     f=tensor_T_filtered[:, case],
+        #     order=1,
+        #     stencil_width=stencil,   
+        #     poly_order=polyorder,
+        # )
         
     dcp_ds_filtered = SGS(dcp_ds, window_length=5, polyorder=2) if activate_filter else dcp_ds
-    drho_ds_filtered = SGS(drho_ds, window_length=5, polyorder=2) if activate_filter else drho_ds
-    dT_ds_filtered = SGS(dT_ds, window_length=5, polyorder=2) if activate_filter else dT_ds
+    # drho_ds_filtered = SGS(drho_ds, window_length=5, polyorder=2) if activate_filter else drho_ds
+    # dT_ds_filtered = SGS(dT_ds, window_length=5, polyorder=2) if activate_filter else dT_ds
     
     for case in range(tensor_cp_filtered.shape[1]):
         dcp2_ds[:, case] = SAM.Weapons.surface_derivative(
@@ -274,30 +264,30 @@ for stencil in range(10, 420, 20):
             poly_order=polyorder,
         )
 
-        drho2_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=drho_ds_filtered[:, case],
-            order=1,
-            stencil_width=stencil,   
-            poly_order=polyorder,
-        )
+        # drho2_ds[:, case] = SAM.Weapons.surface_derivative(
+        #     X=tensor_ptos,
+        #     f=drho_ds_filtered[:, case],
+        #     order=1,
+        #     stencil_width=stencil,   
+        #     poly_order=polyorder,
+        # )
         
-        dT2_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=dT_ds_filtered[:, case],
-            order=1,
-            stencil_width=stencil,   
-            poly_order=polyorder,
-        )
+        # dT2_ds[:, case] = SAM.Weapons.surface_derivative(
+        #     X=tensor_ptos,
+        #     f=dT_ds_filtered[:, case],
+        #     order=1,
+        #     stencil_width=stencil,   
+        #     poly_order=polyorder,
+        # )
         
     dcp_ds_log = symlog(dcp_ds_filtered, linthresh=1e-4) if scale_log else dcp_ds_filtered
     dcp2_ds_log = symlog(dcp2_ds, linthresh=1e-4) if scale_log else dcp2_ds
     
-    drho_ds_log = symlog(drho_ds_filtered, linthresh=1e-4) if scale_log else drho_ds_filtered
-    drho2_ds_log = symlog(drho2_ds, linthresh=1e-4) if scale_log else drho2_ds
+    # drho_ds_log = symlog(drho_ds_filtered, linthresh=1e-4) if scale_log else drho_ds_filtered
+    # drho2_ds_log = symlog(drho2_ds, linthresh=1e-4) if scale_log else drho2_ds
     
-    dT_ds_log = symlog(dT_ds_filtered, linthresh=1e-4) if scale_log else dT_ds_filtered
-    dT2_ds = symlog(dT2_ds, linthresh=1e-4) if scale_log else dT2_ds
+    # dT_ds_log = symlog(dT_ds_filtered, linthresh=1e-4) if scale_log else dT_ds_filtered
+    # dT2_ds = symlog(dT2_ds, linthresh=1e-4) if scale_log else dT2_ds
     
     
     # gradrhox_log = symlog(tensor_gradrhox_filtered, linthresh=1e-4) if scale_log else tensor_gradrhox_filtered
@@ -314,25 +304,25 @@ for stencil in range(10, 420, 20):
         array = dcp2_ds_log.numpy(),
         notes = 'Log dcp2_ds')
 
-    db_one.sets.add_aux(
-        array_name = 'drho_ds_log',
-        array = drho_ds_log.numpy(),
-        notes = 'Log drho_ds')
+    # db_one.sets.add_aux(
+    #     array_name = 'drho_ds_log',
+    #     array = drho_ds_log.numpy(),
+    #     notes = 'Log drho_ds')
 
-    db_one.sets.add_aux(
-        array_name = 'drho2_ds_log',
-        array = drho2_ds_log.numpy(),
-        notes = 'Log drho2_ds')
+    # db_one.sets.add_aux(
+    #     array_name = 'drho2_ds_log',
+    #     array = drho2_ds_log.numpy(),
+    #     notes = 'Log drho2_ds')
     
-    db_one.sets.add_aux(
-        array_name = 'dT_ds_log',
-        array = dT_ds_log.numpy(),
-        notes = 'Log dT_ds')
+    # db_one.sets.add_aux(
+    #     array_name = 'dT_ds_log',
+    #     array = dT_ds_log.numpy(),
+    #     notes = 'Log dT_ds')
 
-    db_one.sets.add_aux(
-        array_name = 'dT2_ds',
-        array = dT2_ds.numpy(),
-        notes = 'Log dT2_ds')
+    # db_one.sets.add_aux(
+    #     array_name = 'dT2_ds',
+    #     array = dT2_ds.numpy(),
+    #     notes = 'Log dT2_ds')
     # db_one.sets.add_aux(
     #     array_name = 'gradrhox_log',
     #     array = gradrhox_log.numpy(),
@@ -353,9 +343,9 @@ for stencil in range(10, 420, 20):
 
     db_one.sets.create_jset(verbose=False)
 
-    features = ['dcp_ds_log', 'dcp2_ds_log', 'drho_ds_log', 'drho2_ds_log', 'dT_ds_log', 'dT2_ds'] # , 'gradrhox_log', 'gradTx_log'
-    # features = ['dcp_ds_log', 'dcp2_ds_log']
-    folder_name = '_'.join(features)
+    # features = ['drho_ds_log', 'drho2_ds_log']#, 'dT_ds_log', 'dT2_ds'] # , 'dcp_ds_log', 'dcp2_ds_log', 'gradrhox_log', 'gradTx_log'
+    features = ['dcp_ds_log']#, 'dcp2_ds_log']
+    folder_name = '_'.join(features) if len(features) > 1 else features[0]
     df_data_complete, _ = SAM.Weapons.GMM(
         df_data=db_one.df_data,
         BIC_study=True,

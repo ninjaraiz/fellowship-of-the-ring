@@ -1057,6 +1057,74 @@ class SAM():
             ]
             return re.compile(rf"^{'_'.join(regex_parts)}$")
 
+        @staticmethod
+        def _fornberg_weights(x, x0, m):
+            """
+            Compute finite-difference weights using Fornberg's algorithm.
+
+            Parameters
+            ----------
+            x : (n,) tensor
+                Stencil coordinates.
+            x0 : float
+                Evaluation point.
+            m : int
+                Maximum derivative order.
+
+            Returns
+            -------
+            c : tensor (m+1,n)
+                c[k,j] are weights for the k-th derivative.
+            """
+
+            n = len(x)
+            c = torch.zeros((m + 1, n), dtype=torch.float64, device=x.device)
+
+            c1 = 1.0
+            c4 = x[0] - x0
+            c[0, 0] = 1.0
+
+            for i in range(1, n):
+
+                mn = min(i, m)
+
+                c2 = 1.0
+                c5 = c4
+                c4 = x[i] - x0
+
+                for j in range(i):
+
+                    c3 = x[i] - x[j]
+                    c2 *= c3
+
+                    if j == i - 1:
+
+                        for k in range(mn, 0, -1):
+
+                            c[k, i] = (
+                                c1
+                                * (
+                                    k * c[k - 1, i - 1]
+                                    - c5 * c[k, i - 1]
+                                )
+                                / c2
+                            )
+
+                        c[0, i] = -c1 * c5 * c[0, i - 1] / c2
+
+                    for k in range(mn, 0, -1):
+
+                        c[k, j] = (
+                            (c4 * c[k, j] - k * c[k - 1, j])
+                            / c3
+                        )
+
+                    c[0, j] = c4 * c[0, j] / c3
+
+                c1 = c2
+
+            return c
+        
     # =========================================================================
     # WEAPONS
     # =========================================================================
@@ -1394,39 +1462,62 @@ class SAM():
 
             use_ls = stencil_width > 1
 
-            def _filter(Xa, fa, is_torch):
-                if is_torch:
-                    dX = Xa[1:] - Xa[:-1]
-                    ds = torch.sqrt(torch.sum(dX ** 2, dim=1))
-                    keep = torch.cat([torch.tensor([True]), ds >= min_ds])
-                else:
-                    dX = Xa[1:] - Xa[:-1]
-                    ds = np.sqrt(np.sum(dX ** 2, axis=1))
-                    keep = np.concatenate([[True], ds >= min_ds])
-                return Xa[keep], fa[keep]
-
             def _arc(Xa, is_torch):
                 if is_torch:
                     dX = Xa[1:] - Xa[:-1]
-                    ds = torch.sqrt(torch.sum(dX ** 2, dim=1))
-                    s = torch.zeros(Xa.shape[0], dtype=torch.float64,
-                                    device=Xa.device)
+                    ds = torch.sqrt(torch.sum(dX**2, dim=1))
+                    ds = torch.clamp(ds, min=min_ds)
+
+                    s = torch.zeros(
+                        Xa.shape[0],
+                        dtype=torch.float64,
+                        device=Xa.device,
+                    )
                     s[1:] = torch.cumsum(ds, dim=0)
+
                 else:
                     dX = Xa[1:] - Xa[:-1]
-                    s = np.zeros(Xa.shape[0])
-                    s[1:] = np.cumsum(np.sqrt(np.sum(dX ** 2, axis=1)))
+                    ds = np.sqrt(np.sum(dX**2, axis=1))
+                    ds = np.maximum(ds, min_ds)
+
+                    s = np.zeros(Xa.shape[0], dtype=np.float64)
+                    s[1:] = np.cumsum(ds)
+
                 return s
 
             def _ls_np(s_arr, f_col, sw, pord, dord):
+
                 N = len(s_arr)
                 out = np.zeros(N)
+
                 for i in range(N):
+
                     lo = max(0, i - sw)
                     hi = min(N - 1, i + sw)
+
                     s_loc = s_arr[lo:hi + 1] - s_arr[i]
-                    coeffs = np.polyfit(s_loc, f_col[lo:hi + 1], pord)
-                    out[i] = np.poly1d(coeffs).deriv(dord)(0.0)
+                    y = f_col[lo:hi + 1]
+
+                    # Número de puntos disponibles
+                    npts = len(s_loc)
+
+                    # Reducir automáticamente el grado si hace falta
+                    degree = min(pord, npts - 1)
+
+                    # Escalado local para mejorar el condicionamiento
+                    scale = np.max(np.abs(s_loc))
+
+                    if scale < min_ds:
+                        scale = 1.0
+
+                    s_scaled = s_loc / scale
+
+                    coeffs = np.polyfit(s_scaled, y, degree)
+
+                    p = np.poly1d(coeffs)
+
+                    out[i] = p.deriv(dord)(0.0) / scale**dord
+
                 return out
 
             def _ls_torch(s_arr, f_col, sw, pord, dord):
@@ -1443,7 +1534,7 @@ class SAM():
                 squeeze = f.ndim == 1
                 if squeeze:
                     f = f[:, None]
-                X, f = _filter(X, f, True)
+                
                 s = _arc(X, True)
 
                 if not use_ls:
@@ -1473,7 +1564,7 @@ class SAM():
                 squeeze = f.ndim == 1
                 if squeeze:
                     f = f[:, None]
-                X, f = _filter(X, f, False)
+                
                 s = _arc(X, False)
 
                 if not use_ls:
@@ -1569,6 +1660,75 @@ class SAM():
                 derivs[:, d] = g
 
             return derivs
+
+        @staticmethod
+        def finite_diff_derivative_Fornberg(
+            X,
+            f,
+            order=1,
+            stencil_width=2,
+        ):
+            """
+            Finite differences on arbitrarily spaced nodes using
+            Fornberg weights.
+
+            Parameters
+            ----------
+            X : (N,D)
+            f : (N,)
+            order : int
+            stencil_width : int
+
+                Number of neighbours on each side.
+
+                stencil_width=2
+
+                -> 5-point stencil
+
+                stencil_width=3
+
+                -> 7-point stencil
+
+            """
+
+            X = X.to(torch.float64)
+            f = f.to(torch.float64)
+
+            N, D = X.shape
+
+            deriv = torch.zeros((N, D),
+                                dtype=torch.float64,
+                                device=X.device)
+
+            for d in range(D):
+
+                xd = X[:, d]
+
+                for i in range(N):
+
+                    lo = max(0, i - stencil_width)
+                    hi = min(N, i + stencil_width + 1)
+
+                    # if close to boundary enlarge on opposite side
+
+                    if hi - lo < 2 * stencil_width + 1:
+
+                        if lo == 0:
+                            hi = min(N, 2 * stencil_width + 1)
+
+                        if hi == N:
+                            lo = max(0, N - (2 * stencil_width + 1))
+
+                    xs = xd[lo:hi]
+
+                    weights = SAM.Backpack._fornberg_weights(xs, xd[i], order)
+
+                    deriv[i, d] = torch.dot(
+                        weights[order],
+                        f[lo:hi],
+                    )
+
+            return deriv
 
         @staticmethod
         def build_element_neighbors(
@@ -1915,8 +2075,12 @@ class SAM():
                     axes[0].grid(True)
 
                     X_plot = X
-                    xlabel, ylabel = features[0], features[1]
-                    if len(features) > 2:
+                    if len(features) == 1:
+                        xlabel = features[0]
+                        ylabel = "Density"
+                    elif len(features) == 2:
+                        xlabel, ylabel = features[0], features[1]
+                    elif len(features) > 2:
                         pca    = PCA(n_components=2)
                         X_plot = pca.fit_transform(X)
                         xlabel = (
@@ -1931,8 +2095,12 @@ class SAM():
                         c=labels, cmap="viridis", s=30, edgecolor="k",
                     )
                     plt.colorbar(sc, label="Cluster ID")
-                    plt.xlabel(xlabel)
-                    plt.ylabel(ylabel)
+                    if len(features) == 1:
+                        plt.yticks([])
+                    elif len(features) > 1:
+                        plt.xlabel(xlabel)
+                        plt.ylabel(ylabel)
+                        
                     plt.grid(True)
                     group_str = (
                         "_".join(f"{x:.2f}" for x in group_key)
