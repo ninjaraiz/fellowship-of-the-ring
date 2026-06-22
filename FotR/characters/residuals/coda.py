@@ -484,6 +484,11 @@ class CODAResiduals(BaseResiduals):
             var_metrics = [var_metrics]
 
         df_post     = db.df_state.copy()
+        rename_dict = {
+            col:col.lower() for col in df_post.columns
+        }
+        df_post  = df_post.rename(columns=rename_dict)
+        
         design_vars = db.metadata['design_vars']
         n_stages    = db.metadata['num_stages']
 
@@ -505,8 +510,11 @@ class CODAResiduals(BaseResiduals):
                 for col in df_finals.columns
                 if col not in [dv.lower() for dv in design_vars]
             }
+            
             df_finals  = df_finals.rename(columns=rename_dict)
-            df_post    = df_post.merge(df_finals, on=design_vars, how="left")
+            print(df_finals.columns.to_list()[-3:], df_post.columns.to_list(), [v.lower() for v in design_vars])
+            
+            df_post    = df_post.merge(df_finals, on=[v.lower() for v in design_vars], how="left")
 
         # Fill integral metric columns
         for irow in range(len(db.df_state)):
@@ -540,7 +548,7 @@ class CODAResiduals(BaseResiduals):
                     df_post.loc[irow, f"{v}_var_stage{stage}"]  = df_tail[v].var()
 
         df_post = df_post.sort_values(
-            by=db.metadata['design_vars'][0], ignore_index=True
+            by=db.metadata['design_vars'][0].lower(), ignore_index=True
         ).reset_index(drop=True)
 
         if save:
@@ -555,6 +563,7 @@ class CODAResiduals(BaseResiduals):
         iterations_back: int = 1000,
         only_finished: bool = False,
         only_converged: bool = False,
+        residual_threshold: float = 1e-4,
         columns_to_remove: Union[list, tuple] = (
             'total_iter', 'Iteration', 'Time'
         ),
@@ -602,6 +611,28 @@ class CODAResiduals(BaseResiduals):
             ``(result_mean, result_std)`` – one row per simulation,
             columns are design variables followed by integral variable names.
 
+        Notes
+        -----
+        Each simulation folder found in ``db.sim_metadata`` is matched
+        against ``db.metadata['df_cases']`` by an **exact** lookup on the
+        ``'folder'`` column — the same column populated once (and
+        precisely) by ``CODAReader.parse_simulation_dirs`` — rather than by
+        re-parsing numeric values out of the folder name with a regular
+        expression.
+
+        This matters because folder names are frequently *rounded* for
+        readability (e.g. ``'aoa_3.00_mach_0.750'`` for an underlying AoA
+        of ``3.0042``), while ``df_cases`` stores the precise design
+        variable values. Re-parsing the rounded folder name and comparing
+        it against the precise ``df_cases`` values with a tight-tolerance
+        ``np.isclose`` (the previous behaviour) could silently fail to
+        match, causing valid simulations — including fully converged ones
+        — to be skipped even when ``only_converged=False``. Looking the
+        case up directly via the ``'folder'`` column removes this source
+        of mismatch entirely, and also makes the design-variable values
+        reported in ``result_mean`` / ``result_std`` exact rather than the
+        rounded folder-name values.
+
         Examples
         --------
         ::
@@ -632,7 +663,7 @@ class CODAResiduals(BaseResiduals):
             if c.endswith('norm') and 'MomentumYResidual' not in c
         ]
         df_filtered = (
-            df_res[(df_res[cols] < 1e-4).all(axis=1)][
+            df_res[(df_res[cols] < residual_threshold).all(axis=1)][
                 self.db.metadata['design_vars']
             ]
             if only_converged
@@ -642,12 +673,20 @@ class CODAResiduals(BaseResiduals):
         folder_fmt       = self.db.metadata.get('folder_fmt', '')
         pattern          = SAM.Backpack.folder_fmt_to_pattern(folder_fmt)
         df_integrals_ref = None
+        df_cases         = self.db.metadata.get('df_cases', pd.DataFrame())
+        design_vars      = self.db.metadata['design_vars']
+
+        if 'folder' not in df_cases.columns:
+            raise KeyError(
+                "df_cases has no 'folder' column. Run "
+                "db.reader.parse_simulation_dirs() before calling "
+                "integrals_convergence_criteria()."
+            )
 
         for folder_name, dic in self.db.sim_metadata.items():
             if not re.match(pattern, folder_name):
                 continue
 
-            valores     = list(map(float, re.findall(r"-?\d+\.\d+", folder_name)))
             stages_done = len(self.db.sim_metadata[folder_name]['stages'])
 
             if only_finished and stages_done < self.db.metadata['num_stages']:
@@ -655,8 +694,23 @@ class CODAResiduals(BaseResiduals):
                     print(f"Skipping '{folder_name}': not finished.")
                 continue
 
+            # ── Resolve exact design-variable values for this folder ───────
+            # Looked up directly from df_cases via the precise 'folder'
+            # column instead of being re-parsed (and rounded) from the
+            # folder name itself — see the "Notes" section in the
+            # docstring for why this matters.
+            case_row = df_cases.loc[df_cases['folder'] == folder_name]
+            if case_row.empty:
+                if verbose:
+                    print(
+                        f"Skipping '{folder_name}': "
+                        "no matching entry found in df_cases."
+                    )
+                continue
+            valores = case_row[design_vars].iloc[0].astype(float).tolist()
+
             mask = np.ones(len(df_filtered), dtype=bool)
-            for val, var in zip(valores, self.db.metadata['design_vars']):
+            for val, var in zip(valores, design_vars):
                 mask &= np.isclose(df_filtered[var].values, val)
 
             if not mask.any():
