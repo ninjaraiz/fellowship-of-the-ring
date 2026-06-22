@@ -78,6 +78,7 @@ db.extract_inputs(
 db.extract_outputs(
     keys_outputs={
         'cp': 'BoundaryValues_CoefPressure',
+        'cf': 'BoundaryValues_CoefSkinFrictionTangential',
         # 'gradrho': 'AugStateGrad_DensityGradient_interp',  # field del Dataset → data_dict['outputs']['cp']
         # 'gradT': 'AugStateGrad_TemperatureGradient_interp',
         # 'T': 'AugState_Temperature_interp',
@@ -91,6 +92,7 @@ xyz = db.sets.get_xyz()           # (npoints, 3)
 aoa   = db.sets.get_variable('aoa') # (500,)
 mach = db.sets.get_variable('mach')   # (500,)
 cp  = db.sets.get_field('cp')     # (npoints, 500)
+cf = db.sets.get_field('cf')     # (npoints, 500)
 
 # T = db.sets.get_field('T')
 # rho = db.sets.get_field('rho')
@@ -102,6 +104,7 @@ cp  = db.sets.get_field('cp')     # (npoints, 500)
 from FotR import SAM
 xyz_sort, order_sort = SAM.Weapons.sort_by_centroid(xyz)
 cp_sort = cp[order_sort, :]
+cf_sort = cf[order_sort, :]
 
 # T_sort = T[order_sort, :]
 # rho_sort = rho[order_sort, :]
@@ -116,6 +119,7 @@ def segmentar_tensor(tensor, sep):
 
 tensor_ptos = segmentar_tensor(xyz_sort, sep)
 tensor_cp = segmentar_tensor(cp_sort, sep)
+tensor_cf = segmentar_tensor(cf_sort, sep)
 
 # tensor_rho = segmentar_tensor(rho_sort, sep)
 # tensor_T = segmentar_tensor(T, sep)
@@ -181,6 +185,7 @@ def SGS(tensor, window_length=21, polyorder=3):
 if activate_filter:
     (
         tensor_cp_filtered,
+        tensor_cf_filtered,
         # tensor_gradrhox_filtered,
         # tensor_gradTx_filtered
         # tensor_rho_filtered,
@@ -188,6 +193,7 @@ if activate_filter:
     ) = SGS(
         [
             tensor_cp,
+            tensor_cf,
             # tensor_T,
             # tensor_rho,
             # tensor_gradrhox,
@@ -199,6 +205,7 @@ if activate_filter:
 else:
     (
         tensor_cp_filtered,
+        tensor_cf_filtered,
         # tensor_rho_filtered,
         # tensor_T_filtered,
         
@@ -206,6 +213,7 @@ else:
         # tensor_gradTx_filtered
     ) = (
         tensor_cp,
+        tensor_cf,
         # tensor_T,
         # tensor_rho,
         
@@ -215,10 +223,13 @@ else:
     
     
 scale_log = True
-for stencil in range(10, 420, 20):
+for stencil in range(50, 420, 20):
     # ── derivada por longitud de arco ─────────────────────────────────────────
     dcp_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
     dcp2_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
+    
+    dcf_ds = torch.zeros(tensor_cf_filtered.shape, dtype=torch.float64)
+    dcf2_ds = torch.zeros(tensor_cf_filtered.shape, dtype=torch.float64)
     
     # drho_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
     # drho2_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
@@ -230,6 +241,14 @@ for stencil in range(10, 420, 20):
         dcp_ds[:, case] = SAM.Weapons.surface_derivative(
             X=tensor_ptos,
             f=tensor_cp_filtered[:, case],
+            order=1,
+            stencil_width=stencil,   
+            poly_order=polyorder,
+        )
+        
+        dcf_ds[:, case] = SAM.Weapons.surface_derivative(
+            X=tensor_ptos,
+            f=tensor_cf_filtered[:, case],
             order=1,
             stencil_width=stencil,   
             poly_order=polyorder,
@@ -252,6 +271,8 @@ for stencil in range(10, 420, 20):
         # )
         
     dcp_ds_filtered = SGS(dcp_ds, window_length=5, polyorder=2) if activate_filter else dcp_ds
+    dcf_ds_filtered = SGS(dcf_ds, window_length=5, polyorder=2) if activate_filter else dcf_ds
+    
     # drho_ds_filtered = SGS(drho_ds, window_length=5, polyorder=2) if activate_filter else drho_ds
     # dT_ds_filtered = SGS(dT_ds, window_length=5, polyorder=2) if activate_filter else dT_ds
     
@@ -264,6 +285,14 @@ for stencil in range(10, 420, 20):
             poly_order=polyorder,
         )
 
+        dcf2_ds[:, case] = SAM.Weapons.surface_derivative(
+            X=tensor_ptos,
+            f=dcf_ds_filtered[:, case],
+            order=1,
+            stencil_width=stencil,
+            poly_order=polyorder,
+        )
+        
         # drho2_ds[:, case] = SAM.Weapons.surface_derivative(
         #     X=tensor_ptos,
         #     f=drho_ds_filtered[:, case],
@@ -282,6 +311,9 @@ for stencil in range(10, 420, 20):
         
     dcp_ds_log = symlog(dcp_ds_filtered, linthresh=1e-4) if scale_log else dcp_ds_filtered
     dcp2_ds_log = symlog(dcp2_ds, linthresh=1e-4) if scale_log else dcp2_ds
+    
+    dcf2_ds_log = symlog(dcf2_ds, linthresh=1e-4) if scale_log else dcf2_ds
+    dcf_ds_log = symlog(dcf_ds_filtered, linthresh=1e-4) if scale_log else dcf_ds_filtered
     
     # drho_ds_log = symlog(drho_ds_filtered, linthresh=1e-4) if scale_log else drho_ds_filtered
     # drho2_ds_log = symlog(drho2_ds, linthresh=1e-4) if scale_log else drho2_ds
@@ -304,6 +336,16 @@ for stencil in range(10, 420, 20):
         array = dcp2_ds_log.numpy(),
         notes = 'Log dcp2_ds')
 
+    db_one.sets.add_aux(
+        array_name = 'dcf_ds_log',
+        array = dcf_ds_log.numpy(),
+        notes = 'Log dcf_ds')
+    
+    db_one.sets.add_aux(
+        array_name = 'dcf2_ds_log',
+        array = dcf2_ds_log.numpy(),
+        notes = 'Log dcf2_ds')
+    
     # db_one.sets.add_aux(
     #     array_name = 'drho_ds_log',
     #     array = drho_ds_log.numpy(),
@@ -337,6 +379,8 @@ for stencil in range(10, 420, 20):
 
     db_one.data_dict['inputs']['ptos'] = tensor_ptos.numpy()
     db_one.data_dict['outputs']['cp'] = tensor_cp_filtered.numpy()
+    db_one.data_dict['outputs']['cf'] = tensor_cf_filtered.numpy()
+    
     [db_one.data_dict['outputs'].pop(key, None) for key in ['gradT', 'gradrho']]
     db_one.sets.create_jset(verbose=False)
     # display(db_one.df_data)
@@ -344,7 +388,7 @@ for stencil in range(10, 420, 20):
     db_one.sets.create_jset(verbose=False)
 
     # features = ['drho_ds_log', 'drho2_ds_log']#, 'dT_ds_log', 'dT2_ds'] # , 'dcp_ds_log', 'dcp2_ds_log', 'gradrhox_log', 'gradTx_log'
-    features = ['dcp_ds_log']#, 'dcp2_ds_log']
+    features = ['dcp_ds_log', 'dcf_ds_log', 'dcp2_ds_log']
     folder_name = '_'.join(features) if len(features) > 1 else features[0]
     df_data_complete, _ = SAM.Weapons.GMM(
         df_data=db_one.df_data,
