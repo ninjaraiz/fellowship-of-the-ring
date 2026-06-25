@@ -20,7 +20,7 @@ xfoil_out/
 **/*.dat
 
 # Outputs GMM
-**/example_GMM/
+**/example_GMM*
 **/*.csv
 
 # Outputs mallas

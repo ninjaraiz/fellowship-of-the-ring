@@ -9,7 +9,7 @@ config = {
     'folder_to_save':{
         'laptop': '/home/migueljaraiz/anaconda3/repos/GMM_TIFON/',
         'cluster': '/home/m.jaraiz/Documentos/GMM/GMM_TIFON/',
-        'FotR_ex': './example_GMM/'
+        'FotR_ex': './example_GMM_gradient/'
     },
     'pylom_path': {
         'laptop': '/home/migueljaraiz/anaconda3/repos/pyLowOrder',
@@ -58,6 +58,7 @@ for folder_path in config['root_dir'][pc]:
         config['root_dir'][pc] = folder_path
         print('Folder root_dir found succesfull.')
         break
+    
 if isinstance(config['root_dir'][pc], list):
     raise LookupError('Folder root_dir not found with this configuration.')
     
@@ -78,7 +79,9 @@ db.extract_inputs(
 db.extract_outputs(
     keys_outputs={
         'cp': 'BoundaryValues_CoefPressure',
-        'cf': 'BoundaryValues_CoefSkinFrictionTangential',
+        # 'cf': 'BoundaryValues_CoefSkinFrictionTangential',
+        # 'rhoV': 'State_Momentum_interp',
+        # 'rho': 'State_Density_interp'
         # 'gradrho': 'AugStateGrad_DensityGradient_interp',  # field del Dataset → data_dict['outputs']['cp']
         # 'gradT': 'AugStateGrad_TemperatureGradient_interp',
         # 'T': 'AugState_Temperature_interp',
@@ -92,7 +95,7 @@ xyz = db.sets.get_xyz()           # (npoints, 3)
 aoa   = db.sets.get_variable('aoa') # (500,)
 mach = db.sets.get_variable('mach')   # (500,)
 cp  = db.sets.get_field('cp')     # (npoints, 500)
-cf = db.sets.get_field('cf')     # (npoints, 500)
+# cf = db.sets.get_field('cf')     # (npoints, 500)
 
 # T = db.sets.get_field('T')
 # rho = db.sets.get_field('rho')
@@ -100,11 +103,12 @@ cf = db.sets.get_field('cf')     # (npoints, 500)
 # gradrhox = db.sets.get_field('gradrho')[0, :, :]#np.linalg.norm(db.sets.get_field('gradrho'), ord=2,axis=0)
 # gradTx = db.sets.get_field('gradT')[0, :, :]#np.linalg.norm(db.sets.get_field('gradT'), ord=2,axis=0)
 
+# rhoV = db.sets.get_field('rhoV') #np.linalg.norm(db.sets.get_field('rhoV'), ord=2, axis=0)
 
 from FotR import SAM
 xyz_sort, order_sort = SAM.Weapons.sort_by_centroid(xyz)
 cp_sort = cp[order_sort, :]
-cf_sort = cf[order_sort, :]
+# cf_sort = cf[order_sort, :]
 
 # T_sort = T[order_sort, :]
 # rho_sort = rho[order_sort, :]
@@ -112,124 +116,22 @@ cf_sort = cf[order_sort, :]
 # gradrhox_sort = gradrhox[order_sort, :]
 # gradTx_sort = gradTx[order_sort, :]
 
+# rhoV_sort = rhoV[:, order_sort, :] #ncases, nptos, ncompon
+
 sep = 1
 n_clusters = 2
-def segmentar_tensor(tensor, sep):
-    return torch.from_numpy(tensor[::sep, :]) if sep != 1 else torch.from_numpy(tensor)
 
-tensor_ptos = segmentar_tensor(xyz_sort, sep)
-tensor_cp = segmentar_tensor(cp_sort, sep)
-tensor_cf = segmentar_tensor(cf_sort, sep)
-
-# tensor_rho = segmentar_tensor(rho_sort, sep)
-# tensor_T = segmentar_tensor(T, sep)
-
-# tensor_gradrhox = segmentar_tensor(gradrhox_sort, sep)
-# tensor_gradTx = segmentar_tensor(gradTx_sort, sep)
-
-from scipy.signal import savgol_filter
-
-activate_filter = False
-
-window_length = 101   # debe ser impar
 polyorder = 2
-
-def SGS(tensor, window_length=21, polyorder=3):
-
-    def _filter(x):
-        if isinstance(x, torch.Tensor):
-            x_np = x.detach().cpu().numpy()
-
-            if x_np.ndim == 1:
-                y = savgol_filter(
-                    x_np,
-                    window_length=window_length,
-                    polyorder=polyorder
-                )
-            else:
-                y = savgol_filter(
-                    x_np,
-                    window_length=window_length,
-                    polyorder=polyorder,
-                    axis=0
-                )
-
-            return torch.from_numpy(y).to(x.dtype)
-
-        elif isinstance(x, np.ndarray):
-
-            if x.ndim == 1:
-                return savgol_filter(
-                    x,
-                    window_length=window_length,
-                    polyorder=polyorder
-                )
-            else:
-                return savgol_filter(
-                    x,
-                    window_length=window_length,
-                    polyorder=polyorder,
-                    axis=0
-                )
-
-        else:
-            raise ValueError(
-                "Input must be a torch tensor or numpy array."
-            )
-
-    if isinstance(tensor, (list, tuple)):
-        return [_filter(t) for t in tensor]
-    else:
-        return _filter(tensor)
-
-if activate_filter:
-    (
-        tensor_cp_filtered,
-        tensor_cf_filtered,
-        # tensor_gradrhox_filtered,
-        # tensor_gradTx_filtered
-        # tensor_rho_filtered,
-        # tensor_T_filtered
-    ) = SGS(
-        [
-            tensor_cp,
-            tensor_cf,
-            # tensor_T,
-            # tensor_rho,
-            # tensor_gradrhox,
-            # tensor_gradTx
-            ],
-        window_length=21,
-        polyorder=3
-    )
-else:
-    (
-        tensor_cp_filtered,
-        tensor_cf_filtered,
-        # tensor_rho_filtered,
-        # tensor_T_filtered,
-        
-        # tensor_gradrhox_filtered,
-        # tensor_gradTx_filtered
-    ) = (
-        tensor_cp,
-        tensor_cf,
-        # tensor_T,
-        # tensor_rho,
-        
-        # tensor_gradrhox,
-        # tensor_gradTx
-    )
     
     
-scale_log = True
-for stencil in range(50, 420, 20):
+scale_log = False
+for stencil in range(100, 160, 10):
     # ── derivada por longitud de arco ─────────────────────────────────────────
-    dcp_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
-    dcp2_ds = torch.zeros(tensor_cp_filtered.shape, dtype=torch.float64)
+    # dcp_ds = np.zeros(cp_sort.shape, dtype=np.float64)
+    # dcp2_ds = np.zeros(cp_sort.shape, dtype=np.float64)
     
-    dcf_ds = torch.zeros(tensor_cf_filtered.shape, dtype=torch.float64)
-    dcf2_ds = torch.zeros(tensor_cf_filtered.shape, dtype=torch.float64)
+    # dcf_ds = np.zeros(cf_sort.shape, dtype=np.float64)
+    # dcf2_ds = np.zeros(cf_sort.shape, dtype=np.float64)
     
     # drho_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
     # drho2_ds = torch.zeros(tensor_rho_filtered.shape, dtype=torch.float64)
@@ -237,84 +139,58 @@ for stencil in range(50, 420, 20):
     # dT_ds = torch.zeros(tensor_T_filtered.shape, dtype=torch.float64)
     # dT2_ds = torch.zeros(tensor_T_filtered.shape, dtype=torch.float64)
     
-    for case in range(tensor_cp_filtered.shape[1]):
-        dcp_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=tensor_cp_filtered[:, case],
-            order=1,
-            stencil_width=stencil,   
-            poly_order=polyorder,
-        )
+    grad_cp = SAM.DifferentialOperators.gradient(
+        X = xyz_sort,
+        f = cp,
+        stencil_width=stencil,
+        poly_order = 2
+    )
+    # for case in range(cp_sort.shape[1]):
+    #     dcp_ds[:, case] = SAM.DifferentialOperators.gradient(
+    #         X=xyz_sort,
+    #         f=cp_sort[:, case],
+    #         stencil_width=stencil,   
+    #         poly_order=polyorder,
+    #     )
         
-        dcf_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=tensor_cf_filtered[:, case],
-            order=1,
-            stencil_width=stencil,   
-            poly_order=polyorder,
-        )
-        
-        # drho_ds[:, case] = SAM.Weapons.surface_derivative(
-        #     X=tensor_ptos,
-        #     f=tensor_rho_filtered[:, case],
+        # dcf_ds[:, case] = SAM.Weapons.surface_derivative(
+        #     X=xyz_sort,
+        #     f=cf_sort[:, case],
         #     order=1,
         #     stencil_width=stencil,   
         #     poly_order=polyorder,
         # )
-        
-        # dT_ds[:, case] = SAM.Weapons.surface_derivative(
-        #     X=tensor_ptos,
-        #     f=tensor_T_filtered[:, case],
+        # dcp2_ds[:, case] = SAM.Weapons.surface_derivative(
+        #     X=xyz_sort,
+        #     f=dcp_ds[:, case],
         #     order=1,
-        #     stencil_width=stencil,   
+        #     stencil_width=stencil,
         #     poly_order=polyorder,
         # )
-        
-    dcp_ds_filtered = SGS(dcp_ds, window_length=5, polyorder=2) if activate_filter else dcp_ds
-    dcf_ds_filtered = SGS(dcf_ds, window_length=5, polyorder=2) if activate_filter else dcf_ds
-    
-    # drho_ds_filtered = SGS(drho_ds, window_length=5, polyorder=2) if activate_filter else drho_ds
-    # dT_ds_filtered = SGS(dT_ds, window_length=5, polyorder=2) if activate_filter else dT_ds
-    
-    for case in range(tensor_cp_filtered.shape[1]):
-        dcp2_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=dcp_ds_filtered[:, case],
-            order=1,
-            stencil_width=stencil,
-            poly_order=polyorder,
-        )
 
-        dcf2_ds[:, case] = SAM.Weapons.surface_derivative(
-            X=tensor_ptos,
-            f=dcf_ds_filtered[:, case],
-            order=1,
-            stencil_width=stencil,
-            poly_order=polyorder,
-        )
-        
-        # drho2_ds[:, case] = SAM.Weapons.surface_derivative(
-        #     X=tensor_ptos,
-        #     f=drho_ds_filtered[:, case],
+        # dcf2_ds[:, case] = SAM.Weapons.surface_derivative(
+        #     X=xyz_sort,
+        #     f=dcf_ds[:, case],
         #     order=1,
-        #     stencil_width=stencil,   
+        #     stencil_width=stencil,
         #     poly_order=polyorder,
         # )
-        
-        # dT2_ds[:, case] = SAM.Weapons.surface_derivative(
-        #     X=tensor_ptos,
-        #     f=dT_ds_filtered[:, case],
-        #     order=1,
-        #     stencil_width=stencil,   
-        #     poly_order=polyorder,
-        # )
-        
-    dcp_ds_log = symlog(dcp_ds_filtered, linthresh=1e-4) if scale_log else dcp_ds_filtered
-    dcp2_ds_log = symlog(dcp2_ds, linthresh=1e-4) if scale_log else dcp2_ds
     
-    dcf2_ds_log = symlog(dcf2_ds, linthresh=1e-4) if scale_log else dcf2_ds
-    dcf_ds_log = symlog(dcf_ds_filtered, linthresh=1e-4) if scale_log else dcf_ds_filtered
+    # div_rhoV = SAM.DifferentialOperators.divergence(
+    #     xyz_sort,
+    #     rhoV_sort,
+    #     stencil_width=stencil,
+    #     poly_order=2
+    # )
     
+    grad_cp_log = symlog(grad_cp[0, :, :], linthresh=1e-4) if scale_log else grad_cp[0, :, :]
+    # dcp_ds_log = symlog(cp_sort, linthresh=1e-4) if scale_log else dcp_ds
+    # dcp2_ds_log = symlog(dcp2_ds, linthresh=1e-4) if scale_log else dcp2_ds
+    
+    # dcf2_ds_log = symlog(dcf2_ds, linthresh=1e-4) if scale_log else dcf2_ds
+    # dcf_ds_log = symlog(dcf_ds, linthresh=1e-4) if scale_log else dcf_ds
+    
+    # div_rhoV_log = symlog(div_rhoV, linthresh=1e-4) if scale_log else div_rhoV
     # drho_ds_log = symlog(drho_ds_filtered, linthresh=1e-4) if scale_log else drho_ds_filtered
     # drho2_ds_log = symlog(drho2_ds, linthresh=1e-4) if scale_log else drho2_ds
     
@@ -327,24 +203,35 @@ for stencil in range(50, 420, 20):
     
     db_one = db.copy()
     db_one.sets.add_aux(
-        array_name = 'dcp_ds_log',
-        array = dcp_ds_log.numpy(),
-        notes = 'Log dcp_ds')
-
-    db_one.sets.add_aux(
-        array_name = 'dcp2_ds_log',
-        array = dcp2_ds_log.numpy(),
-        notes = 'Log dcp2_ds')
-
-    db_one.sets.add_aux(
-        array_name = 'dcf_ds_log',
-        array = dcf_ds_log.numpy(),
-        notes = 'Log dcf_ds')
+        array_name = 'grad_cp_log',
+        array = grad_cp_log,
+        notes = ''
+    )
     
-    db_one.sets.add_aux(
-        array_name = 'dcf2_ds_log',
-        array = dcf2_ds_log.numpy(),
-        notes = 'Log dcf2_ds')
+    # db_one.sets.add_aux(
+    #     array_name = 'dcp_ds_log',
+    #     array = dcp_ds_log,
+    #     notes = 'Log dcp_ds')
+
+    # db_one.sets.add_aux(
+    #     array_name = 'dcp2_ds_log',
+    #     array = dcp2_ds_log,
+    #     notes = 'Log dcp2_ds')
+
+    # db_one.sets.add_aux(
+    #     array_name = 'dcf_ds_log',
+    #     array = dcf_ds_log,
+    #     notes = 'Log dcf_ds')
+    
+    # db_one.sets.add_aux(
+    #     array_name = 'dcf2_ds_log',
+    #     array = dcf2_ds_log,
+    #     notes = 'Log dcf2_ds')
+    
+    # db_one.sets.add_aux(
+    #     array_name = 'div_rhoV_log',
+    #     array = div_rhoV_log,
+    #     notes = 'Log div_rhoV')
     
     # db_one.sets.add_aux(
     #     array_name = 'drho_ds_log',
@@ -365,6 +252,7 @@ for stencil in range(50, 420, 20):
     #     array_name = 'dT2_ds',
     #     array = dT2_ds.numpy(),
     #     notes = 'Log dT2_ds')
+    
     # db_one.sets.add_aux(
     #     array_name = 'gradrhox_log',
     #     array = gradrhox_log.numpy(),
@@ -377,18 +265,18 @@ for stencil in range(50, 420, 20):
     #     notes = 'Log gradTx'
     # )
 
-    db_one.data_dict['inputs']['ptos'] = tensor_ptos.numpy()
-    db_one.data_dict['outputs']['cp'] = tensor_cp_filtered.numpy()
-    db_one.data_dict['outputs']['cf'] = tensor_cf_filtered.numpy()
+    db_one.data_dict['inputs']['ptos'] = xyz_sort
+    db_one.data_dict['outputs']['cp'] = cp_sort
+    # db_one.data_dict['outputs']['cf'] = cf_sort
     
-    [db_one.data_dict['outputs'].pop(key, None) for key in ['gradT', 'gradrho']]
+    [db_one.data_dict['outputs'].pop(key, None) for key in ['rho', 'rhoV', 'gradT', 'gradrho']]
     db_one.sets.create_jset(verbose=False)
     # display(db_one.df_data)
 
-    db_one.sets.create_jset(verbose=False)
+    # db_one.sets.create_jset(verbose=False)
 
     # features = ['drho_ds_log', 'drho2_ds_log']#, 'dT_ds_log', 'dT2_ds'] # , 'dcp_ds_log', 'dcp2_ds_log', 'gradrhox_log', 'gradTx_log'
-    features = ['dcp_ds_log', 'dcf_ds_log', 'dcp2_ds_log']
+    features = ['grad_cp_log']
     folder_name = '_'.join(features) if len(features) > 1 else features[0]
     df_data_complete, _ = SAM.Weapons.GMM(
         df_data=db_one.df_data,

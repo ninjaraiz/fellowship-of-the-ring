@@ -14,6 +14,7 @@ import matplotlib.colors as mcolors
 
 import matplotlib.ticker as mticker
 from scipy.spatial import Delaunay
+from scipy.spatial import cKDTree
 
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
@@ -2455,6 +2456,336 @@ class SAM():
             mesh_dst = SAM.Weapons._build_pyvista_grid(coord_dst, conec_dst)
             mesh_src.cell_data["values"] = var_src_stack
             return mesh_dst.sample(mesh_src).cell_data["values"]
+
+    class DifferentialOperators:
+        @staticmethod
+        def _polynomial_basis(
+            DX,
+            poly_order: int = 2,
+        ):
+            """
+            Parameters
+            ----------
+            DX : ndarray
+                shape (nstencil, ndim)
+
+            Returns
+            -------
+            A : ndarray
+                shape (nstencil, nterms)
+            """
+
+            ndim = DX.shape[1]
+
+            if poly_order not in (1, 2):
+                raise ValueError(
+                    "Only poly_order=1 or 2 supported."
+                )
+
+            terms = [np.ones(DX.shape[0])]
+
+            terms.extend(
+                DX[:, d]
+                for d in range(ndim)
+            )
+
+            if poly_order == 2:
+
+                terms.extend(
+                    DX[:, d] ** 2
+                    for d in range(ndim)
+                )
+
+                terms.extend(
+                    DX[:, i] * DX[:, j]
+                    for i in range(ndim)
+                    for j in range(i + 1, ndim)
+                )
+
+            return np.column_stack(terms)
+        
+        @staticmethod
+        def _build_gradient_operators(
+            X,
+            radius=None,
+            stencil_width=20,
+            poly_order=2,
+        ):
+            """
+            Precompute MLS differentiation operators.
+
+            Returns
+            -------
+            operators : list
+
+                operators[ip]
+
+                shape:
+                    (ndim, nstencil)
+
+            neighbors : list
+            """
+
+            from scipy.spatial import cKDTree
+
+            X = np.asarray(X)
+
+            npoints, ndim = X.shape
+
+            tree = cKDTree(X)
+
+            operators = []
+            neighbors = []
+
+            for ip in range(npoints):
+
+                if radius is not None:
+
+                    idx = tree.query_ball_point(
+                        X[ip],
+                        r=radius,
+                    )
+
+                else:
+
+                    _, idx = tree.query(
+                        X[ip],
+                        k=min(
+                            stencil_width,
+                            npoints,
+                        ),
+                    )
+
+                idx = np.asarray(idx)
+
+                DX = X[idx] - X[ip]
+
+                A = (
+                    SAM.DifferentialOperators
+                    ._polynomial_basis(
+                        DX,
+                        poly_order,
+                    )
+                )
+
+                r = np.linalg.norm(
+                    DX,
+                    axis=1,
+                )
+
+                h = np.max(r) + 1e-12
+
+                w = np.exp(
+                    -(r / h) ** 2
+                )
+
+                W = np.diag(w)
+
+                ATA = A.T @ W @ A
+
+                P = np.linalg.pinv(ATA) @ A.T @ W
+
+                G = P[1 : 1 + ndim]
+
+                operators.append(G)
+                neighbors.append(idx)
+
+            return operators, neighbors
+
+        @staticmethod
+        def gradient(
+            X,
+            f,
+            radius=None,
+            stencil_width=20,
+            poly_order=2,
+        ):
+            """
+            Gradient of scalar field.
+
+            Parameters
+            ----------
+            f
+
+                shape:
+                    (npoints,)
+
+                or
+
+                    (npoints, ncases)
+
+            Returns
+            -------
+            grad
+
+                shape:
+                    (ndim, npoints, ncases)
+            """
+
+            X = np.asarray(X)
+            f = np.asarray(f)
+
+            if f.ndim == 1:
+                f = f[:, None]
+
+            npoints = X.shape[0]
+            ncases = f.shape[1]
+            ndim = X.shape[1]
+
+            operators, neighbors = (
+                SAM.DifferentialOperators
+                ._build_gradient_operators(
+                    X,
+                    radius,
+                    stencil_width,
+                    poly_order,
+                )
+            )
+
+            grad = np.empty(
+                (
+                    ndim,
+                    npoints,
+                    ncases,
+                ),
+                dtype=f.dtype,
+            )
+
+            for ip in range(npoints):
+
+                idx = neighbors[ip]
+
+                G = operators[ip]
+
+                grad[:, ip, :] = (
+                    G @ f[idx]
+                )
+
+            return grad
+
+        @staticmethod
+        def jacobian(
+            X,
+            U,
+            radius=None,
+            stencil_width=20,
+            poly_order=2,
+        ):
+            """
+            Parameters
+            ----------
+            U
+
+                shape:
+                    (ncomponents,
+                    npoints,
+                    ncases)
+
+            Returns
+            -------
+            J
+
+                shape:
+                    (ncomponents,
+                    ndim,
+                    npoints,
+                    ncases)
+            """
+
+            U = np.asarray(U)
+
+            ncomponents = U.shape[0]
+            ndim = X.shape[1]
+            npoints = U.shape[1]
+            ncases = U.shape[2]
+
+            J = np.empty(
+                (
+                    ncomponents,
+                    ndim,
+                    npoints,
+                    ncases,
+                ),
+                dtype=U.dtype,
+            )
+
+            for icomp in range(ncomponents):
+
+                J[icomp] = (
+                    SAM.DifferentialOperators
+                    .gradient(
+                        X,
+                        U[icomp],
+                        radius,
+                        stencil_width,
+                        poly_order,
+                    )
+                )
+
+            return J
+        
+        @staticmethod
+        def divergence(
+            X,
+            U,
+            radius=None,
+            stencil_width=20,
+            poly_order=2,
+        ):
+            """
+            Parameters
+            ----------
+            U
+
+                shape:
+                    (ndim,
+                    npoints,
+                    ncases)
+
+            Returns
+            -------
+            div
+
+                shape:
+                    (npoints,
+                    ncases)
+            """
+
+            U = np.asarray(U)
+
+            ndim = X.shape[1]
+
+            if U.shape[0] != ndim:
+
+                raise ValueError(
+                    f"Expected {ndim} components, "
+                    f"got {U.shape[0]}"
+                )
+
+            J = (
+                SAM.DifferentialOperators
+                .jacobian(
+                    X,
+                    U,
+                    radius,
+                    stencil_width,
+                    poly_order,
+                )
+            )
+
+            div = np.zeros(
+                (
+                    U.shape[1],
+                    U.shape[2],
+                ),
+                dtype=U.dtype,
+            )
+
+            for d in range(ndim):
+
+                div += J[d, d]
+
+            return div
 
     # =========================================================================
     # DICT VISUALIZER
