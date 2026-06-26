@@ -31,7 +31,7 @@ from .sam import SAM
 from .readers   import READER_REGISTRY
 from .sets      import SETS_REGISTRY
 from .residuals import RESIDUALS_REGISTRY
-
+from .stats     import STATS_REGISTRY
 
 class FRODO:
     """
@@ -69,7 +69,7 @@ class FRODO:
         This lets callers write ``db.add_aux(...)`` when the method lives on
         ``db.sets``, without explicitly exposing it on FRODO.
         """
-        for sub in ('sets', 'reader', 'residuals'):
+        for sub in ('sets', 'reader', 'residuals', 'stats'):
             try:
                 obj = object.__getattribute__(self, sub)
             except AttributeError:
@@ -143,6 +143,18 @@ class FRODO:
                 "Residuals methods will not be available.\n"
             )
 
+        # ── STATS ───────────────────────────────────────────────────────────
+        
+        stats_cls = STATS_REGISTRY.get(self.format)
+        if stats_cls is not None:
+            self.stats = stats_cls(db=self)
+        else:
+            self.stats = None
+            print(
+                "\n\tWARNING: No Stats class for this format. "
+                "Stats methods will not be available.\n"
+            )
+            
     def _parse(self):
         self.reader.parse_simulation_dirs()
         self.sim_metadata = self.reader.sim_metadata
