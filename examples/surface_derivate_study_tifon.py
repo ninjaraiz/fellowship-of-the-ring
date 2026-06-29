@@ -124,7 +124,7 @@ n_clusters = 2
 polyorder = 2
     
     
-scale_log = False
+scale_log = True
 for stencil in range(100, 160, 10):
     # ── derivada por longitud de arco ─────────────────────────────────────────
     # dcp_ds = np.zeros(cp_sort.shape, dtype=np.float64)
@@ -142,6 +142,13 @@ for stencil in range(100, 160, 10):
     grad_cp = SAM.DifferentialOperators.gradient(
         X = xyz_sort,
         f = cp,
+        stencil_width=stencil,
+        poly_order = 2
+    )
+    
+    grad2_cp = SAM.DifferentialOperators.gradient(
+        X = xyz_sort,
+        f = grad_cp[0, :, :],
         stencil_width=stencil,
         poly_order = 2
     )
@@ -184,6 +191,7 @@ for stencil in range(100, 160, 10):
     # )
     
     grad_cp_log = symlog(grad_cp[0, :, :], linthresh=1e-4) if scale_log else grad_cp[0, :, :]
+    grad2_cp_log = symlog(grad2_cp[0, :, :], linthresh=1e-4) if scale_log else grad2_cp[0, :, :]
     # dcp_ds_log = symlog(cp_sort, linthresh=1e-4) if scale_log else dcp_ds
     # dcp2_ds_log = symlog(dcp2_ds, linthresh=1e-4) if scale_log else dcp2_ds
     
@@ -208,6 +216,11 @@ for stencil in range(100, 160, 10):
         notes = ''
     )
     
+    db_one.sets.add_aux(
+        array_name = 'grad2_cp_log',
+        array = grad2_cp_log,
+        notes = ''
+    )
     # db_one.sets.add_aux(
     #     array_name = 'dcp_ds_log',
     #     array = dcp_ds_log,
@@ -276,7 +289,7 @@ for stencil in range(100, 160, 10):
     # db_one.sets.create_jset(verbose=False)
 
     # features = ['drho_ds_log', 'drho2_ds_log']#, 'dT_ds_log', 'dT2_ds'] # , 'dcp_ds_log', 'dcp2_ds_log', 'gradrhox_log', 'gradTx_log'
-    features = ['grad_cp_log']
+    features = ['grad_cp_log', 'grad2_cp_log']
     folder_name = '_'.join(features) if len(features) > 1 else features[0]
     df_data_complete, _ = SAM.Weapons.GMM(
         df_data=db_one.df_data,
