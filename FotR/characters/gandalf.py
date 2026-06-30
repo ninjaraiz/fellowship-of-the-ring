@@ -287,7 +287,9 @@ class GANDALF:
             
             self.folders_name.append(folder_name)
             case_dir = os.path.join(self.root_dir, 'outputs', folder_name)
-            mask_created = (df_cases[self.design_vars[0]] == row[0]) & (df_cases[self.design_vars[1]] == row[1])
+            # mask_created genérico
+            # mask_created = (df_cases[self.design_vars[0]] == row[0]) & (df_cases[self.design_vars[1]] == row[1])
+            mask_created = np.all(df_cases[self.design_vars].values == row, axis=1)
             if os.path.exists(case_dir):
                 if overwrite:
                     shutil.rmtree(case_dir)
