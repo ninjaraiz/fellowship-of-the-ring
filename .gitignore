@@ -22,6 +22,15 @@ xfoil_out/
 # Outputs GMM
 **/example_GMM*
 **/*.csv
+**/*.png
+
+# Outputs stats
+**/*.png
+**/*.jpg
+**/*.csv
+**/*.gif
+**/*.npy
+**/*.npy.npz
 
 # Outputs mallas
 **/*.h5

@@ -203,6 +203,7 @@ class FRODO:
     @staticmethod
     def merge_datasets(
         root_dir: str,
+        name: Union[str, None],
         sources: list,
         new_group_id: str,
         method: str = 'idw',
@@ -221,6 +222,8 @@ class FRODO:
         ----------
         root_dir : str
             Output root directory for the merged dataset.
+        name : str or None
+            Name of the merged dataset. If None, defaults to 'FRODO_Merged'.
         sources : list[tuple[FRODO, str]]
             (FRODO_instance, CADGroupID) pairs to merge.
             Example: ``[(db1, '3'), (db2, '3_fine')]``.
@@ -322,6 +325,7 @@ class FRODO:
         db_new              = FRODO.__new__(FRODO)
         db_new.format       = format_ref
         db_new.root_dir     = root_dir
+        db_new.name         = name.replace(" ", "_") if name is not None else "FRODO_Merged"
         db_new.sim_metadata = {}
         db_new.kwargs       = {}
 

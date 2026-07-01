@@ -3,6 +3,7 @@ import torch
 from typing import Literal, Union
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 import warnings
 
 
@@ -761,3 +762,159 @@ class LEGOLAS:
                 plt.show()
             else:
                 raise ValueError("Insufficient data to plot state.")
+            
+            
+    class Carcaj:
+            
+        @staticmethod
+        def _df_to_image_matplotlib(
+            df: pd.DataFrame,
+            filename: str,
+            figsize: tuple = (12, 4),
+            dpi: int = 300,
+            fontsize: int = 10,
+            header_color: str = "#D9EAF7",
+            row_colors: tuple = ("#FFFFFF", "#F5F5F5"),
+            edge_color: str = "black",
+            column_formats=None
+        ):
+            """
+            Export a pandas DataFrame as a PNG table using Matplotlib.
+            """
+
+            import matplotlib.pyplot as plt
+
+            df_plot = df.copy()
+
+            if column_formats is None:
+                column_formats = {}
+
+            for col in df_plot.columns:
+
+                fmt = column_formats.get(col)
+
+                if fmt is None:
+                    continue
+
+                df_plot[col] = df_plot[col].map(
+                    lambda x: fmt.format(x) if pd.notna(x) else ""
+                )
+
+            fig, ax = plt.subplots(figsize=figsize)
+            ax.axis("off")
+
+            table = ax.table(
+                cellText=df_plot.values,
+                colLabels=df_plot.columns,
+                rowLabels=df_plot.index,
+                cellLoc="center",
+                loc="center",
+            )
+
+            table.auto_set_font_size(False)
+            table.set_fontsize(fontsize)
+            table.scale(1.2, 1.5)
+
+            for (row, col), cell in table.get_celld().items():
+
+                cell.set_edgecolor(edge_color)
+
+                if row == 0:
+                    cell.set_facecolor(header_color)
+                    cell.set_text_props(weight="bold")
+
+                elif row > 0:
+                    cell.set_facecolor(row_colors[(row - 1) % 2])
+
+            fig.tight_layout()
+
+            fig.savefig(
+                filename,
+                dpi=dpi,
+                bbox_inches="tight",
+            )
+
+            plt.close(fig)
+            
+        @staticmethod
+        def _df_to_image_plotly(
+            df: pd.DataFrame,
+            filename: str,
+            column_formats=None
+        ):
+            """
+            Export a DataFrame as a PNG table using Plotly.
+            Requires kaleido.
+            """
+
+            import plotly.graph_objects as go
+
+            df_plot = df.copy()
+
+            if column_formats is None:
+                column_formats = {}
+
+            for col in df_plot.columns:
+
+                fmt = column_formats.get(col)
+
+                if fmt is None:
+                    continue
+
+                df_plot[col] = df_plot[col].map(
+                    lambda x: fmt.format(x) if pd.notna(x) else ""
+                )
+
+            fig = go.Figure(
+                data=[
+                    go.Table(
+                        header=dict(
+                            values=["<b>"+str(c)+"</b>" for c in df_plot.columns],
+                            align="center",
+                        ),
+                        cells=dict(
+                            values=[df_plot[c] for c in df_plot.columns],
+                            align="center",
+                        ),
+                    )
+                ]
+            )
+
+            fig.write_image(
+                filename,
+                scale=2,
+            )
+            
+        @staticmethod
+        def _df_to_image_dataframe_image(
+            df: pd.DataFrame,
+            filename: str,
+            cmap: str = "Blues",
+            column_formats=None
+        ):
+            """
+            Export a styled DataFrame as a PNG using dataframe_image.
+            """
+
+            import dataframe_image as dfi
+
+            if column_formats is None:
+                column_formats = {}
+
+            styled = df.style
+
+            numeric_cols = df.select_dtypes(include=np.number).columns
+
+            if len(numeric_cols):
+                styled = styled.background_gradient(
+                    cmap=cmap,
+                    subset=numeric_cols,
+                )
+
+            if column_formats:
+                styled = styled.format(column_formats)
+
+            dfi.export(
+                styled,
+                filename,
+            )

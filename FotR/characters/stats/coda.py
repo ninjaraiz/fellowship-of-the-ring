@@ -604,8 +604,8 @@ class CODAStats(BaseStats):
         n_coord_bins: int = 10,
         flcc_vars: Union[list, tuple, None] = None,
         case_metric: Literal[
-            'max_diff', 'min_diff', 'max_abs_diff', 'mean_diff', 'std_diff'
-        ] = 'max_abs_diff',
+            'max_diff', 'min_diff', 'max_abs_diff', 'L_2_diff', 'L_inf_diff', 'mean_diff', 'std_diff'
+        ] = 'L_2_diff',
         plots: Union[dict, None] = None,
         kwargs_plots: dict = {},
         annotate_case_idx: bool = True,
@@ -792,6 +792,8 @@ class CODAStats(BaseStats):
                 flcc_vars=['Mach', 'AoA'], case_metric='mean_diff',
             )
         """
+        from scipy.stats import skew, kurtosis
+        
         key_group = f'CADGroup_{id_group}'
         if key_group not in self.db.data_dict:
             raise KeyError(f"'{key_group}' not found in data_dict.")
@@ -869,7 +871,8 @@ class CODAStats(BaseStats):
 
             by_point_frames = []
             by_case_frames  = []
-
+            by_bin_stats_frames = []
+            
             for label in fields_a:
                 arr_a = fields_a[label][:, cases_idx]
                 arr_b = fields_b[label][:, cases_idx]
@@ -896,6 +899,84 @@ class CODAStats(BaseStats):
                     'diff':               diff.T.reshape(-1),
                 })
                 by_point_frames.append(df_point)
+                # ── by_bin_stats (boxplot statistics) ─────────────────────────────
+
+                stats_records = []
+
+                for bin_name, group_bin in df_point.groupby("coord_bin", sort=False):
+
+                    values = group_bin["diff"].dropna().to_numpy()
+
+                    if values.size == 0:
+                        continue
+
+                    q1 = np.percentile(values, 25)
+                    median = np.percentile(values, 50)
+                    q3 = np.percentile(values, 75)
+
+                    iqr = q3 - q1
+
+                    lower = q1 - 1.5 * iqr
+                    upper = q3 + 1.5 * iqr
+
+                    outliers = (values < lower) | (values > upper)
+
+                    stats_records.append({
+
+                        "label": label,
+
+                        "coord_bin": bin_name,
+
+                        "n_points": values.size,
+
+                        "mean": np.mean(values),
+
+                        "median": median,
+
+                        "std": np.std(values, ddof=1),
+
+                        "variance": np.var(values, ddof=1),
+
+                        "min": np.min(values),
+
+                        "q1": q1,
+
+                        "q3": q3,
+
+                        "max": np.max(values),
+
+                        "iqr": iqr,
+
+                        "mad": np.median(np.abs(values - median)),
+
+                        "rms": np.sqrt(np.mean(values**2)),
+
+                        "abs_mean": np.mean(np.abs(values)),
+
+                        "abs_max": np.max(np.abs(values)),
+
+                        "cv": (
+                            np.std(values, ddof=1)
+                            / max(abs(np.mean(values)), 1e-15)
+                        ),
+
+                        "skew": skew(values, bias=False),
+
+                        "kurtosis": kurtosis(values, bias=False),
+
+                        "lower_fence": lower,
+
+                        "upper_fence": upper,
+
+                        "n_outliers": int(outliers.sum()),
+
+                        "outlier_percent": 100 * outliers.mean(),
+
+                    })
+
+                by_bin_stats_frames.append(
+                    pd.DataFrame.from_records(stats_records)
+                )
 
                 # ── by_case (scatter source) ──────────────────────────────────
                 case_records = []
@@ -905,11 +986,13 @@ class CODAStats(BaseStats):
                     record = {
                         'label':        label,
                         'case_idx':     case_i,
-                        'max_diff':     float(np.max(finite))         if finite.size else np.nan,
-                        'min_diff':     float(np.min(finite))         if finite.size else np.nan,
-                        'max_abs_diff': float(np.max(np.abs(finite))) if finite.size else np.nan,
-                        'mean_diff':    float(np.mean(finite))        if finite.size else np.nan,
-                        'std_diff':     float(np.std(finite))         if finite.size else np.nan,
+                        'max_diff':     float(np.max(finite))                           if finite.size else np.nan,
+                        'min_diff':     float(np.min(finite))                           if finite.size else np.nan,
+                        'max_abs_diff': float(np.max(np.abs(finite)))                   if finite.size else np.nan,
+                        'L_2_diff':     float(np.linalg.norm(finite, ord=2, axis=0))      if finite.size else np.nan,
+                        'L_inf_diff':   float(np.linalg.norm(finite, ord=np.inf, axis=0)) if finite.size else np.nan,
+                        'mean_diff':    float(np.mean(finite))                          if finite.size else np.nan,
+                        'std_diff':     float(np.std(finite))                           if finite.size else np.nan,
                     }
                     for k, dv in enumerate(design_vars):
                         record[dv] = float(flcc[case_i, k])
@@ -917,6 +1000,8 @@ class CODAStats(BaseStats):
                 df_case = pd.DataFrame.from_records(case_records)
                 by_case_frames.append(df_case)
 
+                if save_dir:
+                    os.makedirs(save_dir, exist_ok=True)
                 # ── Plots ──────────────────────────────────────────────────────
                 if plot_flags.get('boxplot'):
                     self._plot_diff_boxplot(
@@ -980,11 +1065,84 @@ class CODAStats(BaseStats):
                         save_dir=save_dir,
                         **kwargs_plots['histogram2D']
                     )
-
+            # Concatenar dataframes con tipos de datos personalizados por columnas (int, float y str)
             results[pair_key] = {
-                'by_point': pd.concat(by_point_frames, ignore_index=True),
-                'by_case':  pd.concat(by_case_frames,  ignore_index=True),
+                'by_point': pd.concat(
+                    by_point_frames,
+                    ignore_index=True,
+                ).astype({
+                    'label': 'str',
+                    'case_idx': 'int32',
+                    'point_idx': 'int32',
+                    f'coord_{coord_idx}': 'float32',
+                    'coord_bin': 'str',
+                    'diff': 'float32',
+                }),
+                'by_case': pd.concat(
+                    by_case_frames,
+                    ignore_index=True,
+                ).astype({
+                    'label': 'str',
+                    'case_idx': 'int32',
+                    'max_diff': 'float32',
+                    'min_diff': 'float32',
+                    'max_abs_diff': 'float32',
+                    'L_2_diff':     'float32',
+                    'L_inf_diff':   'float32',
+                    'mean_diff': 'float32',
+                    'std_diff': 'float32',
+                    **{dv: 'float32' for dv in design_vars},
+                }),
+                'by_bin_stats': pd.concat(
+                    by_bin_stats_frames,
+                    ignore_index=True,
+                ).astype({
+                    'label': 'str',
+                    'coord_bin': 'str',
+                    'n_points': 'int32',
+                    'mean': 'float32',
+                    'median': 'float32',
+                    'std': 'float32',
+                    'variance': 'float32',
+                    'min': 'float32',
+                    'q1': 'float32',
+                    'q3': 'float32',
+                    'max': 'float32',
+                    'iqr': 'float32',
+                    'mad': 'float32',
+                    'rms': 'float32',
+                    'abs_mean': 'float32',
+                    'abs_max': 'float32',
+                    'cv': 'float32',
+                    'skew': 'float32',
+                    'kurtosis': 'float32',
+                    'lower_fence': 'float32',
+                    'upper_fence': 'float32',
+                    'n_outliers': 'int32',
+                    'outlier_percent': 'float32',
+                }),
             }
+            
+            if save_dir:
+                np.savez_compressed(
+                    os.path.join(save_dir, f"dict_results_db_{self.db.name}_{pair_key}.npy"), results[pair_key]
+                )
+            # results[pair_key] = {
+            #     'by_point': pd.concat(
+            #         by_point_frames,
+            #         ignore_index=True,
+            #     ).astype("float32"),
+
+            #     'by_case': pd.concat(
+            #         by_case_frames,
+            #         ignore_index=True,
+            #     ).astype("float32"),
+
+            #     'by_bin_stats': pd.concat(
+            #         by_bin_stats_frames,
+            #         ignore_index=True,
+            #     ).astype("float32"),
+            # }
 
         self.db.stage_diff_variable_results = results
 
