@@ -986,13 +986,14 @@ class CODAStats(BaseStats):
                     record = {
                         'label':        label,
                         'case_idx':     case_i,
-                        'max_diff':     float(np.max(finite))                           if finite.size else np.nan,
-                        'min_diff':     float(np.min(finite))                           if finite.size else np.nan,
-                        'max_abs_diff': float(np.max(np.abs(finite)))                   if finite.size else np.nan,
-                        'L_2_diff':     float(np.linalg.norm(finite, ord=2, axis=0))      if finite.size else np.nan,
-                        'L_inf_diff':   float(np.linalg.norm(finite, ord=np.inf, axis=0)) if finite.size else np.nan,
-                        'mean_diff':    float(np.mean(finite))                          if finite.size else np.nan,
-                        'std_diff':     float(np.std(finite))                           if finite.size else np.nan,
+                        'max_diff':     float(np.max(finite))                               if finite.size else np.nan,
+                        'min_diff':     float(np.min(finite))                               if finite.size else np.nan,
+                        'max_abs_diff': float(np.max(np.abs(finite)))                       if finite.size else np.nan,
+                        'L_2_diff':     float(np.linalg.norm(finite, ord=2, axis=0))        if finite.size else np.nan,
+                        'L_inf_diff':   float(np.linalg.norm(finite, ord=np.inf, axis=0))   if finite.size else np.nan,
+                        'mean_diff':    float(np.mean(finite))                              if finite.size else np.nan,
+                        'std_diff':     float(np.std(finite))                               if finite.size else np.nan,
+                        'mse_diff':     float(np.mean(finite**2))                           if finite.size else np.nan,
                     }
                     for k, dv in enumerate(design_vars):
                         record[dv] = float(flcc[case_i, k])
@@ -1973,7 +1974,7 @@ class CODAStats(BaseStats):
         fig.tight_layout()
 
         if save_dir:
-            fname = f"{label}_{stage_a}_vs_{stage_b}_boxplot.png"
+            fname = f"{label}_{stage_a}_vs_{stage_b}_violin.png"
             fig.savefig(os.path.join(save_dir, fname), dpi=150, bbox_inches='tight')
             plt.close(fig)
         else:
