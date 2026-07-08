@@ -252,7 +252,7 @@ class CODASets(BaseSets):
 
         Parameters
         ----------
-        id_groups : int or tuple
+        id_groups : int, str or tuple
             CADGroup IDs to convert. A tuple of ints merges those groups.
             Examples: ``3`` for group 3; ``(1, 2)`` for merged groups 1 and 2.
 
@@ -273,9 +273,23 @@ class CODASets(BaseSets):
 
             meshes = db.sets.create_pylom_mesh(id_groups=((1, 2), 3))
         """
-        if isinstance(id_groups, (int, tuple)):
-            id_groups = [id_groups]
+        # id_groups debe ser una lista de string
+        # if isinstance(id_groups, (int, tuple)):
+        #     id_groups = [id_groups]
 
+        if isinstance(id_groups, int):
+            id_groups = [str(id_groups)]
+        elif isinstance(id_groups, tuple):
+            id_groups = [str(i) for i in id_groups]
+        elif isinstance(id_groups, str):
+            id_groups = [id_groups]
+        elif isinstance(id_groups, list):
+            id_groups = [str(i) for i in id_groups]
+        else:
+            raise TypeError(
+                "id_groups must be an int, str, tuple, or list of ints/strs."
+            )
+            
         mesh_list = []
         for id in id_groups:
             key_suffix = (
@@ -401,8 +415,21 @@ class CODASets(BaseSets):
         if nan_policy not in ('fill', 'raise'):
             raise ValueError("nan_policy must be 'fill' or 'raise'.")
 
+        # if isinstance(id_groups, int):
+        #     id_groups = [id_groups]
+        
         if isinstance(id_groups, int):
+            id_groups = [str(id_groups)]
+        elif isinstance(id_groups, tuple):
+            id_groups = [str(i) for i in id_groups]
+        elif isinstance(id_groups, str):
             id_groups = [id_groups]
+        elif isinstance(id_groups, list):
+            id_groups = [str(i) for i in id_groups]
+        else:
+            raise TypeError(
+                "id_groups must be an int, str, tuple, or list of ints/strs."
+            )
 
         d_list = []
         for id in id_groups:
@@ -1163,24 +1190,25 @@ class CODASets(BaseSets):
             eltype[ci]    = gd["eltype"][idx_sort_full[stage, c, :]]
             cellOrder[ci] = gd["cellOrder"][idx_sort_full[stage, c, :]]
 
-        out: dict = {
+        out: dict = {f'CADGroup_{id_group}':{
             'Coord':     gd["Coord"],
             'FlCc':      gd['FlCc'],
             'idx_sort':  idx_sort,
             'Conec':     gd["Conec"],
             'eltype':    eltype,
-            'cellOrder': cellOrder,
+            'cellOrder': cellOrder,}
         }
+        out[f'CADGroup_{id_group}']['Vars'] = {str(stage): {}}
 
         for var_name, var_data in stage_vars.items():
             if ignore_vars and var_name in ignore_vars:
                 continue
             if var_data.ndim == 2 and var_data.shape[0] == npoints:
-                out[var_name] = np.transpose(var_data[:, case_idx])
+                out[f'CADGroup_{id_group}']['Vars'][str(stage)][var_name] = np.transpose(var_data[:, case_idx])
             elif var_data.ndim == 3 and var_data.shape[1] == npoints:
-                out[var_name] = var_data[:, :, case_idx]
+                out[f'CADGroup_{id_group}']['Vars'][str(stage)][var_name] = var_data[:, :, case_idx]
 
-        out.update(aux_dict)
+        out[f'CADGroup_{id_group}'].update(aux_dict)
 
         if not filepath.endswith('.npy'):
             filepath += '.npy'

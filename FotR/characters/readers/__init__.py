@@ -47,6 +47,12 @@ except ModuleNotFoundError:
     pass
 
 try:
+    from .numpy import NUMPYReader
+    READER_REGISTRY['NUMPY'] = NUMPYReader
+except ModuleNotFoundError:
+    pass
+
+try:
     from .pylom import PYLOMReader
     READER_REGISTRY['PYLOM'] = PYLOMReader
 except ModuleNotFoundError:
