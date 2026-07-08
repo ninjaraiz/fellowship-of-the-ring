@@ -25,6 +25,7 @@ SETS_REGISTRY: dict = {
 try:
     from .coda import CODASets
     SETS_REGISTRY['CODA'] = CODASets
+    SETS_REGISTRY['NUMPY'] = CODASets # Use the same data_dict format
 except ModuleNotFoundError:
     pass
 

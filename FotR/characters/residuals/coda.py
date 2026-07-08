@@ -136,9 +136,9 @@ class CODAResiduals(BaseResiduals):
                 res = np.full((1, 26), np.nan)
             else:
                 res = df_one.tail(1).values.reshape(1, -1)
-
+            # print(res, res.shape, np.asarray(params_float))
             fila = np.concatenate(
-                (res, np.expand_dims(np.asarray(params_float), axis=0)),
+                (res, np.atleast_2d(np.asarray(params_float, dtype=np.float64))),
                 axis=1, dtype=np.float64,
             )
             df_all.append(fila)
@@ -907,7 +907,7 @@ class CODAResiduals(BaseResiduals):
             )
         """
         df_finals = self.get_all_final_residuals(
-            verbose=False, stage=stage,
+            verbose=kwargs.get('verbose', False), stage=stage,
             only_finished=only_finished, load_in_metadata=False,
         )
         if df_finals.empty:
@@ -938,6 +938,40 @@ class CODAResiduals(BaseResiduals):
             if df_finals[v].nunique() > 1
         ]
 
+        if len(dvf) == 1:
+            for i, col in enumerate(columns):
+                x = df_finals[dvf[0]]
+                y = df_finals[col]
+                c = df_finals["total_iterations"]
+                sc_nc = axes[i].scatter(
+                    x[~converged_mask], y[~converged_mask],
+                    c=c[~converged_mask], cmap=cmap_name, norm=None,
+                    s=60, edgecolor='k', label='Non-converged',
+                )
+                axes[i].scatter(
+                    x[converged_mask], y[converged_mask],
+                    c=c[converged_mask], cmap=cmap_name, norm=None,
+                    s=60, marker='*', linewidth=1.5, label='Converged',
+                )
+                if activate_idx:
+                    for p in df_finals[dvf].values:
+                        matches = np.where(
+                            self.db.df_state.iloc[:, 0] == p[0]
+                        )[0]
+                        if matches.size > 0:
+                            axes[i].annotate(
+                                f"{matches[0]}", (p[0], p[1]),
+                                textcoords="offset points",
+                                xytext=(0, 7), ha='center', fontsize=8,
+                            )
+                axes[i].set(title=col, xlabel=dvf[0], ylabel=col)
+                fig.colorbar(sc_nc, ax=axes[i]).ax.set_title(
+                    f'"Total iterations" {stage}'
+                )
+
+            handles, labels = axes[0].get_legend_handles_labels()
+            fig.legend(handles, labels, loc='lower center',
+                       frameon=False, ncols=2)
         if len(dvf) == 2:
             for i, col in enumerate(columns):
                 x, y, c = (df_finals[dvf[0]], df_finals[dvf[1]],

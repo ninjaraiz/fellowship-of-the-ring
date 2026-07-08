@@ -22,6 +22,7 @@ STATS_REGISTRY: dict = {}
 try:
     from .coda import CODAStats
     STATS_REGISTRY['CODA'] = CODAStats
+    STATS_REGISTRY['NUMPY'] = CODAStats # Use the same data_dict format
 except ModuleNotFoundError:
     pass
 
