@@ -34,11 +34,11 @@ try:
 except ModuleNotFoundError:
     pass
 
-try:
-    from .airfoil import AIRFOILReader
-    READER_REGISTRY['Airfoil'] = AIRFOILReader
-except ModuleNotFoundError:
-    pass
+# try:
+#     from .airfoil import AIRFOILReader
+#     READER_REGISTRY['Airfoil'] = AIRFOILReader
+# except ModuleNotFoundError:
+#     pass
 
 try:
     from .numpy_file import NUMPYFILEReader

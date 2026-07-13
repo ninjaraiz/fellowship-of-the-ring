@@ -1193,7 +1193,7 @@ class CODASets(BaseSets):
         out: dict = {f'CADGroup_{id_group}':{
             'Coord':     gd["Coord"],
             'FlCc':      gd['FlCc'],
-            'idx_sort':  idx_sort,
+            'idx_sort':  np.expand_dims(idx_sort, axis=0), # Para que mantenga el formato. imprimimos solo una stage, pero la dim=0 corresponde a esa sola stage.
             'Conec':     gd["Conec"],
             'eltype':    eltype,
             'cellOrder': cellOrder,}
