@@ -720,7 +720,8 @@ class SAM():
         @staticmethod
         def find_files(
             path: str,
-            file_end: str,
+            pattern: str = None,
+            file_end: str = None,
             infile: Union[str, None] = None,
             notinfile: Union[str, None] = None,
             verbose: bool = True,
@@ -733,7 +734,9 @@ class SAM():
             ----------
             path : str
                 Directory to search.
-            file_end : str
+            pattern : str or None
+                If given, only include files that match this regex pattern.
+            file_end : str or None
                 Required filename suffix.
             infile : str or None
                 If given, only include files that contain this substring.
@@ -755,18 +758,29 @@ class SAM():
                     '/data/sim', '.vtu', infile='surface'
                 )
             """
-            files = sorted([
-                os.path.join(path, f)
-                for f in os.listdir(path)
-                if f.endswith(file_end)
-                and (infile is None or infile in f)
-                and (notinfile is None or notinfile not in f)
-            ])
-            if not files and verbose:
-                print(
-                    f"WARNING: No files found in '{path}' "
-                    f"with ending '{file_end}'."
-                )
+            
+            if pattern is not None:
+                regex = re.compile(pattern)
+                files = sorted([
+                    os.path.join(path, f)
+                    for f in os.listdir(path)
+                    if regex.search(f) and f.endswith(file_end)
+                    and (infile is None or infile in f)
+                    and (notinfile is None or notinfile not in f)
+                ])
+            else:
+                files = sorted([
+                    os.path.join(path, f)
+                    for f in os.listdir(path)
+                    if f.endswith(file_end)
+                    and (infile is None or infile in f)
+                    and (notinfile is None or notinfile not in f)
+                ])
+                if not files and verbose:
+                    print(
+                        f"WARNING: No files found in '{path}' "
+                        f"with ending '{file_end}'."
+                    )
             return files
 
         @staticmethod

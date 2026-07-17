@@ -260,20 +260,25 @@ class FRODO:
                 raise ValueError(
                     "get_df_metrics_attr must be provided for CODA format."
                 )
-            csvs = []
+            csvs_post = []
+            csvs_state = []
             for db, gid in sources:
                 df = db.residuals.get_df_metrics(**get_df_metrics_attr)
                 df.columns = df.columns.str.lower()
                 flcc   = db.data_dict[f'CADGroup_{gid}']['FlCc']
                 dv_low = [v.lower() for v in db.metadata['design_vars']]
-                csvs.append(
+                csvs_post.append(
                     pd.DataFrame(flcc, columns=dv_low).merge(
                         df, on=dv_low, how='left'
                     )
                 )
-            for i, c in enumerate(csvs):
+                df_state = db.df_state.copy()
+                df_state.columns = df_state.columns.str.lower()
+                csvs_state.append(df_state)
+            for i, c in enumerate(csvs_post):
                 c['dataset'] = f'dataset_{i}'
-            df_post = pd.concat(csvs, ignore_index=True)
+            df_post = pd.concat(csvs_post, ignore_index=True)
+            df_state = pd.concat(csvs_state, ignore_index=True)
         else:
             if get_df_metrics_attr:
                 raise ValueError(
@@ -328,6 +333,7 @@ class FRODO:
         db_new.name         = name.replace(" ", "_") if name is not None else "FRODO_Merged"
         db_new.sim_metadata = {}
         db_new.kwargs       = {}
+        db_new.df_state     = df_state if format_ref == 'CODA' else None
 
         for d in [root_dir,
                   os.path.join(root_dir, 'metadata'),
@@ -349,7 +355,8 @@ class FRODO:
         db_new.metadata['df_cases'].to_csv(
             os.path.join(root_dir, 'metadata', 'df_cases.csv')
         )
-
+        # db_new.df_cases = db_new.metadata['df_cases']
+        
         meta_save = copy.deepcopy(db_new.metadata)
         if meta_save.get('df_cases') is not None:
             meta_save['df_cases'] = meta_save['df_cases'].to_dict(orient='list')

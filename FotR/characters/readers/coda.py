@@ -775,7 +775,7 @@ class CODAReader(BaseReader):
         )
 
         files = SAM.Backpack.find_files(
-            case_path, "_wall_boundary_integrals.dat"
+            case_path, file_end = "_wall_boundary_integrals.dat"
         )
         if not files:
             raise ValueError(
