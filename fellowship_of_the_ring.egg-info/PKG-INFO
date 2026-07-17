@@ -1,6 +1,6 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.5
 Name: fellowship-of-the-ring
-Version: 2.0
+Version: 2.1
 Requires-Dist: numpy
 Requires-Dist: pandas
 Requires-Dist: matplotlib
