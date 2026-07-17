@@ -117,9 +117,9 @@ class CODAReader(BaseReader):
                     params_list.append(params)
                     sep_list.append(sep)
                     nfiles_list.append(len(
-                        SAM.Backpack.find_files(
+                        SAM.Backpack.pattern_pocket.find_files(
                             os.path.join(self.output_dir, folder),
-                            file_end='.h5', notinfile='ci',
+                            file_end='.h5', not_contains='ci',
                         )
                     ))
 
@@ -178,9 +178,9 @@ class CODAReader(BaseReader):
         self.df_state : pd.DataFrame
             One row per matched simulation.
         """
-        pattern = SAM.Backpack.folder_fmt_to_pattern(
-            self.metadata["folder_fmt"]
-        )
+        pattern = SAM.Backpack.pattern_pocket.FilenamePattern.from_template(
+            self.metadata["folder_fmt"], numeric=True
+        ).compiled
 
         for folder in os.listdir(self.output_dir):
             if not pattern.match(folder):
@@ -774,7 +774,7 @@ class CODAReader(BaseReader):
             if stage == 'all' else stage
         )
 
-        files = SAM.Backpack.find_files(
+        files = SAM.Backpack.pattern_pocket.find_files(
             case_path, file_end = "_wall_boundary_integrals.dat"
         )
         if not files:

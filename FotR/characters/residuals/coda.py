@@ -100,7 +100,9 @@ class CODAResiduals(BaseResiduals):
             print(df.head())
         """
         folder_fmt = self.db.metadata.get('folder_fmt', '')
-        pattern    = SAM.Backpack.folder_fmt_to_pattern(folder_fmt)
+        pattern    = SAM.Backpack.pattern_pocket.FilenamePattern.from_template(
+            folder_fmt, numeric=True
+        ).compiled
 
         df_all  = []
         df_one  = None
@@ -330,7 +332,7 @@ class CODAResiduals(BaseResiduals):
             if df is not None:
                 plt.semilogy(df['iters'], df['rho_res'])
         """
-        files = SAM.Backpack.find_files(case_path, "-out.txt", verbose=False)
+        files = SAM.Backpack.pattern_pocket.find_files(case_path, endswith="-out.txt", verbose=False)
         if not files:
             if verbose:
                 print(f"WARNING: No -out.txt file found in {case_path}.")
@@ -671,7 +673,7 @@ class CODAResiduals(BaseResiduals):
         )
 
         folder_fmt       = self.db.metadata.get('folder_fmt', '')
-        pattern          = SAM.Backpack.folder_fmt_to_pattern(folder_fmt)
+        pattern          = SAM.Backpack.pattern_pocket.FilenamePattern.from_template(folder_fmt, numeric=True).compiled
         df_integrals_ref = None
         df_cases         = self.db.metadata.get('df_cases', pd.DataFrame())
         design_vars      = self.db.metadata['design_vars']
@@ -722,9 +724,9 @@ class CODAResiduals(BaseResiduals):
                 continue
 
             df_int = SAM.Backpack.get_df_from_csv(
-                files_list=SAM.Backpack.find_files(
+                files_list=SAM.Backpack.pattern_pocket.find_files(
                     path=dic['path'],
-                    file_end='_wall_boundary_integrals.dat',
+                    endswith='_wall_boundary_integrals.dat',
                     verbose=False,
                 )
             )

@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import pandas as pd
 from typing import Literal, Union
+from collections.abc import Iterable
 
 import h5py
 import pyvista as pv
@@ -22,7 +23,7 @@ from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
 
 from ..EarendilsLight import EarendilsLight
-
+from dataclasses import dataclass, field
 
 class SAM():
     """
@@ -716,73 +717,995 @@ class SAM():
     # BACKPACK
     # =========================================================================
     class Backpack:
+        class pattern_pocket:
+            @dataclass(slots=True)
+            class FilenamePattern:
+                """
+                Represents a filename/folder pattern: its human-readable template,
+                the equivalent compiled regex, and (optionally) the variable values
+                it was inferred from.
+                """
 
-        @staticmethod
-        def find_files(
-            path: str,
-            pattern: str = None,
-            file_end: str = None,
-            infile: Union[str, None] = None,
-            notinfile: Union[str, None] = None,
-            verbose: bool = True,
-        ) -> list:
-            """
-            Return a sorted list of files in *path* whose names end with
-            *file_end*.
+                template: str
+                regex: str
+                variables: list[dict] = field(default_factory=list)
 
-            Parameters
-            ----------
-            path : str
-                Directory to search.
-            pattern : str or None
-                If given, only include files that match this regex pattern.
-            file_end : str or None
-                Required filename suffix.
-            infile : str or None
-                If given, only include files that contain this substring.
-            notinfile : str or None
-                If given, exclude files that contain this substring.
-            verbose : bool
-                If True, warn when no files are found.
+                # compiled regex, built lazily in __post_init__ and cached
+                _compiled: re.Pattern = field(init=False, repr=False, compare=False)
 
-            Returns
-            -------
-            list[str]: Sorted absolute file paths.
+                def __post_init__(self):
+                    self._compiled = re.compile(self.regex)
 
-            Examples
-            --------
-            ::
+                # -- construction ---------------------------------------------------
 
-                h5_files = SAM.Backpack.find_files('/data/sim', '.h5')
-                surface_files = SAM.Backpack.find_files(
-                    '/data/sim', '.vtu', infile='surface'
-                )
-            """
-            
-            if pattern is not None:
-                regex = re.compile(pattern)
-                files = sorted([
-                    os.path.join(path, f)
-                    for f in os.listdir(path)
-                    if regex.search(f) and f.endswith(file_end)
-                    and (infile is None or infile in f)
-                    and (notinfile is None or notinfile not in f)
-                ])
-            else:
-                files = sorted([
-                    os.path.join(path, f)
-                    for f in os.listdir(path)
-                    if f.endswith(file_end)
-                    and (infile is None or infile in f)
-                    and (notinfile is None or notinfile not in f)
-                ])
-                if not files and verbose:
-                    print(
-                        f"WARNING: No files found in '{path}' "
-                        f"with ending '{file_end}'."
+                @classmethod
+                def from_files(cls, files: list[str]) -> "SAM.Backpack.pattern_pocket.FilenamePattern":
+                    """
+                    Infer a FilenamePattern from a collection of filenames/paths.
+
+                    Examples
+                    --------
+                    >>> FilenamePattern.from_files([
+                    ...     "cylinder_p1.control",
+                    ...     "cylinder_p2.control",
+                    ...     "cylinder_p3.control",
+                    ... ])
+                    FilenamePattern(template='cylinder_p<number>.control', ...)
+                    """
+
+                    if len(files) == 0:
+                        raise ValueError("No files supplied.")
+
+                    names = [os.path.basename(f) for f in files]
+
+                    tokenized = [
+                        SAM.Backpack.pattern_pocket._tokenize_filename(name) for name in names
+                    ]
+
+                    n_tokens = len(tokenized[0])
+
+                    if any(len(t) != n_tokens for t in tokenized):
+                        raise ValueError("Files do not share the same token structure.")
+
+                    template = []
+                    regex = []
+                    variables = []
+
+                    for i in range(n_tokens):
+
+                        values = [tokens[i] for tokens in tokenized]
+
+                        if len(set(values)) == 1:
+                            token = values[0]
+                            template.append(token)
+                            regex.append(re.escape(token))
+                            continue
+
+                        if all(v.isdigit() for v in values):
+                            kind, pat = "number", r"\d+"
+                        elif all(v.isalpha() for v in values):
+                            kind, pat = "string", r"[A-Za-z]+"
+                        elif all(re.fullmatch(r"\w+", v) for v in values):
+                            kind, pat = "identifier", r"\w+"
+                        else:
+                            kind, pat = "variable", r".+"
+
+                        template.append(f"<{kind}>")
+                        regex.append(pat)
+                        variables.append({
+                            "index": len(variables),
+                            "type": kind,
+                            "values": values,
+                        })
+
+                    return cls(
+                        template="".join(template),
+                        regex="".join(regex),
+                        variables=variables,
                     )
-            return files
 
+                @classmethod
+                def from_template(
+                    cls,
+                    template: str,
+                    *,
+                    numeric: bool = False,
+                ) -> "SAM.Backpack.pattern_pocket.FilenamePattern":
+                    """
+                    Build a FilenamePattern directly from a template string.
+
+                    Two template dialects are supported:
+
+                    - ``<number>``, ``<string>``, ``<identifier>``, ``<variable>``
+                    placeholders (same vocabulary produced by ``from_files``).
+                    - ``{}`` placeholders (as used by the old ``folder_fmt_to_pattern``),
+                    enabled with ``numeric=True``, meaning "signed decimal number".
+
+                    Cuando ``numeric=True``, además de ``{}`` se admiten placeholders
+                    con nombre y formato, p.ej. ``{AoA:.4f}``, que se usan para
+                    reconstruir nombres con ``.format()`` respetando ese formato.
+
+                    Examples
+                    --------
+                    >>> FilenamePattern.from_template(
+                    ...     "aoa_{AoA:.4f}_mach_{Mach:.4f}", numeric=True
+                    ... )
+                    >>> FilenamePattern.from_template("cylinder_p<number>.control")
+                    """
+
+                    placeholders = {
+                        "<number>": r"\d+",
+                        "<string>": r"[A-Za-z]+",
+                        "<identifier>": r"\w+",
+                        "<variable>": r".+",
+                    }
+
+                    if numeric:
+                        field_re = re.compile(r"\{([^{}:]*)(:[^{}]*)?\}")
+
+                        regex_parts = []
+                        variables = []
+                        pos = 0
+
+                        for m in field_re.finditer(template):
+
+                            regex_parts.append(re.escape(template[pos:m.start()]))
+
+                            name = m.group(1) or None
+                            spec = m.group(2)[1:] if m.group(2) else ""
+
+                            regex_parts.append(r"[-\d\.]+")
+                            variables.append({
+                                "index": len(variables),
+                                "type": "number",
+                                "name": name,
+                                "spec": spec,
+                                "values": [],
+                            })
+
+                            pos = m.end()
+
+                        regex_parts.append(re.escape(template[pos:]))
+
+                        regex = "^" + "".join(regex_parts) + "$"
+
+                        return cls(template=template, regex=regex, variables=variables)
+
+                    token_re = re.compile(
+                        r"<number>|<string>|<identifier>|<variable>|[^<]+"
+                    )
+
+                    regex_parts = []
+                    variables = []
+
+                    for tok in token_re.findall(template):
+                        if tok in placeholders:
+                            regex_parts.append(placeholders[tok])
+                            variables.append({
+                                "index": len(variables),
+                                "type": tok.strip("<>"),
+                                "values": [],
+                            })
+                        else:
+                            regex_parts.append(re.escape(tok))
+
+                    regex = "^" + "".join(regex_parts) + "$"
+
+                    return cls(template=template, regex=regex, variables=variables)
+
+                # -- usage ------------------------------------------------------------
+
+                def match(self, name: str) -> bool:
+                    """Return True if `name` fully matches this pattern."""
+                    return self._compiled.fullmatch(os.path.basename(name)) is not None
+
+                def search(self, name: str) -> re.Match | None:
+                    """Return a Match if the pattern is found anywhere in `name`."""
+                    return self._compiled.search(name)
+
+                def findall(self, path: str, **kwargs) -> list[str]:
+                    """
+                    Find files in `path` whose names match this pattern.
+                    Internally delegates to `find_files`.
+                    """
+                    return SAM.Backpack.pattern_pocket.find_files(
+                        path,
+                        pattern=self,
+                        **kwargs,
+                    )
+
+                def format(self, *values, **named_values) -> str:
+                    """
+                    Reconstruct a concrete filename/foldername from this pattern's
+                    template.
+
+                    - Dialecto ``<number>``/``<string>``/... : usa `*values` en orden.
+                    - Dialecto ``numeric=True`` (``{name:spec}``): usa `**named_values`,
+                    respetando el `spec` de formato original de cada campo.
+
+                    Examples
+                    --------
+                    >>> p = FilenamePattern.from_template(
+                    ...     "aoa_{AoA:.4f}_mach_{Mach:.4f}", numeric=True
+                    ... )
+                    >>> p.format(AoA=-3.5, Mach=0.75)
+                    'aoa_-3.5000_mach_0.7500'
+                    """
+
+                    is_named = any(v.get("name") is not None for v in self.variables)
+
+                    if is_named:
+
+                        field_re = re.compile(r"\{([^{}:]*)(:[^{}]*)?\}")
+                        parts = []
+                        pos = 0
+
+                        for m in field_re.finditer(self.template):
+                            parts.append(self.template[pos:m.start()])
+                            name = m.group(1)
+                            spec = m.group(2)[1:] if m.group(2) else ""
+                            parts.append(format(named_values[name], spec))
+                            pos = m.end()
+
+                        parts.append(self.template[pos:])
+
+                        return "".join(parts)
+
+                    # dialecto <number>/<string>/<identifier>/<variable>
+                    n_placeholders = len(self.variables)
+
+                    if n_placeholders != len(values):
+                        raise ValueError(
+                            f"Expected {n_placeholders} value(s) for template "
+                            f"'{self.template}', got {len(values)}."
+                        )
+
+                    token_re = re.compile(
+                        r"<number>|<string>|<identifier>|<variable>|[^<]+"
+                    )
+
+                    values_iter = iter(values)
+                    parts = []
+
+                    for tok in token_re.findall(self.template):
+                        if tok in ("<number>", "<string>", "<identifier>", "<variable>"):
+                            parts.append(str(next(values_iter)))
+                        else:
+                            parts.append(tok)
+
+                    return "".join(parts)
+
+                @property
+                def compiled(self) -> re.Pattern:
+                    """El re.Pattern compilado, equivalente al valor que devolvía
+                    la antigua folder_fmt_to_pattern()."""
+                    return self._compiled
+                
+            # -- shared tokenizer, used only by from_files ---------------------------
+
+            @staticmethod
+            def _tokenize_filename(filename: str) -> list[str]:
+                """
+                Split a filename into alternating alphabetic, numeric and separator
+                tokens.
+
+                Examples
+                --------
+                >>> _tokenize_filename("cylinder_p3.control")
+                ['cylinder', '_', 'p', '3', '.control']
+                """
+                return re.findall(r"[A-Za-z]+|\d+|[^A-Za-z\d]+", filename)
+
+            # -- find_files, unchanged except for the new `pattern=` shortcut --------
+
+            @staticmethod
+            def find_files(
+                path: str,
+                *,
+                pattern=None,
+                endswith=None,
+                contains=None,
+                not_contains=None,
+                literal: bool = True,
+                ignore_case: bool = False,
+                sort: bool = True,
+                verbose: bool = True,
+            ) -> list[str]:
+                """
+                Return files inside a directory whose filenames satisfy one or more
+                filtering criteria.
+
+                Every filter accepts either a single string or any iterable of strings.
+                Filters are combined using logical **AND**, while multiple patterns inside
+                the same filter are combined using logical **OR**.
+
+                Patterns can be interpreted either as literal strings or as regular
+                expressions.
+
+                Parameters
+                ----------
+                path : str
+                    Directory to search.
+
+                endswith : str | Iterable[str] | None, optional
+                    Filename suffix(es).
+
+                    When ``literal=True`` this behaves similarly to ``str.endswith()``.
+                    When ``literal=False`` each pattern is interpreted as a regular
+                    expression that must finish at the end of the filename.
+
+                contains : str | Iterable[str] | None, optional
+                    Pattern(s) that must appear somewhere in the filename.
+
+                not_contains : str | Iterable[str] | None, optional
+                    Pattern(s) that must **not** appear in the filename.
+
+                literal : bool, default=True
+                    Whether the supplied patterns are literal strings.
+
+                    * ``True`` → patterns are escaped with ``re.escape()``.
+                    * ``False`` → patterns are interpreted as regular expressions.
+
+                ignore_case : bool, default=False
+                    Perform case-insensitive matching.
+
+                sort : bool, default=True
+                    Sort the returned list alphabetically.
+
+                verbose : bool, default=True
+                    Print a warning if no files are found.
+
+                Returns
+                -------
+                list[str]
+                    Absolute paths of all matching files.
+
+                Examples
+                --------
+                Find every HDF5 file::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=".h5"
+                    )
+
+                Find every VTU or HDF5 file::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=[".vtu", ".h5"]
+                    )
+
+                Find every file containing "surface"::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        contains="surface"
+                    )
+
+                Find every VTU file except backups::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=".vtu",
+                        not_contains="_backup"
+                    )
+
+                Find every file ending with "_p<number>.hsol"::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=r"_p\d+\.hsol",
+                        literal=False
+                    )
+
+                Find files whose name contains either Mach 0.7 or Mach 0.8::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        contains=[
+                            r"mach_0\.7",
+                            r"mach_0\.8",
+                        ],
+                        literal=False
+                    )
+
+                Find every solution file regardless of case::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=".H5",
+                        ignore_case=True
+                    )
+                """
+
+                if pattern is not None:
+                    contains = pattern.regex
+                    literal = False
+
+                def _compile_patterns(
+                    patterns,
+                    *,
+                    literal: bool = True,
+                    ignore_case: bool = False,
+                ):
+                    """
+                    Compile one or more search patterns into regular expressions.
+
+                    Parameters
+                    ----------
+                    patterns : str | Iterable[str] | None
+                        Pattern or collection of patterns. If *None*, *None* is returned.
+                    literal : bool, default=True
+                        If True, patterns are treated as literal strings and escaped with
+                        ``re.escape()``. Otherwise, they are interpreted as regular
+                        expressions.
+                    ignore_case : bool, default=False
+                        Compile expressions with ``re.IGNORECASE``.
+
+                    Returns
+                    -------
+                    list[re.Pattern] | None
+                        List of compiled regular expressions, or *None* if *patterns* is
+                        *None*.
+                    """
+
+                    if patterns is None:
+                        return None
+
+                    if isinstance(patterns, str):
+                        patterns = [patterns]
+                    elif not isinstance(patterns, Iterable):
+                        patterns = [patterns]
+
+                    flags = re.IGNORECASE if ignore_case else 0
+
+                    return [
+                        re.compile(re.escape(p) if literal else p, flags)
+                        for p in patterns
+                    ]
+                
+                def _matches(
+                    text: str,
+                    patterns,
+                    *,
+                    mode: str = "search",
+                ):
+                    """
+                    Check whether *text* matches at least one compiled regular expression.
+
+                    Parameters
+                    ----------
+                    text : str
+                        String to evaluate.
+                    patterns : list[re.Pattern] | None
+                        Compiled patterns.
+                    mode : {'search', 'end'}
+                        Matching mode.
+
+                        * ``'search'`` : equivalent to ``re.search()``.
+                        * ``'end'`` : pattern must end at the end of the string.
+
+                    Returns
+                    -------
+                    bool
+                    """
+
+                    if patterns is None:
+                        return True
+
+                    if mode == "search":
+                        return any(p.search(text) for p in patterns)
+
+                    if mode == "end":
+                        return any(
+                            p.search(text) and p.search(text).end() == len(text)
+                            for p in patterns
+                        )
+
+                    raise ValueError(f"Unknown mode '{mode}'.")
+
+                if not os.path.isdir(path):
+                    raise NotADirectoryError(path)
+
+                endswith = _compile_patterns(
+                    endswith,
+                    literal=literal,
+                    ignore_case=ignore_case,
+                )
+
+                contains = _compile_patterns(
+                    contains,
+                    literal=literal,
+                    ignore_case=ignore_case,
+                )
+
+                not_contains = _compile_patterns(
+                    not_contains,
+                    literal=literal,
+                    ignore_case=ignore_case,
+                )
+
+                files = []
+
+                for entry in os.scandir(path):
+
+                    if not entry.is_file():
+                        continue
+
+                    name = entry.name
+
+                    if not _matches(
+                        name,
+                        endswith,
+                        mode="end",
+                    ):
+                        continue
+
+                    if not _matches(
+                        name,
+                        contains,
+                        mode="search",
+                    ):
+                        continue
+
+                    if (
+                        not_contains is not None
+                        and _matches(
+                            name,
+                            not_contains,
+                            mode="search",
+                        )
+                    ):
+                        continue
+
+                    files.append(entry.path)
+
+                if sort:
+                    files.sort()
+
+                if verbose and not files:
+                    print(f"WARNING: No files found in '{path}'.")
+
+                return files
+        class pattern_pocket_ant:
+            @dataclass(slots=True)
+            class FilenamePattern:
+                """
+                Information describing a filename pattern.
+                """
+
+                template: str
+                regex: str
+                variables: list[dict]
+            
+            @staticmethod
+            def infer_filename_pattern(files: list[str]) -> FilenamePattern:
+                """
+                Infer the common filename pattern from a collection of files.
+
+                Parameters
+                ----------
+                files : list[str]
+                    File names or file paths.
+
+                Returns
+                -------
+                FilenamePattern
+
+                Examples
+                --------
+                >>> infer_filename_pattern([
+                ...     "cylinder_p1.control",
+                ...     "cylinder_p2.control",
+                ...     "cylinder_p3.control"
+                ... ])
+
+                template:
+                    cylinder_p<number>.control
+
+                regex:
+                    cylinder_p\\d+\\.control
+                """
+
+                if len(files) == 0:
+                    raise ValueError("No files supplied.")
+
+                names = [os.path.basename(f) for f in files]
+
+                tokenized = [
+                    SAM.Backpack.pattern_pocket._tokenize_filename(name)
+                    for name in names
+                ]
+
+                n_tokens = len(tokenized[0])
+
+                if any(len(t) != n_tokens for t in tokenized):
+                    raise ValueError(
+                        "Files do not share the same token structure."
+                    )
+
+                template = []
+                regex = []
+                variables = []
+
+                for i in range(n_tokens):
+
+                    values = [tokens[i] for tokens in tokenized]
+
+                    if len(set(values)) == 1:
+
+                        token = values[0]
+
+                        template.append(token)
+                        regex.append(re.escape(token))
+                        continue
+
+                    if all(v.isdigit() for v in values):
+
+                        template.append("<number>")
+                        regex.append(r"\d+")
+
+                        variables.append({
+                            "index": len(variables),
+                            "type": "number",
+                            "values": values,
+                        })
+
+                    elif all(v.isalpha() for v in values):
+
+                        template.append("<string>")
+                        regex.append(r"[A-Za-z]+")
+
+                        variables.append({
+                            "index": len(variables),
+                            "type": "string",
+                            "values": values,
+                        })
+
+                    elif all(re.fullmatch(r"\w+", v) for v in values):
+
+                        template.append("<identifier>")
+                        regex.append(r"\w+")
+
+                        variables.append({
+                            "index": len(variables),
+                            "type": "identifier",
+                            "values": values,
+                        })
+
+                    else:
+
+                        template.append("<variable>")
+                        regex.append(r".+")
+
+                        variables.append({
+                            "index": len(variables),
+                            "type": "variable",
+                            "values": values,
+                        })
+
+                return SAM.Backpack.pattern_pocket.FilenamePattern(
+                    template="".join(template),
+                    regex="".join(regex),
+                    variables=variables,
+                )
+            
+            @staticmethod
+            def _tokenize_filename(filename: str) -> list[str]:
+                """
+                Split a filename into alternating alphabetic, numeric and separator
+                tokens.
+
+                Examples
+                --------
+                >>> _tokenize_filename("cylinder_p3.control")
+                ['cylinder', '_', 'p', '3', '.control']
+
+                >>> _tokenize_filename("AoA10_M07.h5")
+                ['AoA', '10', '_M', '07', '.h5']
+                """
+
+                return re.findall(r"[A-Za-z]+|\d+|[^A-Za-z\d]+", filename)
+            
+            @staticmethod
+            def find_files(
+                path: str,
+                *,
+                endswith=None,
+                contains=None,
+                not_contains=None,
+                literal: bool = True,
+                ignore_case: bool = False,
+                sort: bool = True,
+                verbose: bool = True,
+            ) -> list[str]:
+                """
+                Return files inside a directory whose filenames satisfy one or more
+                filtering criteria.
+
+                Every filter accepts either a single string or any iterable of strings.
+                Filters are combined using logical **AND**, while multiple patterns inside
+                the same filter are combined using logical **OR**.
+
+                Patterns can be interpreted either as literal strings or as regular
+                expressions.
+
+                Parameters
+                ----------
+                path : str
+                    Directory to search.
+
+                endswith : str | Iterable[str] | None, optional
+                    Filename suffix(es).
+
+                    When ``literal=True`` this behaves similarly to ``str.endswith()``.
+                    When ``literal=False`` each pattern is interpreted as a regular
+                    expression that must finish at the end of the filename.
+
+                contains : str | Iterable[str] | None, optional
+                    Pattern(s) that must appear somewhere in the filename.
+
+                not_contains : str | Iterable[str] | None, optional
+                    Pattern(s) that must **not** appear in the filename.
+
+                literal : bool, default=True
+                    Whether the supplied patterns are literal strings.
+
+                    * ``True`` → patterns are escaped with ``re.escape()``.
+                    * ``False`` → patterns are interpreted as regular expressions.
+
+                ignore_case : bool, default=False
+                    Perform case-insensitive matching.
+
+                sort : bool, default=True
+                    Sort the returned list alphabetically.
+
+                verbose : bool, default=True
+                    Print a warning if no files are found.
+
+                Returns
+                -------
+                list[str]
+                    Absolute paths of all matching files.
+
+                Examples
+                --------
+                Find every HDF5 file::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=".h5"
+                    )
+
+                Find every VTU or HDF5 file::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=[".vtu", ".h5"]
+                    )
+
+                Find every file containing "surface"::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        contains="surface"
+                    )
+
+                Find every VTU file except backups::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=".vtu",
+                        not_contains="_backup"
+                    )
+
+                Find every file ending with "_p<number>.hsol"::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=r"_p\d+\.hsol",
+                        literal=False
+                    )
+
+                Find files whose name contains either Mach 0.7 or Mach 0.8::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        contains=[
+                            r"mach_0\.7",
+                            r"mach_0\.8",
+                        ],
+                        literal=False
+                    )
+
+                Find every solution file regardless of case::
+
+                    files = SAM.Backpack.pattern_pocket.find_files(
+                        "/data",
+                        endswith=".H5",
+                        ignore_case=True
+                    )
+                """
+                
+                def _compile_patterns(
+                    patterns,
+                    *,
+                    literal: bool = True,
+                    ignore_case: bool = False,
+                ):
+                    """
+                    Compile one or more search patterns into regular expressions.
+
+                    Parameters
+                    ----------
+                    patterns : str | Iterable[str] | None
+                        Pattern or collection of patterns. If *None*, *None* is returned.
+                    literal : bool, default=True
+                        If True, patterns are treated as literal strings and escaped with
+                        ``re.escape()``. Otherwise, they are interpreted as regular
+                        expressions.
+                    ignore_case : bool, default=False
+                        Compile expressions with ``re.IGNORECASE``.
+
+                    Returns
+                    -------
+                    list[re.Pattern] | None
+                        List of compiled regular expressions, or *None* if *patterns* is
+                        *None*.
+                    """
+
+                    if patterns is None:
+                        return None
+
+                    if isinstance(patterns, str):
+                        patterns = [patterns]
+                    elif not isinstance(patterns, Iterable):
+                        patterns = [patterns]
+
+                    flags = re.IGNORECASE if ignore_case else 0
+
+                    return [
+                        re.compile(re.escape(p) if literal else p, flags)
+                        for p in patterns
+                    ]
+                
+                def _matches(
+                    text: str,
+                    patterns,
+                    *,
+                    mode: str = "search",
+                ):
+                    """
+                    Check whether *text* matches at least one compiled regular expression.
+
+                    Parameters
+                    ----------
+                    text : str
+                        String to evaluate.
+                    patterns : list[re.Pattern] | None
+                        Compiled patterns.
+                    mode : {'search', 'end'}
+                        Matching mode.
+
+                        * ``'search'`` : equivalent to ``re.search()``.
+                        * ``'end'`` : pattern must end at the end of the string.
+
+                    Returns
+                    -------
+                    bool
+                    """
+
+                    if patterns is None:
+                        return True
+
+                    if mode == "search":
+                        return any(p.search(text) for p in patterns)
+
+                    if mode == "end":
+                        return any(
+                            p.search(text) and p.search(text).end() == len(text)
+                            for p in patterns
+                        )
+
+                    raise ValueError(f"Unknown mode '{mode}'.")
+
+                if not os.path.isdir(path):
+                    raise NotADirectoryError(path)
+
+                endswith = _compile_patterns(
+                    endswith,
+                    literal=literal,
+                    ignore_case=ignore_case,
+                )
+
+                contains = _compile_patterns(
+                    contains,
+                    literal=literal,
+                    ignore_case=ignore_case,
+                )
+
+                not_contains = _compile_patterns(
+                    not_contains,
+                    literal=literal,
+                    ignore_case=ignore_case,
+                )
+
+                files = []
+
+                for entry in os.scandir(path):
+
+                    if not entry.is_file():
+                        continue
+
+                    name = entry.name
+
+                    if not _matches(
+                        name,
+                        endswith,
+                        mode="end",
+                    ):
+                        continue
+
+                    if not _matches(
+                        name,
+                        contains,
+                        mode="search",
+                    ):
+                        continue
+
+                    if (
+                        not_contains is not None
+                        and _matches(
+                            name,
+                            not_contains,
+                            mode="search",
+                        )
+                    ):
+                        continue
+
+                    files.append(entry.path)
+
+                if sort:
+                    files.sort()
+
+                if verbose and not files:
+                    print(f"WARNING: No files found in '{path}'.")
+
+                return files
+
+            @staticmethod
+            def folder_fmt_to_pattern(folder_fmt: str) -> re.Pattern:
+                """
+                Convert a folder format string such as ``'aoa_{}_mach_{}'`` into
+                a compiled regex that matches corresponding folder names.
+
+                ``{}`` placeholders are replaced with ``[-\\d\\.]+`` to capture
+                any signed decimal number.
+
+                Parameters
+                ----------
+                folder_fmt : str
+                    Format string where ``{}`` denotes a numeric placeholder.
+
+                Returns
+                -------
+                re.Pattern
+
+                Examples
+                --------
+                ::
+
+                    pat = SAM.Backpack.pattern_pocket.folder_fmt_to_pattern('aoa_{}_mach_{}')
+                    assert pat.match('aoa_-3.50_mach_0.750')
+                """
+                parts = folder_fmt.split("_")
+                regex_parts = [
+                    r"[-\d\.]+" if "{" in p and "}" in p else re.escape(p)
+                    for p in parts
+                ]
+                return re.compile(rf"^{'_'.join(regex_parts)}$")
+        
         @staticmethod
         def read_cfd_times(case_path: str, verbose: bool = True) -> dict:
             """
@@ -1039,38 +1962,6 @@ class SAM():
                 {"total_iter": np.arange(df.shape[0])}
             )
             return pd.concat([df_iter, df], axis=1)
-
-        @staticmethod
-        def folder_fmt_to_pattern(folder_fmt: str) -> re.Pattern:
-            """
-            Convert a folder format string such as ``'aoa_{}_mach_{}'`` into
-            a compiled regex that matches corresponding folder names.
-
-            ``{}`` placeholders are replaced with ``[-\\d\\.]+`` to capture
-            any signed decimal number.
-
-            Parameters
-            ----------
-            folder_fmt : str
-                Format string where ``{}`` denotes a numeric placeholder.
-
-            Returns
-            -------
-            re.Pattern
-
-            Examples
-            --------
-            ::
-
-                pat = SAM.Backpack.folder_fmt_to_pattern('aoa_{}_mach_{}')
-                assert pat.match('aoa_-3.50_mach_0.750')
-            """
-            parts = folder_fmt.split("_")
-            regex_parts = [
-                r"[-\d\.]+" if "{" in p and "}" in p else re.escape(p)
-                for p in parts
-            ]
-            return re.compile(rf"^{'_'.join(regex_parts)}$")
 
         @staticmethod
         def _fornberg_weights(x, x0, m):

@@ -88,13 +88,12 @@ class HORSES3DReader(BaseReader):
                     ]
                     params_list.append(params)
                     sep_list.append(sep)
-                    nfiles_list.append(len(
-                        SAM.Backpack.find_files(
+                    files = SAM.Backpack.pattern_pocket.find_files(
                             os.path.join(self.output_dir, folder, 'RESULTS'),
-                            file_end='.hsol', notinfile='ci',
+                            endswith=r"_p\d+\.hsol",
+                            literal=False
                         )
-                    ))
-
+                    nfiles_list.append(len(files))
         if not params_list:
             raise ValueError(
                 "No simulation folders found or no numeric parameters "
@@ -127,7 +126,8 @@ class HORSES3DReader(BaseReader):
             df_arr[f_idx, :] = params_list[f_idx]
 
         df_cases = pd.DataFrame(
-            df_arr, columns=self.metadata['design_vars']
+            df_arr, 
+            columns=self.metadata['design_vars']
         ).reset_index(drop=True)
         df_cases.insert(0, "case_idx", df_cases.index.astype(np.int32))
         self.metadata['df_cases'] = df_cases
@@ -148,11 +148,12 @@ class HORSES3DReader(BaseReader):
         self.df_state : pd.DataFrame
             One row per matched simulation.
         """
-        pattern = SAM.Backpack.folder_fmt_to_pattern(
-            self.metadata["folder_fmt"]
-        )
-
-        for folder in os.listdir(self.output_dir):
+        pattern = SAM.Backpack.pattern_pocket.FilenamePattern.from_template(
+            self.metadata["folder_fmt"], numeric=True
+        ).compiled
+        
+        poly_calculated = False * np.ones((len(os.listdir(self.output_dir)),7), dtype=bool)
+        for i, folder in enumerate(os.listdir(self.output_dir)):
             if not pattern.match(folder):
                 continue
 
@@ -172,28 +173,52 @@ class HORSES3DReader(BaseReader):
                 .values.tolist()
             )
             self.metadata['df_cases'].at[idx_closest, 'folder'] = folder
-
+            
+            control_files_found = SAM.Backpack.pattern_pocket.find_files(
+                os.path.join(self.output_dir, folder,),
+                endswith='.control'
+            ) #stages que hemos programado. tenemos que pillar el patrón del nombre y usarlo para buscar los archivos de cada stage.
+            # motivo por el que se crea SAM...pattern_pocket -> conseguir patrón de archivos .control y buscar archivos de cada stage.
+            
+            ## CONTINUAR POR AQUÍ
+                
+            files = SAM.Backpack.pattern_pocket.find_files(
+                os.path.join(self.output_dir, folder, 'RESULTS'),
+                endswith=r"_p\d+\.hsol",
+                literal=False
+            )
+            
+            list_poly_degree = []
+            for file in files:
+                # sacar grado polinomio del nombre de cada file: *_p<grado>.hsol
+                poly_degree = int(re.findall(r"_p(\d+)\.hsol", file)[0])
+                list_poly_degree.append(poly_degree)
+            # Cambiar posiciones list_poly_degree de poly_calculated a True
+            for degree in list_poly_degree:
+                if degree < poly_calculated.shape[1]:
+                    poly_calculated[i,degree-1] = True
+                    
             full_path = os.path.join(self.output_dir, folder)
             if not os.path.isdir(full_path):
                 continue
 
             stage_dict: dict = {}
-            for fname in os.listdir(full_path):
-                if fname.startswith("output_"):
-                    parts = fname.split("_")
-                    if len(parts) >= 2:
-                        stage_raw = os.path.splitext(parts[1])[0]
-                        if stage_raw.isdigit():
-                            stage = int(stage_raw)
-                            ext   = os.path.splitext(fname)[-1].lstrip(".")
-                            stage_dict.setdefault(
-                                stage, {"files": [], "types": set()}
-                            )
-                            stage_dict[stage]["files"].append(fname)
-                            stage_dict[stage]["types"].add(ext)
+            # for fname in os.listdir(full_path):
+            #     if fname.startswith("output_"):
+            #         parts = fname.split("_")
+            #         if len(parts) >= 2:
+            #             stage_raw = os.path.splitext(parts[1])[0]
+            #             if stage_raw.isdigit():
+            #                 stage = int(stage_raw)
+            #                 ext   = os.path.splitext(fname)[-1].lstrip(".")
+            #                 stage_dict.setdefault(
+            #                     stage, {"files": [], "types": set()}
+            #                 )
+            #                 stage_dict[stage]["files"].append(fname)
+            #                 stage_dict[stage]["types"].add(ext)
 
-            for stage in stage_dict:
-                stage_dict[stage]["types"] = list(stage_dict[stage]["types"])
+            # for stage in stage_dict:
+            #     stage_dict[stage]["types"] = list(stage_dict[stage]["types"])
 
             self.sim_metadata[folder] = {
                 "folder":            folder,
@@ -206,30 +231,16 @@ class HORSES3DReader(BaseReader):
                  zip(self.metadata["design_vars"], nums)}
             )
 
-        print(f"{len(self.sim_metadata)} simulations found.")
+        self.df_state = pd.concat(
+            (
+                self.metadata['df_cases'],
+                pd.DataFrame(
+                    poly_calculated, columns = [f'p{p}' for p in range(1,8)], dtype=bool)
+            ),
+            axis=1, ignore_index=False,
+        )
 
-        n_dv = len(self.metadata['design_vars'])
-        state_array = np.zeros(
-            (len(self.sim_metadata), n_dv + 1), dtype=float
-        )
-        for n_sim, sim_key in enumerate(self.sim_metadata):
-            sim = self.sim_metadata[sim_key]
-            for i, var in enumerate(self.metadata['design_vars']):
-                state_array[n_sim, i] = sim[var]
-            state_array[n_sim, -1] = len(sim["stages"])
-
-        df_state = (
-            pd.DataFrame(
-                state_array,
-                columns=self.metadata['design_vars'] + ['stage'],
-            )
-            .sort_values(by=self.metadata['design_vars'][0])
-            .reset_index(drop=True)
-        )
-        self.df_state = pd.merge(
-            df_state, self.metadata['df_cases'],
-            on=self.metadata['design_vars'], how='left',
-        )
+        print(f"{len(self.sim_metadata)} simulations found." if len(self.sim_metadata) > 1 else f"{len(self.sim_metadata)} simulation found.")
     
     def extract_inputs(self, *args, **kwargs):
         pass
