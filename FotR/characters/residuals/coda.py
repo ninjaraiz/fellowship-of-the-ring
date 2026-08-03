@@ -1069,8 +1069,13 @@ class CODAResiduals(BaseResiduals):
             db.residuals.plot_state_calculation(num_stages=2)
         """
         data_to_plot = []
+        files_with_ci = []
         for name, case in self.db.sim_metadata.items():
             if len(case['stages']) == num_stages:
+                # comprobar si ese caso tiene condicion inicial en un ci.h5
+                files_with_ci.append(
+                    os.path.exists(os.path.join(case['path'], 'ci.h5'))
+                )
                 df = CODAResiduals.get_df_residuals_from_txt(
                     case_path=case['path'],
                     verbose=False,
@@ -1104,6 +1109,10 @@ class CODAResiduals(BaseResiduals):
             cur.set(title=name, ylabel="Residuals")
             cur.grid(which='both', linestyle='-', linewidth=0.5, alpha=0.3)
             cur.legend(loc='upper right', fontsize='small', markerscale=4)
+            # añadir en la leyenda una casilla que diga si tiene ci o no (valor de file_with_ci correspondiente)
+            cur.text(0.05, 0.05, f"CI: {'Yes' if files_with_ci[i] else 'No'}",
+                     transform=cur.transAxes, fontsize=10, verticalalignment='top',
+                        horizontalalignment='right', bbox=dict(boxstyle='round', facecolor='white', alpha=0.5))
             cur.tick_params(labelbottom=False)
 
             divider = make_axes_locatable(cur)

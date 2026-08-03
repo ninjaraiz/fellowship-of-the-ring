@@ -663,83 +663,133 @@ class CODAReader(BaseReader):
 
     # ── Visualisation ─────────────────────────────────────────────────────────
 
-    def plot_state(self, figsize: tuple = (15, 7)) -> None:
+    def plot_state(self, figsize: tuple = (10, 8)) -> None:
         """
         Plot the design-variable space coloured by simulation completion state.
+
+        Draws a single scatter plot of the varying design variables (1, 2 or
+        3 of them), colouring each point by ``df_state['stage']`` — the
+        number of solver stages completed for that case, ranging from
+        ``0`` (not started) to ``self.metadata['num_stages']`` (finished).
+
+        A discrete colormap with ``num_stages + 1`` categories is used (one
+        per possible completion state: not started, one or more
+        intermediate "in progress" states, and finished), so that every
+        completion level gets its own distinct colour instead of collapsing
+        the last "in progress" state and the "finished" state into the same
+        bin.
 
         Parameters
         ----------
         figsize : tuple
-            Figure size. Default (15, 7).
+            Figure size. Default (10, 8).
+
+        Raises
+        ------
+        ValueError
+            If fewer than one design variable actually varies across cases,
+            or if more than three design variables vary (only 1-D, 2-D and
+            3-D visualisations are supported).
+
+        Examples
+        --------
+        ::
+
+            db = FRODO(root_dir='/data/sim', format='CODA')
+            db.plot_state()
         """
-        num_states  = self.metadata['num_stages']
+        num_stages  = self.metadata['num_stages']
         design_vars = self.metadata['design_vars']
         df_state    = self.df_state
 
-        cmap_custom = plt.get_cmap("RdYlGn", num_states)
+        # ── Discrete colormap: one bin per possible stage value (0..num_stages) ──
+        num_categories = num_stages + 1
+        cmap_custom = plt.get_cmap("RdYlGn", num_categories)
         norm        = BoundaryNorm(
-            np.arange(-0.5, num_states + 0.5, 1), cmap_custom.N
+            np.arange(-0.5, num_categories + 0.5, 1), cmap_custom.N
         )
+
         dvf = [v for v in design_vars if df_state[v].nunique() > 1]
 
-        if len(dvf) < 2:
+        if len(dvf) < 1:
             raise ValueError(
-                "At least two varying design variables are required."
+                "At least one varying design variable is required."
+            )
+        if len(dvf) > 3:
+            raise ValueError(
+                "plot_state only supports 1, 2 or 3 varying design "
+                f"variables (found {len(dvf)}: {dvf})."
             )
 
         legend_handles = [
             plt.Line2D([0], [0], marker='o', color='w', label='Not started',
-                       markerfacecolor='red',    markersize=10),
+                    markerfacecolor='red',    markersize=10),
             plt.Line2D([0], [0], marker='o', color='w', label='In progress',
-                       markerfacecolor='yellow', markersize=10),
+                    markerfacecolor='yellow', markersize=10),
             plt.Line2D([0], [0], marker='o', color='w', label='Finished',
-                       markerfacecolor='green',  markersize=10),
+                    markerfacecolor='green',  markersize=10),
         ]
+        mask_fin = (
+            df_state['stage'].values == np.max(df_state['stage'].values)
+        )
+        pct = mask_fin.sum() / len(mask_fin) * 100
+        title=f"Status of cases - Finished cases {pct:.2f}%"
+        if len(dvf) == 1:
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+            y_dummy = np.zeros(len(df_state))
+            sc = ax.scatter(
+                df_state[dvf[0]], y_dummy,
+                c=df_state['stage'], cmap=cmap_custom, norm=norm, s=100,
+            )
+            ax.set_yticks([])
+            ax.set(xlabel=dvf[0], title=title)
+            ax.grid(axis='x')
+            for i, x in enumerate(df_state[dvf[0]].values):
+                offset = (0, 10) if df_state['stage'][i] != 0 else (0, -12)
+                ax.annotate(
+                    f"{i}", (x, 0), textcoords="offset points",
+                    xytext=offset, ha='center', fontsize=8,
+                )
+            ax.legend(handles=legend_handles, loc='lower center',
+                    bbox_to_anchor=(1.15, 0.5), ncols=1)
+            fig.colorbar(sc, ax=ax, label="Completed stages")
 
-        if len(dvf) == 2:
-            fig, ax = plt.subplots(1, 2, figsize=figsize, sharey=True)
-            ax[0].scatter(
+        elif len(dvf) == 2:
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+            sc = ax.scatter(
                 df_state[dvf[0]], df_state[dvf[1]],
                 c=df_state['stage'], cmap=cmap_custom, norm=norm, s=100,
             )
-            ax[0].set(xlabel=dvf[0], ylabel=dvf[1], title="Status of cases")
-            ax[0].grid()
-            ax[0].legend(handles=legend_handles, loc='lower center',
-                         bbox_to_anchor=(1.15, 0.5), ncols=1)
-
+            ax.set(xlabel=dvf[0], ylabel=dvf[1], title=title)
+            ax.grid()
             for i, (x, y) in enumerate(
                 zip(df_state[dvf[0]].values, df_state[dvf[1]].values)
             ):
                 offset = (0, 10) if df_state['stage'][i] != 0 else (0, -12)
-                ax[0].annotate(
+                ax.annotate(
                     f"{i}", (x, y), textcoords="offset points",
                     xytext=offset, ha='center', fontsize=8,
                 )
-
-            mask_fin = (
-                df_state['stage'].values == np.max(df_state['stage'].values)
-            )
-            ax[1].scatter(
-                df_state[dvf[0]][mask_fin], df_state[dvf[1]][mask_fin], s=100
-            )
-            pct = mask_fin.sum() / len(mask_fin) * 100
-            ax[1].set(xlabel=dvf[0], ylabel=dvf[1],
-                      title=f"Finished cases {pct:.2f}%")
-            ax[1].grid()
-            fig.subplots_adjust(wspace=0.3)
-            fig.show()
+            ax.legend(handles=legend_handles, loc='lower center',
+                    bbox_to_anchor=(1.15, 0.5), ncols=1)
+            # fig.colorbar(sc, ax=ax, label="Completed stages")
 
         elif len(dvf) == 3:
-            fig, ax = plt.subplots(1, 1, figsize=figsize)
-            ax.scatter(
+            fig = plt.figure(figsize=figsize)
+            ax  = fig.add_subplot(111, projection='3d')
+            sc = ax.scatter(
                 df_state[dvf[0]], df_state[dvf[1]], df_state[dvf[2]],
                 c=df_state['stage'], cmap=cmap_custom, norm=norm, s=100,
             )
             ax.set(xlabel=dvf[0], ylabel=dvf[1], zlabel=dvf[2],
-                   title="Status of cases")
+                title=title)
             ax.grid()
             ax.legend(handles=legend_handles, loc='lower center',
-                      bbox_to_anchor=(1.15, 0.5), ncols=1)
+                    bbox_to_anchor=(1.15, 0.5), ncols=1)
+            fig.colorbar(sc, ax=ax, label="Completed stages", shrink=0.6)
+
+        fig.tight_layout()
+        fig.show()
 
     def plot_integrals_from_case(
         self,
