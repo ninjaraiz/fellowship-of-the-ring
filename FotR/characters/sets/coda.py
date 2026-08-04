@@ -74,7 +74,39 @@ class CODASets(BaseSets):
 
     def __init__(self, db: 'FRODO'):
         super().__init__(db)
-
+    
+    def remove_data(self, id_group: str, stage:str = None, verbose:bool = False) -> None:
+        """
+        Remove a CADGroup or a specific stage from the data_dict.
+        
+        Args:
+            id_group (str): The identifier of the CADGroup to remove.
+            stage (str, optional): The specific stage to remove from the CADGroup.
+                                   If None, the entire CADGroup is removed.
+            verbose (bool, optional): If True, prints information about the removal.
+        Raises:
+            KeyError: If the specified CADGroup or stage does not exist in the data_dict.
+        """
+        key_group = f'CADGroup_{id_group}'
+        if key_group not in self.db.data_dict:
+            raise KeyError(f"CADGroup '{id_group}' not found in data_dict.")
+        
+        if stage is None:
+            # Remove entire CADGroup
+            if verbose:
+                print(f"Removing entire CADGroup '{id_group}' from data_dict.")
+            del self.db.data_dict[key_group]
+        else:
+            # Remove only the specified stage from Vars
+            if 'Vars' in self.db.data_dict[key_group]:
+                if stage in self.db.data_dict[key_group]['Vars']:
+                    if verbose:
+                        print(f"Removing stage '{stage}' from CADGroup '{id_group}'.")
+                    del self.db.data_dict[key_group]['Vars'][stage]
+                else:
+                    raise KeyError(f"Stage '{stage}' not found in CADGroup '{id_group}'.")
+            else:
+                raise KeyError(f"No 'Vars' found in CADGroup '{id_group}'.")
     # =========================================================================
     # create_jset
     # =========================================================================
