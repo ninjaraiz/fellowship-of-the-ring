@@ -405,6 +405,8 @@ class FRODO:
 
         keep     = sorted(keep)
         df_post  = df_post.iloc[keep].reset_index(drop=True)
+        if format_ref == 'CODA':
+            db_new.df_state = db_new.df_state.iloc[keep].reset_index(drop=True)
         db_new.data_dict[ngk]["FlCc"] = flcc_all[keep]
         df_post.to_csv(
             os.path.join(root_dir, 'metadata', 'df_post.csv'), sep=','
