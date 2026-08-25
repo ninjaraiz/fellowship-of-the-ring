@@ -514,7 +514,7 @@ class CODAResiduals(BaseResiduals):
             }
             
             df_finals  = df_finals.rename(columns=rename_dict)
-            print(df_finals.columns.to_list()[-3:], df_post.columns.to_list(), [v.lower() for v in design_vars])
+            # print(df_finals.columns.to_list()[-3:], df_post.columns.to_list(), [v.lower() for v in design_vars])
             
             df_post    = df_post.merge(df_finals, on=[v.lower() for v in design_vars], how="left")
 

@@ -37,7 +37,7 @@ class HORSES3DReader(BaseReader):
     def __init__(self, root_dir: str, **kwargs):
         super().__init__(root_dir, **kwargs)
         self.output_dir = os.path.join(self.root_dir, "outputs")
-        print(f'\n NEW CODA SIMULATION WILL BE LOADED FROM {root_dir}')
+        print(f'\n NEW HORSES3D SIMULATION WILL BE LOADED FROM {root_dir}')
 
         try:
             meta_path = os.path.join(root_dir, 'metadata', 'cases_metadata.json')

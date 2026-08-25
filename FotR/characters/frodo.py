@@ -278,7 +278,10 @@ class FRODO:
             for i, c in enumerate(csvs_post):
                 c['dataset'] = f'dataset_{i}'
             df_post = pd.concat(csvs_post, ignore_index=True)
-            df_state = pd.concat(csvs_state, ignore_index=True)
+            
+            # df_state tiene todos los casos. tengo que pillar solo los que ha sacado extract_*
+            
+            df_state = pd.concat(csvs_state, ignore_index=True)     # Concatenadas las bases completas. No se puede decidir índices
         else:
             if get_df_metrics_attr:
                 raise ValueError(
@@ -375,6 +378,11 @@ class FRODO:
         }
 
         # ── 6. FlCc with deduplication ───────────────────────────────────────
+        # -- SIN SENTIDO BUSCAR DUPLICADOS. YA LOS HE FILTRADO YO ELIGIENDO CASE_IDX EN INPUTS
+        # -- ORIGEN DE LA MOD: Claude cuando le pedí que no hubiese Aoa repetidos -> después puse combinación (Aoa, Mach)
+        # -- df_post y df_state tienen que tener los datos de db_new, no de los anteriores
+        # -- df_state de cada uno contiene todos sus casos, incluídos los que faltan en case_idx
+        
         flcc_list, case_splits = [], []
         for db, gid in processed:
             f = db.data_dict[f'CADGroup_{gid}']["FlCc"]
@@ -405,8 +413,10 @@ class FRODO:
 
         keep     = sorted(keep)
         df_post  = df_post.iloc[keep].reset_index(drop=True)
-        if format_ref == 'CODA':
-            db_new.df_state = db_new.df_state.iloc[keep].reset_index(drop=True)
+        
+        # if format_ref == 'CODA':
+        #     db_new.df_state = db_new.df_state.iloc[keep].reset_index(drop=True)
+        #     print('\n ------------ CHECKING CONDITIONAL ----------------\n')
         db_new.data_dict[ngk]["FlCc"] = flcc_all[keep]
         df_post.to_csv(
             os.path.join(root_dir, 'metadata', 'df_post.csv'), sep=','
