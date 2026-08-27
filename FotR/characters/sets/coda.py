@@ -485,10 +485,10 @@ class CODASets(BaseSets):
                 idx_to_print = [idx_to_print]
 
             max_cases = self.db.data_dict[key]["FlCc"].shape[0]
-            if any(i >= max_cases or i < 0 for i in idx_to_print):
-                raise IndexError(
-                    "idx_to_print contains out-of-range indices."
-                )
+            # if any(i >= max_cases or i < 0 for i in idx_to_print):
+            #     raise IndexError(
+            #         "idx_to_print contains out-of-range indices."
+            #     )
             case_idx = np.asarray(idx_to_print, dtype=np.int64)
 
             eltype     = self.db.data_dict[key]["eltype"].copy()
@@ -498,12 +498,13 @@ class CODASets(BaseSets):
 
             # ── Parametric variables ─────────────────────────────────────────
             if external_vars is None:
+                flcc = self.db.data_dict[key]["FlCc"]
                 param_dict = {
                     p: {
                         'idim':  0,
-                        'value': self.db.df_state[p].iloc[idx_to_print].values,
+                        'value': flcc[case_idx, i],
                     }
-                    for p in self.db.metadata['design_vars']
+                    for i, p in enumerate(self.db.metadata['design_vars'])
                 }
             else:
                 param_dict = external_vars
