@@ -46,3 +46,6 @@ xfoil_out/
 # Sbatch
 **/*.sh
 **/*.script
+
+# Notas y prompts
+./doc/prompt_gpt_frodo.txt

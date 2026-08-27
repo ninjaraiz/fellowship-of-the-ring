@@ -1,0 +1,382 @@
+ESQUEMA TÉCNICO — Módulo FRODO y formatos asociados (repo: fellowship-of-the-ring)  
+  
+CONTEXTO GENERAL  
+- El proyecto "Fellowship of the Ring" (FotR) es un framework Python para gestión, ingestión  
+  y procesamiento de datos de simulaciones CFD orientado a pipelines de Machine Learning.  
+- Usa una metáfora de personajes de "El Señor de los Anillos" para organizar módulos.  
+  Cada "personaje" es un subsistema funcional independiente (FRODO, SAM, GANDALF, LEGOLAS,  
+  GIMLI, ARAGORN). Solo se trabajará sobre FRODO y sus subpaquetes.  
+- FRODO = "Framework for Reusable Organized Data Output". Es el coordinador central de  
+  datos de simulaciones CFD: gestiona, organiza y archiva resultados de múltiples formatos  
+  de solver en una estructura unificada.  
+  
+UBICACIÓN EN EL REPO  
+FotR/characters/  
+├── frodo.py                # Clase FRODO (coordinador central)  
+├── readers/                # Ingesta de datos crudos  
+│   ├── __init__.py         # READER_REGISTRY  
+│   ├── base.py             # BaseReader (contrato abstracto)  
+│   ├── coda.py              # CODAReader  
+│   ├── numpy_file.py        # NUMPYFILEReader  
+│   └── pylom.py             # PYLOMReader  
+├── sets/                   # Ensamblado de tensores ML y operaciones de malla  
+│   ├── __init__.py         # SETS_REGISTRY  
+│   ├── base.py             # BaseSets (contrato abstracto)  
+│   ├── coda.py              # CODASets  
+│   ├── numpy_file.py        # NUMPYFILESets  
+│   └── pylom.py             # PYLOMSets  
+├── residuals/              # Monitorización de convergencia del solver  
+│   ├── __init__.py         # RESIDUALS_REGISTRY  
+│   ├── base.py             # BaseResiduals (contrato abstracto)  
+│   └── coda.py              # CODAResiduals  
+└── stats/                  # Análisis estadístico de campos  
+    ├── __init__.py         # STATS_REGISTRY  
+    ├── base.py             # BaseStats (contrato abstracto)  
+    └── coda.py              # CODAStats  
+  
+NOTA IMPORTANTE: solo existe implementación CODA para "residuals" y "stats" actualmente  
+(no hay NUMPYFILE ni PYLOM para esos dos subpaquetes). "Airfoil" también existe como  
+formato de reader pero sin sets/stats/residuals asociados documentados en el índice.  
+  
+===========================================================================  
+1. LA CLASE FRODO (frodo.py)  
+===========================================================================  
+  
+Rol: coordinador ligero ("lightweight coordinator"). NO implementa lógica específica  
+de formato; delega TODO a 3 (o 4) subpaquetes independientes:  
+  - readers/    → parsear carpetas de simulación, extraer inputs/outputs.  
+  - sets/       → ensamblado de tensores ML, operaciones de malla, I/O.  
+  - residuals/  → monitorización de convergencia y métricas integrales.  
+  - stats/      → estadística descriptiva y comparativa de campos.  
+  
+Principio de diseño explícito en el docstring del archivo:  
+  "Adding a new format only requires:  
+   1. A reader en readers/<format>.py (subclase de BaseReader)  
+   2. Opcionalmente sets en sets/<format>.py (subclase de BaseSets)  
+   3. Opcionalmente residuals en residuals/<format>.py (subclase de BaseResiduals)  
+   4. Registrar cada clase en el __init__.py del subpaquete correspondiente.  
+   FRODO en sí mismo nunca cambia."  
+  → Es decir: el código de FRODO está diseñado para NO tocarse al añadir/mejorar formatos;  
+    los cambios deben ir en las subclases concretas (p. ej. CODAReader, CODASets, etc.)  
+  
+Atributos de instancia clave:  
+- format: string, ej. 'CODA', 'Airfoil', 'NUMPYFILE', 'PYLOM'.  
+- root_dir: ruta absoluta al directorio raíz del dataset.  
+- sim_metadata: dict con metadatos por simulación (llenado por el reader).  
+- data_dict: dict central, memoria compartida entre reader y sets. Contiene:  
+    * Coordenadas (mesh / point cloud)  
+    * FlCc = "Flight Conditions" (array paramétrico: AoA, Mach, etc.)  
+    * Vars = variables de campo del solver (presión, velocidad...), organizadas por stage  
+    * Aux = arrays auxiliares definidos por el usuario (ej. normales)  
+    Estructura típica CODA: data_dict['CADGroup_<id>']['Coord'|'FlCc'|'Vars'|'Aux']  
+- kwargs: argumentos extra reenviados al reader concreto.  
+- name: nombre identificativo de la base de datos FRODO.  
+- reader, sets, residuals, stats: instancias de las clases concretas del formato  
+  (asignadas dinámicamente en _set_subclasses()).  
+  
+Constructor __init__(root_dir, format, initial_parse=True, **kwargs):  
+- Guarda format, root_dir (absoluto), inicializa sim_metadata y data_dict vacíos.  
+- Extrae de kwargs: update_df_state (bool) y name.  
+- Llama a self._set_subclasses() para instanciar reader/sets/residuals/stats.  
+- Si initial_parse=True, llama a self._parse() automáticamente y mide el tiempo.  
+  
+Método _set_subclasses():  
+- Busca en READER_REGISTRY el reader para self.format.  
+  * Si no existe → ValueError (formato no soportado).  
+  * Si existe → instancia self.reader = reader_cls(root_dir=..., **kwargs).  
+- Busca en SETS_REGISTRY, RESIDUALS_REGISTRY, STATS_REGISTRY de forma análoga.  
+  * Si el registro devuelve None (formato conocido pero submódulo no implementado  
+    para ese formato) → se imprime un WARNING y el atributo correspondiente (self.sets,  
+    self.residuals, self.stats) se pone a None, permitiendo funcionalidad parcial.  
+  
+Método _parse():  
+- Llama a self.reader.parse_simulation_dirs().  
+- Sincroniza self.sim_metadata y self.df_state desde el reader.  
+  
+Método _sync_reader():  
+- Tras cada extract_inputs/extract_outputs, copia de vuelta a FRODO los atributos  
+  sim_metadata, df_state y data_dict computados por el reader (el reader es la fuente  
+  de verdad temporal, FRODO sincroniza).  
+  
+Dynamic delegation — __getattr__(self, name):  
+- Si un atributo/método no existe directamente en FRODO, busca en orden:  
+  ('sets', 'reader', 'residuals', 'stats')  
+- Esto permite llamar, por ejemplo, db.add_aux(...) o db.compute_stats(...) directamente  
+  sobre el objeto FRODO aunque el método viva en db.sets o db.stats.  
+- Si no se encuentra en ninguno, lanza AttributeError.  
+  
+API pública principal:  
+- extract_inputs(*args, **kwargs)  → delega en self.reader.extract_inputs, luego _sync_reader()  
+- extract_outputs(*args, **kwargs) → delega en self.reader.extract_outputs, luego _sync_reader()  
+- summary_data() → imprime árbol jerárquico de data_dict vía SAM.DictVisualizer.rich_tree  
+- copy() → devuelve una copia profunda (deepcopy) de la instancia FRODO  
+- merge_datasets(...) [staticmethod] → fusiona múltiples FRODO en uno solo  
+  
+Método estático merge_datasets(root_dir, name, sources, new_group_id, method='idw',  
+k=4, mesh_ref=0, cache=True, get_df_metrics_attr={}):  
+- sources: lista de tuplas (instancia_FRODO, CADGroupID) a fusionar. Deben compartir formato.  
+- Si format == 'CODA': requiere get_df_metrics_attr y usa db.residuals.get_df_metrics()  
+  para construir df_post (metadatos post-proceso).  
+- Selecciona un mesh_ref (índice de la fuente cuya malla se usa como referencia).  
+- Para las demás fuentes: usa db.sets.interpolate_msh2msh(...) (IDW con KDTree, k vecinos)  
+  para reproyectar sobre la malla de referencia. Tiene caché opcional de resultados  
+  de interpolación (cache=True) para no recalcular entre fuentes repetidas.  
+- Concatena arrays FlCc de todas las fuentes con deduplicación (por redondeo a 8 decimales,  
+  con lógica de prioridad para mantener el registro de la malla de referencia).  
+- Para las variables (Vars): calcula la unión de todos los "stages" y variables presentes  
+  en todas las fuentes; si una variable falta en una fuente, la rellena con NaN para  
+  mantener consistencia de forma (padding).  
+- Construye y devuelve una nueva instancia FRODO (db_new) con data_dict, metadata y  
+  archivos CSV/JSON de metadatos guardados en root_dir/metadata/.  
+  
+===========================================================================  
+2. READERS (FotR/characters/readers/)  
+===========================================================================  
+  
+Responsabilidad: parsear carpetas de simulación crudas y extraer inputs/outputs  
+al data_dict. Es la capa de entrada de todo el framework.  
+  
+BaseReader (readers/base.py) — contrato abstracto (ABC):  
+- __init__(root_dir, **kwargs): inicializa root_dir, sim_metadata={}, df_state=DataFrame  
+  vacío, data_dict={}.  
+- Métodos abstractos que toda subclase DEBE implementar:  
+  1. parse_simulation_dirs() → recorre root_dir, construye sim_metadata (dict por  
+     carpeta/archivo) y df_state (DataFrame: una fila por simulación, columnas =  
+     variables de diseño + estado/etapa).  
+  2. extract_inputs(*args, **kwargs) → lee coordenadas de malla, conectividad y  
+     arrays de condición de vuelo (FlCc) hacia data_dict.  
+  3. extract_outputs(*args, **kwargs) → lee variables de campo del solver (Cp,  
+     velocidad, etc.) hacia data_dict. Requiere que extract_inputs ya se haya llamado.  
+- Método opcional summary() → resumen legible (nº de simulaciones, si df_state está lleno).  
+  
+READER_REGISTRY (readers/__init__.py):  
+- dict que mapea string de formato → clase concreta.  
+  'CODA' → CODAReader  
+  'NUMPYFILE' → NUMPYFILEReader  
+  'PYLOM' → PYLOMReader  
+  'Airfoil' → AIRFOILReader  
+- Si a un módulo le faltan dependencias, se omite del registro de forma segura.  
+  
+CODAReader (readers/coda.py) — implementación relevante para las mejoras pedidas:  
+- Diseñado para el solver CODA CFD (archivos .vtu de superficie/volumen).  
+- En __init__: intenta cargar metadata/cases_metadata.json (generado por GANDALF)  
+  con claves: eq_type, folder_fmt, design_vars, num_stages, df_cases (DataFrame de  
+  casos ordenados por la primera variable de diseño, con columna case_idx añadida).  
+- Si no encuentra ese JSON, hace fallback: _infer_metadata_from_folders() (infiere  
+  variables de diseño desde los nombres de carpetas usando regex).  
+- parse_simulation_dirs(): hace match de carpetas contra un patrón derivado de  
+  folder_fmt y calcula distancia euclídea al caso teórico más cercano en df_cases.  
+- Estructura de salida en data_dict: claves CADGroup_<id> con sub-claves  
+  Coord, FlCc, Vars (por stage).  
+- Atributos tras parseo: metadata (dict), sim_metadata (dict por carpeta con path,  
+  stages, valores de variables de diseño), df_state (DataFrame).  
+  
+NUMPYFILEReader (readers/numpy_file.py):  
+- Para datasets ya preprocesados y guardados como diccionarios .npy.  
+- Carga "eager" (todo en memoria) de todos los .npy durante __init__.  
+- Soporta reordenación de coordenadas en extract_inputs vía métodos 'centroid' o 'kdtree'.  
+  
+PYLOMReader (readers/pylom.py):  
+- Interfaz con la librería pyLOM (reducción de orden de modelos), envuelve  
+  objetos pyLOM.Dataset.  
+- Convierte automáticamente el layout intercalado de vectores de pyLOM  
+  (ej. ndim*n_points) al formato estándar multidimensional de FRODO.  
+- Carga "lazy": el archivo del dataset solo se lee al primer acceso a datos.  
+  
+Ciclo de vida típico (secuencia):  
+  Usuario → FRODO(root_dir, format) → reader.__init__() → reader.parse_simulation_dirs()  
+  → (población sim_metadata/df_state) → usuario llama db.extract_inputs(...) →  
+  reader.extract_inputs() → data_dict['CADGroup_x']['Coord'/'FlCc'] poblado →  
+  FRODO._sync_reader() → usuario llama db.extract_outputs(...) → reader.extract_outputs()  
+  → data_dict['CADGroup_x']['Vars']['<stage>'] poblado → FRODO._sync_reader()  
+  
+===========================================================================  
+3. SETS (FotR/characters/sets/)  
+===========================================================================  
+  
+Responsabilidad: operar sobre un data_dict ya poblado para:  
+- Ensamblar tensores ML ("joint tensor" o jset).  
+- Operaciones de malla (interpolación, recorte, reordenación de coordenadas).  
+- Helpers de I/O (guardar tensores/datasets en HDF5, npy, PyVista...).  
+- Integración con pyLOM (construir objetos SMEAGOL.Dataset / pyLOM.Dataset).  
+  
+BaseSets (sets/base.py) — contrato abstracto (ABC):  
+- __init__(db): guarda referencia a la instancia FRODO padre (self.db).  
+- Método abstracto obligatorio: create_jset(*args, **kwargs) -> dict  
+  * Ensambla coordenadas, condiciones de vuelo, arrays auxiliares y variables de  
+    salida en un único tensor plano listo para ML.  
+  * La firma exacta varía por formato (CODA, NUMPYFILE, PYLOM difieren en argumentos).  
+  * Debe fijar como efecto secundario al menos self.db.jset (o self.db.dict_tensors)  
+    y self.db.df_data para que código posterior pueda acceder a los datos ensamblados.  
+  * Retorna un dict con claves: 'tensor', 'scaled', 'mins', 'maxs', 'info'  
+    (viene de SAM.Gardener.create_final_tensor).  
+- Métodos opcionales (hooks) con implementación por defecto, sobreescribibles:  
+  * add_aux(array_name, array, notes=None): guarda un array auxiliar en  
+    db.data_dict['aux'][array_name] y registra su descripción en  
+    db.sim_metadata['keys_aux']. CODA sobreescribe esto porque usa un layout  
+    diferente (Aux dentro de cada CADGroup, no un dict genérico global).  
+  * summary(): descripción corta de la clase Sets y las claves de data_dict.  
+  
+SETS_REGISTRY (sets/__init__.py): mapea formato → clase concreta de Sets.  
+  
+CODASets (sets/coda.py) — implementación relevante:  
+- create_jset: combina Coord, FlCc y Vars para un stage e id_group específicos.  
+- Operaciones de malla propias de CODA:  
+  * interpolate_vol2surf: interpola variables desde una malla de volumen  
+    (ej. CADGroup 4) a una malla de superficie (ej. CADGroup 3).  
+  * interpolate_msh2msh: interpolación malla-a-malla (usada también por  
+    FRODO.merge_datasets), método IDW con KDTree y k vecinos.  
+  * change_order_coord: reordena coordenadas de malla (ej. para arquitecturas  
+    ML basadas en PCA).  
+  * crop_bounding_box: recorta el dataset a una región espacial de interés.  
+  
+NUMPYFILESets (sets/numpy_file.py):  
+- Tensor final con layout: [coordenadas | variables paramétricas | features  
+  auxiliares | campos de salida].  
+- Soporta serialización a .h5 (HDF5 comprimido GZIP), .pt (PyTorch), .npy.  
+- HDF5 contiene claves: tensor, scaled, mins, maxs (leídas por SAM.HDF5reader).  
+  
+PYLOMSets (sets/pylom.py):  
+- to_pylom_dataset: conversión de ida y vuelta FRODO ↔ pyLOM.Dataset.  
+- Accesores de campo: get_xyz(), get_field(), get_variable() para simplificar  
+  la interacción con datos HDF5 intercalados de pyLOM.  
+  
+Pipeline general de create_jset:  
+  data_dict → obtiene coordenadas (ptos) → obtiene FlCc → obtiene Aux →  
+  obtiene Vars → llama a SAM.Gardener.create_final_tensor →  
+  (broadcast de condiciones de vuelo a puntos, flatten N_pts*N_cases,  
+   normalización min-max) → db.jset['tensor'] / db.jset['scaled'] / db.df_data  
+  
+===========================================================================  
+4. RESIDUALS (FotR/characters/residuals/)  
+===========================================================================  
+  
+Responsabilidad: monitorización de convergencia del solver y extracción de  
+métricas integrales (lift, drag, etc.) a partir de archivos de log/monitor.  
+  
+BaseResiduals (residuals/base.py) — contrato abstracto:  
+- __init__(db): guarda self.db = instancia FRODO padre.  
+- Trabaja sobre self.db.sim_metadata (poblado por el reader) leyendo archivos  
+  de monitor directamente de los directorios de salida de la simulación.  
+- Método clave a implementar por subclases: get_all_final_residuals(**kwargs).  
+  
+RESIDUALS_REGISTRY (residuals/__init__.py): mapea formato → clase concreta.  
+Actualmente solo existe implementación para 'CODA' (CODAResiduals).  
+  
+CODAResiduals (residuals/coda.py) — pipeline de parseo multi-etapa:  
+1. Residuos crudos: parseados desde  
+   output_<stage>__monitors_TimeIntegration.dat  
+2. Normalización (r/r0): valores iniciales r0 extraídos de  
+   output_<stage>__monitors_stage<stage>InitialResidual.dat  
+   → r_norm = r / r0  
+3. Escalado (r/S): referencias S obtenidas de columnas "SERReference" en  
+   output_<stage>__monitors_CFLRamp.dat → r_scaled = r / S  
+4. Parseo alternativo de logs de texto: get_df_residuals_from_txt() lee archivos  
+   -out.txt con regex para extraer iteración, CFL, residuo de densidad,  
+   momento y energía.  
+  
+Métodos principales:  
+- get_df_residuals_from_case(case_name=None, case_idx=None, stage='all',  
+  verbose=False): construye un DataFrame con columnas de residuos (abs/norm/  
+  scaled) y total_iterations, para un caso concreto. Resuelve case_name a partir  
+  de case_idx vía self.db.reader.case_per_idx(case_idx).  
+- get_all_final_residuals(stage='all', verbose=False, only_finished=True,  
+  load_in_metadata=True): itera todas las simulaciones en db.sim_metadata,  
+  extrae el último estado de residuos por caso. only_finished filtra según  
+  db.metadata['num_stages']. Si load_in_metadata=True, guarda CSV en  
+  <root_dir>/metadata/all_final_residuals.csv.  
+- get_df_metrics(...): pipeline principal para calcular estadísticas de  
+  coeficientes aerodinámicos (CoefLift, CoefDrag, CoefMomentY) sobre una  
+  ventana de iteraciones finales (medias y varianzas para verificar estado  
+  estacionario). Usado también por FRODO.merge_datasets.  
+- integrals_convergence_criteria(iterations_back, residual_threshold,  
+  only_converged, only_finished): filtra casos por umbral de residuo  
+  normalizado (columnas que acaban en 'norm', excluyendo MomentumYResidual) y  
+  analiza estabilidad de magnitudes integrales.  
+- plot_residuals_from_case(case_name/case_idx, stage, mode='absolute'|'norm'|  
+  'scaled', save_dir, **kwargs): grafica residuos vs iteraciones + panel de CFL.  
+- plot_all_final_residuals(): scatter de residuos finales de todos los casos.  
+- update_converged_state(...): clasifica simulaciones por umbrales de  
+  convergencia y/o parseo de -out.txt (detecta convergencia reportada por el  
+  solver o errores fatales).  
+  
+===========================================================================  
+5. STATS (FotR/characters/stats/)  
+===========================================================================  
+  
+Responsabilidad: estadística descriptiva y comparativa sobre variables de  
+campo almacenadas en data_dict. Diferencia con Sets: Sets prepara tensores  
+para ML; Stats es para análisis de ingeniería (cómo se comportan los campos  
+en el espacio de diseño o entre distintos stages del solver).  
+  
+BaseStats (stats/base.py) — contrato abstracto:  
+- __init__(db): guarda self.db = instancia FRODO padre.  
+- Método abstracto obligatorio: compute_stats(*args, **kwargs) -> dict  
+  * La firma varía por formato (CODA necesita id_group y stage).  
+  * Debe guardar el resultado como side-effect en self.db (patrón compartido  
+    con BaseSets.create_jset y BaseResiduals.get_all_final_residuals) además  
+    de devolverlo.  
+- summary(): descripción corta.  
+  
+STATS_REGISTRY (stats/__init__.py): mapea formato → clase concreta.  
+Actualmente solo existe implementación para 'CODA' (CODAStats).  
+  
+CODAStats (stats/coda.py):  
+- Opera sobre el layout CADGroup de data_dict (Coord, FlCc, Vars agrupados  
+  por id geométrico).  
+- compute_stats(id_group, stage, per_case=False/True, percentiles=[5,25,50,  
+  75,95], ...): calcula media, std, min, max y percentiles configurables.  
+  * Soporta campos vectoriales: analizarlos por 'magnitude' (magnitud  
+    euclídea) o por 'components' (componentes individuales).  
+  * per_case=False: agrupa todos los puntos/casos → visión global del rango  
+    de la variable en el espacio de diseño.  
+  * per_case=True: estadísticas por simulación individual (detección de  
+    outliers/inestabilidades localizadas).  
+  * Resultado cacheado en db.stats_results bajo claves tipo  
+    'CADGroup_<id>_stage_<stage>'.  
+- stage_difference_stats(id_group, stages=(a,b), paired_test='t-test'|  
+  'wilcoxon'|'relative_error'): comparación pareada entre dos o más stages  
+  del solver (ej. malla gruesa vs fina). Soporta:  
+  * T-test (paramétrico)  
+  * Wilcoxon (no paramétrico, pareado)  
+  * Error relativo: |Stage_B - Stage_A| / max(|Stage_A|, epsilon)  
+  Resultado accesible como diff['<stageA>_vs_<stageB>']['global'].  
+- stage_difference_stats_variable(...): análisis profundo por variable  
+  específica (ej. Cp):  
+  * Binning espacial por cuantiles de la diferencia (para ver dónde diverge  
+    más el solver, ej. borde de ataque vs borde de fuga).  
+  * Proyección PCA del espacio de diseño (condiciones de vuelo) a 2D,  
+    coloreada por magnitud de la diferencia.  
+  * Visualización con SymLogNorm (para diferencias que abarcan varios  
+    órdenes de magnitud sin perder detalle en zonas de baja magnitud).  
+  * Boxplots/violin plots de distribución de errores.  
+  
+===========================================================================  
+6. FLUJO DE DATOS COMPLETO (resumen)  
+===========================================================================  
+  
+1. Usuario instancia: db = FRODO(root_dir, format='CODA')  
+   → FRODO._set_subclasses() crea db.reader, db.sets, db.residuals, db.stats  
+     (instancias de CODAReader, CODASets, CODAResiduals, CODAStats)  
+   → FRODO._parse() llama a reader.parse_simulation_dirs()  
+     → puebla sim_metadata y df_state  
+  
+2. db.extract_inputs(id_groups=(3,))  
+   → reader.extract_inputs(...) → puebla data_dict['CADGroup_3']['Coord'/'FlCc']  
+   → FRODO._sync_reader() sincroniza sim_metadata/df_state/data_dict  
+  
+3. db.extract_outputs(stage=0, id_groups=(3,))  
+   → reader.extract_outputs(...) → puebla data_dict['CADGroup_3']['Vars']['0']  
+   → FRODO._sync_reader()  
+  
+4. Análisis/ML:  
+   - db.sets.create_jset(...) → tensor ML final (db.jset, db.df_data)  
+   - db.residuals.get_all_final_residuals(...) → DataFrame de convergencia  
+   - db.stats.compute_stats(...) → estadísticas descriptivas de campos  
+   - db.stats.stage_difference_stats(...) → comparación entre stages  
+   - FRODO.merge_datasets([...]) → fusión de múltiples FRODO en uno nuevo  
+  
+5. Delegación dinámica: cualquier método no encontrado en FRODO se busca  
+   automáticamente en (sets, reader, residuals, stats) en ese orden vía  
+   __getattr__, permitiendo db.<metodo>(...) sin exponerlo explícitamente  
+   en la clase FRODO.
