@@ -53,6 +53,19 @@ Then register it in ``readers/__init__.py``::
 
     from .my_format import MyFormatReader
     READER_REGISTRY['MY_FORMAT'] = MyFormatReader
+
+Case-selection helpers
+-----------------------
+Several concrete readers (currently ``CODAReader``) select a subset of
+"cases" (rows of a ``df_cases``-like DataFrame) via a ``cases_idx``
+argument accepted by ``'all'``, an ``int``, a ``range`` or a
+``list``/``tuple`` of integers.  ``BaseReader._normalise_cases_idx`` is a
+shared, format-agnostic implementation of that normalisation step, so
+that concrete readers do not each reimplement (and potentially drift
+from) the same validation logic.  Formats whose case-selection semantics
+differ from this convention (e.g. ``NUMPYReader``, which normalises
+against a raw case *count* rather than a ``df_cases`` DataFrame) are free
+to keep their own local variant.
 """
 
 from abc import ABC, abstractmethod
@@ -140,6 +153,79 @@ class BaseReader(ABC):
         After this call, field arrays (Cp, velocity, …) must be accessible
         inside ``self.data_dict`` so that FRODO can sync them.
         """
+
+    # ── Shared case-selection helper ──────────────────────────────────────────
+
+    @staticmethod
+    def _normalise_cases_idx(cases_idx, df_cases: pd.DataFrame) -> list:
+        """
+        Normalise a ``cases_idx`` argument to a sorted-by-input list of
+        valid integer case indices, positional against ``df_cases``.
+
+        This is the shared implementation used by every reader whose case
+        selection is expressed as *positions* into a ``df_cases``-like
+        DataFrame (currently ``CODAReader``).  Centralising it here avoids
+        having near-identical (and potentially diverging) copies of the
+        same validation logic in each concrete reader.
+
+        Parameters
+        ----------
+        cases_idx : 'all', int, range, list[int] or tuple[int]
+            Case selection to normalise:
+
+            * ``'all'`` (case-insensitive) selects every row of
+              ``df_cases``.
+            * ``int`` selects a single row.
+            * ``range`` / ``list`` / ``tuple`` of ints select exactly
+              those positions.
+        df_cases : pd.DataFrame
+            The case-definition DataFrame (or any DataFrame) whose length
+            bounds the valid index range and, for ``'all'``, defines the
+            full case set.
+
+        Returns
+        -------
+        list[int]
+            Validated, plain-Python list of integer positions.
+
+        Raises
+        ------
+        ValueError
+            If ``cases_idx`` is a string other than ``'all'``, or has an
+            unsupported type.
+        IndexError
+            If any requested index is out of range for ``df_cases``.
+
+        Examples
+        --------
+        ::
+
+            idx = BaseReader._normalise_cases_idx('all', df_cases)
+            idx = BaseReader._normalise_cases_idx([0, 1, 4], df_cases)
+            idx = BaseReader._normalise_cases_idx(range(0, 10), df_cases)
+        """
+        if isinstance(cases_idx, str):
+            if cases_idx.lower() == "all":
+                cases_idx = list(range(len(df_cases)))
+            else:
+                raise ValueError(
+                    "Invalid string for cases_idx. Use 'all'."
+                )
+        elif isinstance(cases_idx, int):
+            cases_idx = [cases_idx]
+        elif isinstance(cases_idx, range):
+            cases_idx = list(cases_idx)
+        elif isinstance(cases_idx, (list, tuple)):
+            cases_idx = list(cases_idx)
+        else:
+            raise ValueError(
+                "cases_idx must be 'all', int, list[int], tuple[int] or range."
+            )
+
+        if any(i >= len(df_cases) or i < 0 for i in cases_idx):
+            raise IndexError("cases_idx contains out-of-range values.")
+
+        return cases_idx
 
     # ── Optional hooks (override as needed) ──────────────────────────────────
 
