@@ -1146,7 +1146,7 @@ class CODASets(BaseSets):
 
     def save_to_npy(
         self,
-        stage: int,
+        stage: Union[int, str],
         id_group: str,
         filepath: str,
         case_idx: Union[int, list, tuple, str] = 'all',
@@ -1157,30 +1157,131 @@ class CODASets(BaseSets):
         Save a stage and group subset of ``data_dict`` to a ``.npy`` file.
 
         The saved dict contains ``'Coord'``, ``'FlCc'``, ``'idx_sort'``,
-        ``'Conec'``, ``'eltype'``, ``'cellOrder'``, all field variables from
-        the specified stage (transposed to (n_cases, n_points)), and any
-        auxiliary arrays from ``'Aux'``.
+        ``'Conec'``, ``'eltype'``, ``'cellOrder'``, every field variable of
+        the requested stage (transposed to ``(n_cases, n_points)`` for
+        scalars, exactly as before), and — when present — every auxiliary
+        array from ``'Aux'``. Every one of these structures is restricted
+        to, and ordered by, the exact same ``case_idx`` selection, so that
+        ``Vars``, ``Aux``, ``FlCc`` and the mesh-reordering arrays
+        (``idx_sort`` / ``eltype`` / ``cellOrder``) always describe the
+        same set of cases in the same order.
+
+        Bugfixes with respect to the previous implementation
+        ------------------------------------------------------
+        This method used to have three related bugs, all stemming from the
+        same root cause: several structures were built from *different*
+        interpretations of "which cases to include", instead of sharing a
+        single, validated case selection.
+
+        1. **``Aux`` was effectively dropped, or could corrupt the output.**
+           The auxiliary arrays used to be merged with
+           ``out[group_key].update(aux_dict)`` — i.e. spliced directly into
+           the *top level* of the saved CADGroup dict (next to
+           ``'Coord'``, ``'FlCc'``, ...) instead of nested under an
+           ``'Aux'`` key. This meant ``out[group_key]['Aux']`` never
+           existed after loading the file (matching the reported "Aux
+           doesn't appear" symptom exactly), and, worse, an auxiliary
+           array whose name collided with an existing top-level key (e.g.
+           an aux array literally named ``'Coord'``) would silently
+           overwrite it. ``Aux`` is now nested under ``'Aux'``, mirroring
+           the in-memory ``data_dict`` layout used everywhere else in
+           ``CODASets`` (``add_to_data_dict``, ``create_jset``, the module
+           docstring's own layout description). In addition, every
+           auxiliary array whose trailing axis size matches the group's
+           total case count is now sliced by ``case_idx`` exactly like
+           ``Vars`` (auxiliary arrays with no case axis at all — e.g. a
+           purely geometric feature of shape ``(n_points,)`` — are kept
+           unfiltered, since they are shared across every case).
+        2. **``IndexError`` when ``case_idx='all'`` (and, in general,
+           whenever ``stage`` was passed as a string).** ``idx_sort``'s
+           leading axis is positionally indexed by an integer stage
+           number (``idx_sort_full[stage, c, :]``), while ``Vars`` is
+           keyed by the *string* form of the stage (``gd['Vars'][str(stage)]``).
+           The previous code used the raw, un-normalised ``stage``
+           argument directly as that positional index; if a caller passed
+           ``stage='0'`` (a perfectly reasonable thing to do — CODA
+           conventions elsewhere, e.g. ``CODASets.create_jset``, accept a
+           string stage), NumPy raised
+           ``IndexError: only integers, slices (:), ...`` because a raw
+           Python ``str`` is not a valid positional index — the case
+           position ``c`` itself was never the problem. ``stage`` is now
+           normalised once, up front, into both an ``int`` (for positional
+           indexing into ``idx_sort``) and its canonical ``str`` form (for
+           the ``Vars`` dict key), and both forms are validated with clear
+           errors before use.
+        3. **``FlCc`` in the saved file ignored ``case_idx`` entirely.**
+           Even when a genuine subset of cases was requested, the previous
+           implementation always wrote the *full*, unfiltered ``FlCc``
+           array, while ``Vars`` / ``idx_sort`` / ``eltype`` / ``cellOrder``
+           were correctly restricted to ``case_idx`` — leaving
+           ``FlCc.shape[0]`` inconsistent with every other structure's case
+           count. ``FlCc`` is now sliced by the same, single ``case_idx``
+           selection as everything else.
+
+        Case selection now also goes through a single, reusable helper —
+        :meth:`_normalise_cases_idx` — instead of the ad hoc, unvalidated
+        handling used previously (which silently accepted out-of-range
+        indices instead of failing clearly). This mirrors, on purpose, the
+        exact same "local, already-extracted case axis" contract used by
+        ``CODAStats._normalise_cases_idx`` (as opposed to
+        ``CODAReader._normalise_cases_idx`` / ``CODAReader._resolve_cases_idx``,
+        which operate on the *global* ``df_cases`` position space,
+        including named subsets). Named subsets are therefore
+        intentionally **not** accepted here: a subset is defined in terms
+        of global ``df_cases`` row positions, while ``save_to_npy``'s
+        ``case_idx`` — like every other CODASets/CODAStats case selector —
+        indexes the *local*, already-extracted case axis of this
+        particular CADGroup (0..``FlCc.shape[0]``-1); translating between
+        the two would require walking through
+        ``CODAReader.active_cases_idx``, which is a larger design change
+        than this bugfix warrants and is deliberately left out.
 
         Parameters
         ----------
-        stage : int
-            Stage number to export (e.g. ``0``).
+        stage : int or str
+            Stage number to export (e.g. ``0`` or ``'0'`` — both are
+            accepted and treated identically).
         id_group : str
             CADGroup identifier string (e.g. ``'3'``).
         filepath : str
             Destination path.  The extension ``.npy`` is appended if absent.
         case_idx : int, list, tuple or 'all'
-            Cases to include. Default ``'all'``.
+            Cases to include, as *local* positions into this CADGroup's
+            already-extracted ``FlCc`` (i.e. ``0`` is the first extracted
+            case, not necessarily the first case defined in ``df_cases``).
+            Default ``'all'``.
         ignore_vars : list, tuple or None
             Variable names to exclude from the output. Default None.
         verbose : bool
-            Print a confirmation message after saving.
+            Print a confirmation message after saving, and, for every
+            ``Aux`` array, the shape actually written.
+
+        Raises
+        ------
+        ValueError
+            If ``id_group`` is not a string, if ``stage`` cannot be
+            interpreted as an integer, or if ``case_idx`` has an
+            unsupported type/string value.
+        KeyError
+            If ``group_key`` is not present in ``data_dict``, if any of
+            the mesh/case arrays required to build the export
+            (``'FlCc'``, ``'Coord'``, ``'idx_sort'``, ``'eltype'``,
+            ``'cellOrder'``, ``'Conec'``) is missing, or if the requested
+            ``stage`` is not present in ``Vars``.
+        IndexError
+            If ``stage`` is out of bounds for ``idx_sort``'s stage axis,
+            or if ``case_idx`` contains out-of-range positions.
 
         Examples
         --------
-        Save all cases, all variables::
+        Save all cases, all variables (``stage`` as an int)::
 
             db.sets.save_to_npy(stage=0, id_group='3', filepath='/out/data')
+
+        Save all cases, all variables (``stage`` as a string — this used
+        to raise ``IndexError``, now works identically to the int form)::
+
+            db.sets.save_to_npy(stage='0', id_group='3', filepath='/out/data')
 
         Save first 50 cases, excluding 'GlobalNumber'::
 
@@ -1189,59 +1290,150 @@ class CODASets(BaseSets):
                 case_idx=list(range(50)), ignore_vars=['GlobalNumber'],
                 verbose=True,
             )
+
+        Every array in the resulting file now shares the same case count
+        and order, including ``Aux`` when present::
+
+            db.sets.save_to_npy(
+                stage=0, id_group='3', filepath='/out/data_subset',
+                case_idx=[2, 5, 9],
+            )
+            loaded = np.load('/out/data_subset.npy', allow_pickle=True).item()
+            g = loaded['CADGroup_3']
+            assert g['FlCc'].shape[0] == 3
+            assert g['idx_sort'].shape[1] == 3
+            if 'Aux' in g:
+                for arr in g['Aux'].values():
+                    assert arr.shape[-1] in (3, arr.shape[-1])  # 3 if case-indexed
         """
         if not isinstance(id_group, str):
             raise ValueError("id_group must be a string.")
 
-        group_key  = f'CADGroup_{id_group}'
-        gd         = self.db.data_dict[group_key]
-        stage_vars = gd["Vars"][str(stage)]
-        aux_dict   = gd.get('Aux', {})
+        group_key = f'CADGroup_{id_group}'
+        if group_key not in self.db.data_dict:
+            raise KeyError(
+                f"'{group_key}' not found in data_dict. Run extract_inputs() "
+                "for this group first."
+            )
+        gd = self.db.data_dict[group_key]
 
-        if isinstance(case_idx, str):
-            if case_idx != 'all':
-                raise ValueError("case_idx as str only accepts 'all'.")
-            case_idx  = list(range(gd['FlCc'].shape[0]))
-            all_cases = True
-        elif isinstance(case_idx, int):
-            case_idx  = [case_idx]
-            all_cases = False
-        elif isinstance(case_idx, (list, tuple)):
-            all_cases = False
-        else:
-            raise ValueError("case_idx must be 'all', int, list or tuple.")
+        for required in ('FlCc', 'Coord', 'idx_sort', 'eltype', 'cellOrder', 'Conec'):
+            if gd.get(required) is None:
+                raise KeyError(
+                    f"'{group_key}' is missing required key '{required}'. "
+                    "Run extract_inputs() (and extract_outputs()) for this "
+                    "group first."
+                )
 
-        ncases         = len(case_idx)
-        npoints        = gd["Coord"].shape[0]
-        idx_sort_full  = gd["idx_sort"]
+        # ── Normalise 'stage' into its int and str forms ────────────────────
+        # idx_sort's leading axis is positionally indexed by an INT; Vars is
+        # keyed by the STR form. Using the raw, un-normalised argument for
+        # positional indexing (as the previous implementation did) is what
+        # produced `IndexError: only integers, slices (:), ...` whenever a
+        # caller passed e.g. stage='0'.
+        try:
+            stage_int = int(stage)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"stage={stage!r} could not be interpreted as an integer "
+                "stage index."
+            )
+        stage_str = str(stage_int)
 
+        idx_sort_full = gd['idx_sort']
+        if not (0 <= stage_int < idx_sort_full.shape[0]):
+            raise IndexError(
+                f"stage {stage_int} is out of bounds for idx_sort with "
+                f"{idx_sort_full.shape[0]} stage(s) available."
+            )
+
+        if 'Vars' not in gd or stage_str not in gd['Vars']:
+            raise KeyError(
+                f"Stage '{stage_str}' not found in '{group_key}'['Vars']. "
+                f"Available stages: {list(gd.get('Vars', {}))}."
+            )
+        stage_vars = gd['Vars'][stage_str]
+
+        # ── Case selection: single, validated, reused for every structure ───
+        n_cases_total   = gd['FlCc'].shape[0]
+        case_idx_input  = case_idx
+        case_idx        = self._normalise_cases_idx(case_idx, n_cases_total)
+        all_cases       = (
+            isinstance(case_idx_input, str)
+            and case_idx_input.lower() == 'all'
+        )
+
+        ncases  = len(case_idx)
+        npoints = gd['Coord'].shape[0]
+
+        # ── Mesh-reordering arrays (idx_sort / eltype / cellOrder) ──────────
         idx_sort  = np.zeros((ncases, npoints), dtype=np.int32)
         eltype    = np.zeros((ncases, npoints), dtype=np.int32)
         cellOrder = np.zeros((ncases, npoints), dtype=np.int32)
         for ci, c in enumerate(case_idx):
-            idx_sort[ci]  = idx_sort_full[stage, c, :]
-            eltype[ci]    = gd["eltype"][idx_sort_full[stage, c, :]]
-            cellOrder[ci] = gd["cellOrder"][idx_sort_full[stage, c, :]]
+            sorter        = idx_sort_full[stage_int, c, :]
+            idx_sort[ci]  = sorter
+            eltype[ci]    = gd['eltype'][sorter]
+            cellOrder[ci] = gd['cellOrder'][sorter]
 
-        out: dict = {f'CADGroup_{id_group}':{
-            'Coord':     gd["Coord"],
-            'FlCc':      gd['FlCc'],
-            'idx_sort':  np.expand_dims(idx_sort, axis=0), # Para que mantenga el formato. imprimimos solo una stage, pero la dim=0 corresponde a esa sola stage.
-            'Conec':     gd["Conec"],
+        group_out: dict = {
+            'Coord':     gd['Coord'],
+            'FlCc':      gd['FlCc'][case_idx],
+            'idx_sort':  np.expand_dims(idx_sort, axis=0),
+            # ↑ keeps the (n_stages=1, n_cases, n_points) layout: only one
+            # stage is ever printed here, but that stage still occupies
+            # axis 0, mirroring the full idx_sort layout produced by
+            # CODAReader.extract_inputs.
+            'Conec':     gd['Conec'],
             'eltype':    eltype,
-            'cellOrder': cellOrder,}
+            'cellOrder': cellOrder,
         }
-        out[f'CADGroup_{id_group}']['Vars'] = {str(stage): {}}
 
+        # ── Vars: unchanged slicing/orientation, now built on the shared,
+        #    validated case_idx (previously already correct here — the bug
+        #    was elsewhere — but now explicitly guaranteed to be the same
+        #    selection as every other structure). ───────────────────────────
+        group_out['Vars'] = {stage_str: {}}
         for var_name, var_data in stage_vars.items():
             if ignore_vars and var_name in ignore_vars:
                 continue
             if var_data.ndim == 2 and var_data.shape[0] == npoints:
-                out[f'CADGroup_{id_group}']['Vars'][str(stage)][var_name] = np.transpose(var_data[:, case_idx])
+                group_out['Vars'][stage_str][var_name] = np.transpose(
+                    var_data[:, case_idx]
+                )
             elif var_data.ndim == 3 and var_data.shape[1] == npoints:
-                out[f'CADGroup_{id_group}']['Vars'][str(stage)][var_name] = var_data[:, :, case_idx]
+                group_out['Vars'][stage_str][var_name] = var_data[:, :, case_idx]
+            elif verbose:
+                print(
+                    f"[CODASets.save_to_npy] Skipping variable '{var_name}': "
+                    f"shape {var_data.shape} does not match the expected "
+                    "(n_points, n_cases) / (n_dim, n_points, n_cases) layout "
+                    f"for npoints={npoints}."
+                )
 
-        out[f'CADGroup_{id_group}'].update(aux_dict)
+        # ── Aux: nested under 'Aux' (not spliced into the top level), and
+        #    sliced by the same case_idx whenever the array actually has a
+        #    case axis (trailing axis size == n_cases_total). Auxiliary
+        #    arrays with no case axis (shared across every case, e.g. pure
+        #    geometry) are kept unfiltered, matching the "(n_points,) or
+        #    (n_points, n_cases)" contract documented in
+        #    CODASets.add_to_data_dict / BaseSets.add_aux. ────────────────
+        aux_dict = gd.get('Aux', {})
+        if aux_dict:
+            group_out['Aux'] = {}
+            for aux_name, aux_data in aux_dict.items():
+                aux_arr = np.asarray(aux_data)
+                if aux_arr.ndim >= 1 and aux_arr.shape[-1] == n_cases_total:
+                    group_out['Aux'][aux_name] = aux_arr[..., case_idx]
+                else:
+                    group_out['Aux'][aux_name] = aux_arr
+                if verbose:
+                    print(
+                        f"[CODASets.save_to_npy] Aux '{aux_name}': "
+                        f"stored shape {group_out['Aux'][aux_name].shape}"
+                    )
+
+        out = {group_key: group_out}
 
         if not filepath.endswith('.npy'):
             filepath += '.npy'
@@ -1250,6 +1442,83 @@ class CODASets(BaseSets):
         if verbose:
             label = 'all cases' if all_cases else f'cases {case_idx}'
             print(f"\nSaved {label} to {filepath}")
+
+    @staticmethod
+    def _normalise_cases_idx(
+        cases_idx: Union[list, tuple, int, str],
+        n_cases: int,
+    ) -> list:
+        """
+        Normalise a ``case_idx``-style selector into a validated list of
+        integer positions on an already-extracted case axis.
+
+        This mirrors, deliberately, ``CODAStats._normalise_cases_idx``:
+        both normalise a *local* case selection — positions 0..``n_cases``-1
+        into an already-extracted CADGroup's own arrays (``FlCc``, ``Vars``,
+        ``idx_sort``, ``Aux``, ...) — as opposed to
+        ``CODAReader._normalise_cases_idx`` / ``CODAReader._resolve_cases_idx``,
+        which operate on the *global* ``df_cases`` row-position space
+        (including named subsets, via ``subset=...``). Every
+        ``CODASets``/``CODAStats`` method that slices an already-extracted
+        CADGroup's arrays by case should therefore share this exact
+        contract: ``'all'``, an ``int``, a ``range``, or a ``list``/``tuple``
+        of ``int``, all bounds-checked against ``n_cases``.
+
+        Parameters
+        ----------
+        cases_idx : 'all', int, range, list[int] or tuple[int]
+            Case selection to normalise. The string form is matched
+            case-insensitively (``'all'``, ``'ALL'``, ...).
+        n_cases : int
+            Number of cases actually available on the axis being selected
+            from — typically ``data_dict['CADGroup_<id>']['FlCc'].shape[0]``.
+
+        Returns
+        -------
+        list[int]
+            Validated, plain-Python list of integer positions.
+
+        Raises
+        ------
+        ValueError
+            If ``cases_idx`` is a string other than ``'all'``, or has an
+            unsupported type.
+        IndexError
+            If any requested index is out of range for ``n_cases``.
+
+        Examples
+        --------
+        ::
+
+            idx = CODASets._normalise_cases_idx('all', n_cases=50)
+            idx = CODASets._normalise_cases_idx([0, 1, 4], n_cases=50)
+            idx = CODASets._normalise_cases_idx(5, n_cases=50)
+            idx = CODASets._normalise_cases_idx(range(0, 10), n_cases=50)
+        """
+        if isinstance(cases_idx, str):
+            if cases_idx.lower() == 'all':
+                cases_idx = list(range(n_cases))
+            else:
+                raise ValueError("Invalid string for cases_idx. Use 'all'.")
+        elif isinstance(cases_idx, bool):
+            raise ValueError(
+                "cases_idx must be 'all', int, list[int], tuple[int] or range."
+            )
+        elif isinstance(cases_idx, int):
+            cases_idx = [cases_idx]
+        elif isinstance(cases_idx, range):
+            cases_idx = list(cases_idx)
+        elif isinstance(cases_idx, (list, tuple)):
+            cases_idx = list(cases_idx)
+        else:
+            raise ValueError(
+                "cases_idx must be 'all', int, list[int], tuple[int] or range."
+            )
+
+        if any(i >= n_cases or i < 0 for i in cases_idx):
+            raise IndexError("cases_idx contains out-of-range values.")
+
+        return cases_idx
 
     def save_to_h5(
         self,

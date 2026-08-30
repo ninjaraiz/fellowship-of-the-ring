@@ -17,13 +17,13 @@ FotR/characters/
 │   ├── __init__.py         # READER_REGISTRY  
 │   ├── base.py             # BaseReader (contrato abstracto)  
 │   ├── coda.py              # CODAReader  
-│   ├── numpy_file.py        # NUMPYFILEReader  
+│   ├── numpy.py            # NUMPYReader  
 │   └── pylom.py             # PYLOMReader  
 ├── sets/                   # Ensamblado de tensores ML y operaciones de malla  
 │   ├── __init__.py         # SETS_REGISTRY  
 │   ├── base.py             # BaseSets (contrato abstracto)  
 │   ├── coda.py              # CODASets  
-│   ├── numpy_file.py        # NUMPYFILESets  
+│   ├── numpy.py            # NUMPYSets  
 │   └── pylom.py             # PYLOMSets  
 ├── residuals/              # Monitorización de convergencia del solver  
 │   ├── __init__.py         # RESIDUALS_REGISTRY  
