@@ -20,6 +20,36 @@ Expected directory layout
 
 If ``cases_metadata.json`` is missing, the reader attempts to infer the
 folder format automatically from the folder names in ``outputs/``.
+
+Case identity vs. execution state
+----------------------------------
+Two DataFrames describe the case space and must not be confused with
+each other:
+
+* ``self.metadata['df_cases']`` — the **identity / definition** of every
+  case (design-variable values, ``case_idx``, and, once created, subset
+  membership).  It is loaded once from ``cases_metadata.json`` (or
+  inferred from folder names) and is the *source of truth* for "which
+  cases exist and what are they".  It is mutated in place (e.g. the
+  ``'folder'`` and ``'subsets'`` columns are filled in), but never
+  replaced wholesale, so external references to it (and anything derived
+  from it, such as subset membership) stay valid across re-parses.
+* ``self.df_state`` — a **derived, disposable view** of the current
+  execution state (how many stages have completed for each case). It is
+  fully rebuilt every time ``parse_simulation_dirs()`` runs, by joining
+  the on-disk state discovered under ``outputs/`` with
+  ``metadata['df_cases']``. It must never be treated as an independent
+  source of case identity: if ``df_state`` and ``df_cases`` were to
+  disagree, ``df_cases`` wins.
+
+Case subsets
+------------
+A *subset* is a named grouping of case identities (``df_cases`` rows).
+Subsets are the recommended way to repeatedly select the same group of
+cases (e.g. "every case at Mach 0.7") across ``extract_inputs``,
+``extract_outputs`` and the residuals helpers, instead of re-typing the
+same ``cases_idx`` list everywhere. See :meth:`CODAReader.define_subset`
+for the full API.
 """
 
 import os
@@ -54,18 +84,45 @@ class CODAReader(BaseReader):
     -----------------------------------------------
     metadata : dict
         Keys: 'eq_type', 'folder_fmt', 'design_vars', 'num_stages',
-        'df_cases'.
+        'df_cases'. ``metadata['df_cases']`` is the case-identity table
+        (see module docstring); it additionally carries a ``'subsets'``
+        column once :meth:`define_subset` has been used.
     sim_metadata : dict
         Keyed by folder name.  Each value contains path, stage dict and
         design-variable values.
     df_state : pd.DataFrame
-        One row per simulation. Columns: design vars + 'stage' + 'folder'.
+        Derived execution-state view, one row per simulation. Columns:
+        design vars + 'stage' + everything merged in from
+        ``metadata['df_cases']`` (including ``'case_idx'``, ``'folder'``
+        and, once defined, ``'subsets'``).
+    subsets : dict[str, list[int]]
+        Named groupings of case positions (``df_cases`` row positions).
+        Populated by :meth:`define_subset`. Empty dict until the first
+        subset is defined.
+    active_cases_idx : dict[str, list[int]]
+        For every CADGroup key already populated via ``extract_inputs``,
+        the exact (global, ``df_cases``-relative) case positions that
+        were extracted into it, in the order used to build ``data_dict``.
+        This mirrors the bookkeeping already performed by
+        ``NUMPYReader._active_cases_idx`` and exists so that later code
+        (e.g. a future Sets/Stats method) can map the *local* case axis
+        of an already-extracted CADGroup back to global ``df_cases``
+        positions/subsets without re-deriving it. Empty dict until the
+        first call to ``extract_inputs``.
     """
 
     def __init__(self, root_dir: str, **kwargs):
         super().__init__(root_dir, **kwargs)
         self.output_dir = os.path.join(self.root_dir, "outputs")
         print(f'\n NEW CODA SIMULATION WILL BE LOADED FROM {root_dir}')
+
+        # ── Case subsets & extraction bookkeeping ──────────────────────────
+        # 'subsets' is the single source of truth for named case groupings
+        # (see define_subset / _resolve_cases_idx). 'active_cases_idx' is
+        # populated by extract_inputs and records, per CADGroup key, which
+        # global case positions were extracted.
+        self.subsets: dict          = {}
+        self.active_cases_idx: dict = {}
 
         try:
             meta_path = os.path.join(root_dir, 'metadata', 'cases_metadata.json')
@@ -96,6 +153,8 @@ class CODAReader(BaseReader):
             )
             print(exc)
             self._infer_metadata_from_folders()
+
+        self._sync_subsets_column()
 
     # ── Metadata inference fallback ───────────────────────────────────────────
 
@@ -160,6 +219,340 @@ class CODAReader(BaseReader):
         df_cases.insert(0, "case_idx", df_cases.index.astype(np.int32))
         self.metadata['df_cases'] = df_cases
 
+    # ── Case subsets ───────────────────────────────────────────────────────────
+
+    def define_subset(
+        self,
+        name: str,
+        cases_idx: Union[list, tuple, int, str],
+        overwrite: bool = False,
+    ) -> list:
+        """
+        Define (or redefine) a named subset of cases from
+        ``metadata['df_cases']``.
+
+        A subset is simply a stored, named list of ``df_cases`` row
+        positions.  Once defined, it can be referenced by name from
+        :meth:`extract_inputs`, :meth:`extract_outputs` and the CODA
+        residuals helpers that accept a ``subset`` argument, instead of
+        repeating the same ``cases_idx`` selection everywhere.
+
+        Case selection reuses the exact same normalisation logic already
+        used by ``cases_idx`` elsewhere in the reader
+        (``BaseReader._normalise_cases_idx``), so every value accepted by
+        ``extract_inputs(cases_idx=...)`` today (``'all'``, an ``int``, a
+        ``range``, or a ``list``/``tuple`` of ints) is also accepted here.
+
+        A case may belong to any number of subsets simultaneously: the
+        canonical storage is ``self.subsets``, a plain
+        ``dict[str, list[int]]`` (not a single-valued column), which
+        removes the "one case, one label" limitation a boolean/categorical
+        column would impose. For inspection convenience this is mirrored,
+        read-only, onto a ``'subsets'`` column of ``metadata['df_cases']``
+        (one list of subset names per row) every time subsets change —
+        but that column is never read back to resolve a subset; it exists
+        purely so a human (or ``df_cases.head()``) can see membership at a
+        glance.
+
+        Parameters
+        ----------
+        name : str
+            Subset name.  Must be a non-empty string (surrounding
+            whitespace is stripped).  Must not already exist unless
+            ``overwrite=True``.
+        cases_idx : 'all', int, range, list[int] or tuple[int]
+            Case selection, normalised via
+            ``BaseReader._normalise_cases_idx`` against
+            ``metadata['df_cases']``.
+        overwrite : bool
+            If True, silently replaces an existing subset with the same
+            name. If False (default) and the name already exists, raises
+            ``ValueError``.
+
+        Returns
+        -------
+        list[int]
+            The resolved, sorted list of case positions now stored under
+            ``self.subsets[name]``.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is empty/whitespace-only, if it already exists and
+            ``overwrite=False``, if ``cases_idx`` has an unsupported type
+            or string value, or if the resolved selection is empty.
+        IndexError
+            If ``cases_idx`` contains out-of-range positions.
+        RuntimeError
+            If ``metadata['df_cases']`` is not available.
+
+        Examples
+        --------
+        Define a subset from an explicit list of case positions::
+
+            db.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+
+        Define a subset covering every case (rarely useful on its own,
+        but handy as a documented alias)::
+
+            db.define_subset(name='every_case', cases_idx='all')
+
+        Redefine an existing subset after discovering more cases at that
+        Mach number::
+
+            db.define_subset(
+                name='mach_07', cases_idx=[0, 1, 2, 9], overwrite=True,
+            )
+
+        A case can belong to more than one subset::
+
+            db.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+            db.define_subset(name='low_aoa', cases_idx=[0, 3])
+            print(db.list_subsets())
+            # {'mach_07': [0, 1, 2], 'low_aoa': [0, 3]}
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("'name' must be a non-empty string.")
+        name = name.strip()
+
+        if name in self.subsets and not overwrite:
+            raise ValueError(
+                f"Subset '{name}' already exists. "
+                "Pass overwrite=True to redefine it."
+            )
+
+        df_cases = self.metadata.get('df_cases')
+        if df_cases is None or df_cases.empty:
+            raise RuntimeError(
+                "'df_cases' is not available; cannot define a subset."
+            )
+
+        resolved = self._normalise_cases_idx(cases_idx, df_cases)
+        if not resolved:
+            raise ValueError(
+                f"Subset '{name}' would be empty; refusing to define it."
+            )
+
+        self.subsets[name] = sorted(set(int(i) for i in resolved))
+        self._sync_subsets_column()
+
+        return list(self.subsets[name])
+
+    def get_subset(self, name: str) -> list:
+        """
+        Return the list of case positions belonging to a named subset.
+
+        Parameters
+        ----------
+        name : str
+            Subset name, as passed to :meth:`define_subset`.
+
+        Returns
+        -------
+        list[int]
+            Copy of the stored case-position list; safe to mutate.
+
+        Raises
+        ------
+        KeyError
+            If ``name`` is not a defined subset.
+
+        Examples
+        --------
+        ::
+
+            db.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+            print(db.get_subset('mach_07'))   # [0, 1, 2]
+        """
+        if name not in self.subsets:
+            raise KeyError(
+                f"Subset '{name}' not found. "
+                f"Available subsets: {list(self.subsets)}."
+            )
+        return list(self.subsets[name])
+
+    def list_subsets(self) -> dict:
+        """
+        Return every currently defined subset.
+
+        Returns
+        -------
+        dict[str, list[int]]
+            Copy of ``self.subsets`` (both the dict and every contained
+            list are copies; safe to mutate).
+
+        Examples
+        --------
+        ::
+
+            db.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+            db.define_subset(name='mach_08', cases_idx=[3, 4, 5])
+            print(db.list_subsets())
+            # {'mach_07': [0, 1, 2], 'mach_08': [3, 4, 5]}
+        """
+        return {k: list(v) for k, v in self.subsets.items()}
+
+    def remove_subset(self, name: str) -> None:
+        """
+        Delete a previously defined subset.
+
+        Parameters
+        ----------
+        name : str
+            Subset name to remove.
+
+        Raises
+        ------
+        KeyError
+            If ``name`` is not a defined subset.
+
+        Side-effects
+        ------------
+        Refreshes the ``'subsets'`` mirror column on
+        ``metadata['df_cases']``.
+
+        Examples
+        --------
+        ::
+
+            db.remove_subset('mach_07')
+        """
+        if name not in self.subsets:
+            raise KeyError(
+                f"Subset '{name}' not found. "
+                f"Available subsets: {list(self.subsets)}."
+            )
+        del self.subsets[name]
+        self._sync_subsets_column()
+
+    def _sync_subsets_column(self) -> None:
+        """
+        Refresh the read-only ``'subsets'`` mirror column on
+        ``metadata['df_cases']`` from ``self.subsets`` (the canonical
+        source of truth).
+
+        Called automatically after every subset mutation
+        (``define_subset`` / ``remove_subset``). Never reads the column
+        back — it exists purely for human inspection (e.g.
+        ``db.metadata['df_cases'][['case_idx', 'subsets']]``).
+
+        Examples
+        --------
+        Not normally called directly; exposed mainly for completeness and
+        testing::
+
+            db.subsets['mach_07'] = [0, 1, 2]
+            db._sync_subsets_column()
+            print(db.metadata['df_cases']['subsets'].tolist())
+        """
+        df_cases = self.metadata.get('df_cases')
+        if df_cases is None:
+            return
+
+        membership = {pos: [] for pos in range(len(df_cases))}
+        for subset_name, positions in self.subsets.items():
+            for pos in positions:
+                if pos in membership:
+                    membership[pos].append(subset_name)
+
+        df_cases['subsets'] = [
+            membership[pos] for pos in range(len(df_cases))
+        ]
+
+    def _resolve_cases_idx(
+        self,
+        cases_idx: Union[list, tuple, int, str] = 'all',
+        subset: Union[str, None] = None,
+    ) -> list:
+        """
+        Central case-selection resolver shared by every CODA method that
+        accepts both a ``cases_idx`` and a ``subset`` argument.
+
+        Semantics
+        ---------
+        * ``subset is None`` → behaves exactly like
+          ``BaseReader._normalise_cases_idx(cases_idx, df_cases)``: the
+          pre-existing ``cases_idx``-based selection, unchanged.
+        * ``subset`` is a valid subset name **and** ``cases_idx`` is left
+          at its default value (``'all'``) → the subset's case positions
+          are used, and ``cases_idx`` is silently ignored (it was never
+          set to anything meaningful by the caller).
+        * ``subset`` is a valid subset name **and** ``cases_idx`` was
+          explicitly set to something other than ``'all'`` → this is an
+          unresolvable ambiguity (the caller asked for two different
+          selections at once) and a ``ValueError`` is raised rather than
+          silently picking one.
+
+        This makes the "subset wins, cases_idx is ignored" rule from the
+        module/class docs unambiguous: a default ``cases_idx='all'`` is
+        always compatible with any subset (there is nothing to conflict
+        with), while a real, non-default ``cases_idx`` together with a
+        ``subset`` is rejected outright instead of guessing which one the
+        caller meant.
+
+        Parameters
+        ----------
+        cases_idx : 'all', int, range, list[int] or tuple[int]
+            Same accepted values as ``BaseReader._normalise_cases_idx``.
+            Default ``'all'``.
+        subset : str or None
+            Name of a previously defined subset (see
+            :meth:`define_subset`). Default None.
+
+        Returns
+        -------
+        list[int]
+            Resolved, validated list of case positions.
+
+        Raises
+        ------
+        KeyError
+            If ``subset`` is given but not a defined subset name.
+        ValueError
+            If both ``subset`` and a non-default ``cases_idx`` are given,
+            or if ``cases_idx`` itself is invalid (propagated from
+            ``BaseReader._normalise_cases_idx``).
+        IndexError
+            Propagated from ``BaseReader._normalise_cases_idx`` when
+            ``cases_idx`` contains out-of-range positions.
+
+        Examples
+        --------
+        Default behaviour, unchanged from before subsets existed::
+
+            idx = reader._resolve_cases_idx(cases_idx=[0, 1, 2])
+            idx = reader._resolve_cases_idx(cases_idx='all')
+
+        Selecting via a subset::
+
+            reader.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+            idx = reader._resolve_cases_idx(subset='mach_07')
+            # idx == [0, 1, 2]; cases_idx defaulted to 'all', so no conflict.
+
+        Conflicting selection — raises ``ValueError``::
+
+            reader._resolve_cases_idx(cases_idx=[5, 6], subset='mach_07')
+        """
+        if subset is not None:
+            if subset not in self.subsets:
+                raise KeyError(
+                    f"Subset '{subset}' not found. "
+                    f"Available subsets: {list(self.subsets)}."
+                )
+            is_default = isinstance(cases_idx, str) and cases_idx.lower() == 'all'
+            if not is_default:
+                raise ValueError(
+                    "Both 'subset' and an explicit 'cases_idx' were "
+                    "provided; this selection is ambiguous. Either omit "
+                    "'cases_idx' (or leave it as 'all') when using "
+                    "'subset', or omit 'subset' and select cases via "
+                    "'cases_idx' as before."
+                )
+            return list(self.subsets[subset])
+
+        df_cases = self.metadata.get('df_cases', pd.DataFrame())
+        return self._normalise_cases_idx(cases_idx, df_cases)
+
     # ── BaseReader interface ──────────────────────────────────────────────────
 
     def parse_simulation_dirs(self) -> None:
@@ -169,6 +562,14 @@ class CODAReader(BaseReader):
         Matches folder names against the format pattern, maps each folder
         to the closest entry in ``df_cases`` (by Euclidean distance in the
         design-variable space), and counts available stages.
+
+        ``df_state`` is fully rebuilt on every call by merging the
+        freshly-scanned execution state with ``metadata['df_cases']`` — it
+        is a derived view, never an independent source of case identity.
+        ``metadata['df_cases']`` itself (and therefore any subset defined
+        via :meth:`define_subset`) is only mutated in place (e.g. the
+        ``'folder'`` column is filled in) and survives repeated calls to
+        this method unchanged in row count/order.
 
         Populates
         ---------
@@ -269,6 +670,7 @@ class CODAReader(BaseReader):
             'lexsort', 'centroid', 'kdtree', 'convex_hull'
         ] = 'lexsort',
         cases_idx: Union[list, tuple, int, str] = 'all',
+        subset: Union[str, None] = None,
         verbose: bool = False,
     ) -> None:
         """
@@ -287,7 +689,17 @@ class CODAReader(BaseReader):
             Cell-centroid sorting method.
             Options: 'lexsort', 'centroid', 'kdtree', 'convex_hull'.
         cases_idx : list, tuple, int or 'all'
-            Subset of cases (by df_cases row index) to process. Default 'all'.
+            Subset of cases (by df_cases row index) to process. Default
+            'all'. Ignored (and must be left at its default) when
+            ``subset`` is given — see ``subset`` below.
+        subset : str or None
+            Name of a subset previously defined via :meth:`define_subset`.
+            When given, the cases to process are taken **exclusively**
+            from that subset and ``cases_idx`` must be left at its
+            default value ``'all'`` (passing both a real ``cases_idx``
+            and a ``subset`` raises ``ValueError`` — see
+            :meth:`_resolve_cases_idx`). Default None (use ``cases_idx``
+            as before).
         verbose : bool
             Print per-case progress.
 
@@ -296,12 +708,39 @@ class CODAReader(BaseReader):
         self.data_dict[key] with:
         'Coord', 'NodeCoord', 'FlCc', 'Conec',
         'idx_sort', 'idx_sort_nodes', 'eltype', 'cellOrder', 'pointOrder'.
+
+        Side-effects
+        ------------
+        Records the resolved, global (``df_cases``-relative) case
+        positions used to build each CADGroup in
+        ``self.active_cases_idx[key]``.
+
+        Raises
+        ------
+        KeyError
+            If ``subset`` is given but not a defined subset name.
+        ValueError
+            If both ``subset`` and a non-default ``cases_idx`` are given.
+        IndexError
+            If ``cases_idx`` contains out-of-range positions.
+
+        Examples
+        --------
+        Unchanged, cases_idx-based usage::
+
+            db.extract_inputs(id_groups=(3,), cases_idx=[0, 1, 2])
+            db.extract_inputs(id_groups=(3,))   # cases_idx defaults to 'all'
+
+        Subset-based usage::
+
+            db.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+            db.extract_inputs(id_groups=(3,), subset='mach_07')
         """
         num_stages  = self.metadata.get("num_stages", 1)
         design_vars = self.metadata.get("design_vars", [])
         df_cases    = self.metadata.get("df_cases", pd.DataFrame())
 
-        cases_idx = self._normalise_cases_idx(cases_idx, df_cases)
+        cases_idx = self._resolve_cases_idx(cases_idx, subset)
         sim_keys  = df_cases.loc[cases_idx, "folder"].tolist()
         ncases    = len(sim_keys)
 
@@ -418,12 +857,15 @@ class CODAReader(BaseReader):
                 'pointOrder':     pointOrder_base,
             })
 
+            self.active_cases_idx[key] = list(cases_idx)
+
     def extract_outputs(
         self,
         stage: int,
         id_groups: Union[int, tuple],
         vtu_type: Literal['volume', 'surface'] = 'surface',
         cases_idx: Union[list, tuple, int, str] = 'all',
+        subset: Union[str, None] = None,
         var_name_excluded: Union[list, tuple, None] = None,
         verbose: bool = False,
     ) -> None:
@@ -442,7 +884,16 @@ class CODAReader(BaseReader):
         vtu_type : str
             Type of .vtu file. Default 'surface'.
         cases_idx : list, tuple, int or 'all'
-            Subset of cases. Default 'all'.
+            Subset of cases. Default 'all'. Ignored (and must be left at
+            its default) when ``subset`` is given.
+        subset : str or None
+            Name of a subset previously defined via :meth:`define_subset`.
+            Same semantics as in :meth:`extract_inputs`. **Must match**
+            whatever selection (``cases_idx`` or ``subset``) was used in
+            the matching ``extract_inputs`` call for the same
+            ``id_groups``, since this method reuses the ``idx_sort``
+            array built there and indexes it positionally by case order.
+            Default None.
         var_name_excluded : list, tuple or None
             Variable names to skip during extraction.
         verbose : bool
@@ -452,9 +903,28 @@ class CODAReader(BaseReader):
         ---------
         self.data_dict[key]['Vars'][str(stage)] with arrays of shape
         (n_points, n_cases) for each scalar variable.
+
+        Raises
+        ------
+        KeyError
+            If ``subset`` is given but not a defined subset name.
+        ValueError
+            If both ``subset`` and a non-default ``cases_idx`` are given.
+        IndexError
+            If ``cases_idx`` contains out-of-range positions.
+        RuntimeError
+            If ``extract_inputs`` was not called first for a requested
+            group.
+
+        Examples
+        --------
+        ::
+
+            db.extract_inputs(id_groups=(3,), subset='mach_07')
+            db.extract_outputs(stage=0, id_groups=(3,), subset='mach_07')
         """
         df_cases = self.metadata.get("df_cases", pd.DataFrame())
-        cases_idx = self._normalise_cases_idx(cases_idx, df_cases)
+        cases_idx = self._resolve_cases_idx(cases_idx, subset)
         sim_keys  = df_cases.loc[cases_idx, "folder"].tolist()
 
         for group_id in id_groups:
@@ -886,35 +1356,6 @@ class CODAReader(BaseReader):
             plt.show()
 
     # ── Private helpers ───────────────────────────────────────────────────────
-
-    @staticmethod
-    def _normalise_cases_idx(
-        cases_idx,
-        df_cases: pd.DataFrame,
-    ) -> list:
-        """Normalise cases_idx to a sorted list of integers."""
-        if isinstance(cases_idx, str):
-            if cases_idx.lower() == "all":
-                cases_idx = list(range(len(df_cases)))
-            else:
-                raise ValueError(
-                    "Invalid string for cases_idx. Use 'all'."
-                )
-        elif isinstance(cases_idx, int):
-            cases_idx = [cases_idx]
-        elif isinstance(cases_idx, range):
-            cases_idx = list(cases_idx)
-        elif isinstance(cases_idx, (list, tuple)):
-            cases_idx = list(cases_idx)
-        else:
-            raise ValueError(
-                "cases_idx must be 'all', int, list[int], tuple[int] or range."
-            )
-
-        if any(i >= len(df_cases) or i < 0 for i in cases_idx):
-            raise IndexError("cases_idx contains out-of-range values.")
-
-        return cases_idx
 
     @staticmethod
     def _parse_group_id(group_id) -> tuple:

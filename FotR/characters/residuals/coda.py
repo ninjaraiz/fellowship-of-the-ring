@@ -61,6 +61,7 @@ class CODAResiduals(BaseResiduals):
         verbose: bool = False,
         only_finished: bool = True,
         load_in_metadata: bool = True,
+        subset: Union[str, None] = None,
     ) -> pd.DataFrame:
         """
         Return a DataFrame with the last residual values for every
@@ -83,6 +84,17 @@ class CODAResiduals(BaseResiduals):
         load_in_metadata : bool
             If True, save the result to
             ``<root_dir>/metadata/all_final_residuals.csv``. Default True.
+        subset : str or None
+            Name of a subset previously defined via
+            ``db.define_subset(...)`` (see ``CODAReader.define_subset``).
+            When given, only folders whose case belongs to that subset are
+            included; every other folder is skipped exactly as if it had
+            failed the ``only_finished`` filter. Case selection is
+            resolved through ``CODAReader._resolve_cases_idx`` — the same
+            central mechanism used by ``extract_inputs`` /
+            ``extract_outputs`` — so no subset-specific logic is
+            duplicated here. Default None (no subset filtering, i.e. the
+            previous behaviour).
 
         Returns
         -------
@@ -98,17 +110,31 @@ class CODAResiduals(BaseResiduals):
                 only_finished=False, load_in_metadata=False
             )
             print(df.head())
+
+        Restrict to a previously defined subset::
+
+            db.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+            df = db.residuals.get_all_final_residuals(subset='mach_07')
         """
         folder_fmt = self.db.metadata.get('folder_fmt', '')
         pattern    = SAM.Backpack.pattern_pocket.FilenamePattern.from_template(
             folder_fmt, numeric=True
         ).compiled
 
+        allowed_folders = None
+        if subset is not None:
+            resolved_idx    = self.db.reader._resolve_cases_idx('all', subset)
+            allowed_folders = set(
+                self.db.metadata['df_cases'].loc[resolved_idx, 'folder']
+            )
+
         df_all  = []
         df_one  = None
 
         for folder in self.db.sim_metadata:
             if not re.match(pattern, folder):
+                continue
+            if allowed_folders is not None and folder not in allowed_folders:
                 continue
 
             params_float = (
@@ -439,6 +465,7 @@ class CODAResiduals(BaseResiduals):
         var_metrics: Union[str, list, tuple],
         iter_var: int = 1000,
         save: bool = False,
+        subset: Union[str, None] = None,
     ) -> pd.DataFrame:
         """
         Build a DataFrame with mean and variance of integral metrics
@@ -462,13 +489,26 @@ class CODAResiduals(BaseResiduals):
         save : bool
             If True, saves ``df_post`` to
             ``<root_dir>/metadata/df_post.csv``. Default False.
+        subset : str or None
+            Name of a subset previously defined via
+            ``db.define_subset(...)``. When given, only the cases
+            belonging to that subset are processed and returned: their
+            metrics are computed exactly as before, while every other
+            case is simply left out of the result instead of being kept
+            with all-NaN metric columns. Selection is resolved through
+            ``CODAReader._resolve_cases_idx``, the same central mechanism
+            used everywhere else, so ``df_post`` still represents metrics
+            for the real, processed cases and no independent subset logic
+            is introduced here. Default None (process every case, i.e.
+            the previous behaviour).
 
         Returns
         -------
         pd.DataFrame
-            ``db.df_state`` augmented with columns
-            ``<var>_mean_stage<s>`` and ``<var>_var_stage<s>`` for each
-            variable and stage combination.
+            ``db.df_state`` (optionally restricted to ``subset``)
+            augmented with columns ``<var>_mean_stage<s>`` and
+            ``<var>_var_stage<s>`` for each variable and stage
+            combination.
 
         Examples
         --------
@@ -480,10 +520,22 @@ class CODAResiduals(BaseResiduals):
                 save=True,
             )
             print(df[['AoA', 'Mach', 'CoefLift_mean_stage0']].head())
+
+        Restrict to a previously defined subset::
+
+            db.define_subset(name='mach_07', cases_idx=[0, 1, 2])
+            df = db.residuals.get_df_metrics(
+                var_metrics=['CoefLift'], subset='mach_07',
+            )
         """
         db = self.db
         if isinstance(var_metrics, str):
             var_metrics = [var_metrics]
+
+        allowed_case_idx = None
+        if subset is not None:
+            resolved_idx     = db.reader._resolve_cases_idx('all', subset)
+            allowed_case_idx = set(int(i) for i in resolved_idx)
 
         df_post     = db.df_state.copy()
         rename_dict = {
@@ -520,6 +572,8 @@ class CODAResiduals(BaseResiduals):
 
         # Fill integral metric columns
         for irow in range(len(db.df_state)):
+            if allowed_case_idx is not None and irow not in allowed_case_idx:
+                continue
             case_name   = db.reader.case_per_idx(irow)
             output_path = os.path.join(db.root_dir, 'outputs', case_name)
 
@@ -548,6 +602,18 @@ class CODAResiduals(BaseResiduals):
                 for v in var_metrics:
                     df_post.loc[irow, f"{v}_mean_stage{stage}"] = df_tail[v].mean()
                     df_post.loc[irow, f"{v}_var_stage{stage}"]  = df_tail[v].var()
+
+        if allowed_case_idx is not None:
+            # 'case_idx' is carried through from df_cases via the merges
+            # above; restrict the returned table to the requested subset
+            # instead of keeping every other case with all-NaN metrics.
+            case_idx_col = 'case_idx' if 'case_idx' in df_post.columns else None
+            if case_idx_col is not None:
+                df_post = df_post[
+                    df_post[case_idx_col].astype(int).isin(allowed_case_idx)
+                ]
+            else:
+                df_post = df_post[df_post.index.isin(allowed_case_idx)]
 
         df_post = df_post.sort_values(
             by=db.metadata['design_vars'][0].lower(), ignore_index=True
