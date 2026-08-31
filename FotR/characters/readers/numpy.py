@@ -41,6 +41,10 @@ themselves dicts with the following keys::
                 '1': {...},
                 ...
             },
+            'Aux': {                                            # optional
+                'name': np.ndarray,   # (n_points,) or (n_points, n_cases)
+                ...
+            },
         },
         # a single .npy file MAY contain more than one CADGroup key
         'CADGroup_5': {...},
@@ -49,26 +53,32 @@ themselves dicts with the following keys::
 This is exactly the in-memory structure of
 ``FRODO.data_dict['CADGroup_<id>']`` for the CODA format (see
 ``sets/coda.py`` and ``frodo.py::merge_datasets`` — this is precisely
-what a ``CODASets`` merge or a manual ``np.save(data_dict['CADGroup_X'],
-...)`` would produce), so files produced by CODA pipelines can be
-dropped in as-is.
+what a ``CODASets`` merge, a manual ``np.save(data_dict['CADGroup_X'],
+...)``, or ``CODASets.save_to_npy()`` would produce), so files produced
+by CODA pipelines can be dropped in as-is — including their optional
+``'Aux'`` sub-dict of auxiliary arrays (e.g. surface normals, wall
+distance), which this reader now reads and exposes just like every other
+key (see :meth:`NUMPYReader.extract_outputs`).
 
-Two-step workflow
------------------
-1. ``parse_simulation_dirs()`` — mirrors ``CODAReader.parse_simulation_dirs``
-   as closely as the format allows: it loads every ``.npy`` file, inspects
-   every CADGroup it contains, and builds ``self.sim_metadata`` (one entry
-   per CADGroup, analogous to CODA's one-entry-per-simulation-folder) and
-   ``self.df_state`` (one row per *case*, analogous to CODA's one-row-per-
-   simulation, with the design-variable columns taken from ``FlCc`` and a
-   ``'stage'`` column giving the number of stages available for that
-   CADGroup).
-2. ``extract_inputs`` / ``extract_outputs`` — copy (and optionally
-   sub-select by case) the arrays already present in the loaded dict
-   straight into ``self.data_dict[key]``, with ``key`` following CODA's
-   ``'CADGroup_<id>'`` convention.  No geometric re-sorting or cell
-   filtering is performed, since the data is assumed to already be in its
-   final, analysis-ready ordering.
+Case identity is per-CADGroup, not global
+-------------------------------------------
+Unlike CODA (which has a single, format-wide ``df_cases`` shared by every
+CADGroup), the NUMPY format has no such thing: each CADGroup's own
+``FlCc`` defines its own case space, independently of any other CADGroup
+that might happen to live in the same ``.npy`` file or ``root_dir``. Case
+selection — and, since :ref:`case-subsets`, named subsets — is therefore
+always expressed **relative to a single, resolved CADGroup**, never
+globally across the whole reader.
+
+.. _case-subsets:
+
+Case subsets
+------------
+A *subset* is a named grouping of case positions within one CADGroup's
+raw, on-disk ``FlCc`` (i.e. before any ``cases_idx`` selection is
+applied). It mirrors the concept introduced for
+:class:`~FotR.characters.readers.coda.CODAReader`, adapted to NUMPY's
+per-group case space: see :meth:`NUMPYReader.define_subset`.
 """
 
 import os
@@ -117,6 +127,18 @@ class NUMPYReader(BaseReader):
         from ``metadata/cases_metadata.json`` when available, otherwise
         left as ``None`` / inferred lazily per-group in
         ``parse_simulation_dirs``.
+    subsets : dict[str, dict[str, list[int]]]
+        Named case-position groupings, keyed first by resolved CADGroup
+        key (e.g. ``'CADGroup_3'``) and then by subset name — see
+        :meth:`define_subset`. Empty until the first subset is defined.
+    active_cases_idx : dict[str, list[int]]
+        For every CADGroup key already populated via ``extract_inputs``,
+        the exact raw (on-disk, ``FlCc``-relative) case positions that
+        were selected for it — mirrors the equivalent bookkeeping added
+        to ``CODAReader``. Empty dict until the first call to
+        ``extract_inputs``. (Kept as a public alias of the pre-existing
+        ``_active_cases_idx`` attribute for external readability; both
+        names refer to the same dict.)
 
     Raises
     ------
@@ -183,6 +205,14 @@ class NUMPYReader(BaseReader):
         self.group_index: dict = {}
         self.data_dict:   dict = {}
 
+        # ── Case subsets & extraction bookkeeping ──────────────────────────
+        # 'subsets' is keyed per resolved CADGroup key, since (unlike CODA)
+        # there is no single, format-wide case-identity table to key a
+        # subset against — see the module docstring's "Case identity is
+        # per-CADGroup, not global" section.
+        self.subsets: dict = {}
+        self._active_cases_idx: dict = {}
+
         # ── Optional metadata/cases_metadata.json (mirrors CODA) ──────────
         self.metadata = {'eq_type': None, 'design_vars': None, 'num_stages': None}
         meta_path = os.path.join(root_dir, 'metadata', 'cases_metadata.json')
@@ -201,6 +231,18 @@ class NUMPYReader(BaseReader):
                     "design_vars / num_stages will be inferred per group.",
                     UserWarning,
                 )
+
+    @property
+    def active_cases_idx(self) -> dict:
+        """
+        Public alias of ``self._active_cases_idx`` (kept private for
+        backward compatibility with existing call sites), so that external
+        code — and :class:`~FotR.characters.frodo.FRODO`'s dynamic
+        delegation — can read it the same way
+        ``CODAReader.active_cases_idx`` is read, without needing to know
+        which reader implementation is behind ``db.reader``.
+        """
+        return self._active_cases_idx
 
     # =========================================================================
     # BaseReader interface
@@ -320,10 +362,327 @@ class NUMPYReader(BaseReader):
         else:
             self.df_state = pd.DataFrame()
 
+    # =========================================================================
+    # Case subsets
+    # =========================================================================
+
+    def define_subset(
+        self,
+        id_group: Union[str, int],
+        name: str,
+        cases_idx: Union[list, tuple, int, str],
+        overwrite: bool = False,
+    ) -> list:
+        """
+        Define (or redefine) a named subset of cases for a single CADGroup.
+
+        This is the NUMPY-format counterpart of
+        ``CODAReader.define_subset``, adapted to the fact that NUMPY has
+        no format-wide ``df_cases``: a subset here is always defined
+        **relative to one resolved CADGroup's own raw ``FlCc``** (i.e.
+        positions ``0..n_cases-1`` into that group's on-disk case axis,
+        *before* any ``cases_idx`` selection is applied by
+        ``extract_inputs``), not globally across every CADGroup a reader
+        might have loaded.
+
+        Case selection reuses the exact same normalisation logic already
+        used by ``cases_idx`` elsewhere in this reader
+        (:meth:`_normalise_cases_idx`), so every value accepted by
+        ``extract_inputs(cases_idx=...)`` today (``'all'``, an ``int``, a
+        ``range``, or a ``list``/``tuple`` of ints) is also accepted here.
+
+        Parameters
+        ----------
+        id_group : str or int
+            CADGroup identifier, resolved exactly like ``extract_inputs``
+            resolves it (see :meth:`_resolve_group`): matched against
+            ``self.group_index`` directly, or, failing that, prefixed
+            with ``'CADGroup_'``.
+        name : str
+            Subset name.  Must be a non-empty string (surrounding
+            whitespace is stripped).  Must not already exist for this
+            CADGroup unless ``overwrite=True``.
+        cases_idx : 'all', int, range, list[int] or tuple[int]
+            Case selection, normalised via :meth:`_normalise_cases_idx`
+            against the resolved group's raw ``FlCc`` row count.
+        overwrite : bool
+            If True, silently replaces an existing subset with the same
+            name for this group. If False (default) and the name already
+            exists for this group, raises ``ValueError``.
+
+        Returns
+        -------
+        list[int]
+            The resolved, sorted list of case positions now stored under
+            ``self.subsets[<resolved key>][name]``.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` is empty/whitespace-only, if it already exists for
+            this group and ``overwrite=False``, if ``cases_idx`` has an
+            unsupported type or string value, or if the resolved selection
+            is empty.
+        IndexError
+            If ``cases_idx`` contains out-of-range positions.
+        KeyError
+            If ``id_group`` cannot be resolved (see :meth:`_resolve_group`).
+
+        Examples
+        --------
+        Define a subset from an explicit list of case positions::
+
+            reader.parse_simulation_dirs()
+            reader.define_subset(
+                id_group='3_completo', name='mach_07', cases_idx=[0, 1, 2],
+            )
+
+        Redefine it after discovering more matching cases::
+
+            reader.define_subset(
+                id_group='3_completo', name='mach_07',
+                cases_idx=[0, 1, 2, 9], overwrite=True,
+            )
+
+        A case can belong to more than one subset of the same group::
+
+            reader.define_subset(id_group='3', name='mach_07', cases_idx=[0, 1, 2])
+            reader.define_subset(id_group='3', name='low_aoa', cases_idx=[0, 3])
+        """
+        key, gd = self._resolve_group(id_group)
+
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("'name' must be a non-empty string.")
+        name = name.strip()
+
+        group_subsets = self.subsets.setdefault(key, {})
+        if name in group_subsets and not overwrite:
+            raise ValueError(
+                f"Subset '{name}' already exists for '{key}'. "
+                "Pass overwrite=True to redefine it."
+            )
+
+        n_cases_total = np.asarray(gd['FlCc']).shape[0]
+        resolved = self._normalise_cases_idx(cases_idx, n_cases_total)
+        if not resolved:
+            raise ValueError(
+                f"Subset '{name}' for '{key}' would be empty; refusing to "
+                "define it."
+            )
+
+        group_subsets[name] = sorted(set(int(i) for i in resolved))
+        return list(group_subsets[name])
+
+    def get_subset(self, id_group: Union[str, int], name: str) -> list:
+        """
+        Return the list of case positions belonging to a named subset of a
+        given CADGroup.
+
+        Parameters
+        ----------
+        id_group : str or int
+            CADGroup identifier (resolved as in :meth:`define_subset`).
+        name : str
+            Subset name, as passed to :meth:`define_subset`.
+
+        Returns
+        -------
+        list[int]
+            Copy of the stored case-position list; safe to mutate.
+
+        Raises
+        ------
+        KeyError
+            If ``id_group`` cannot be resolved, or if ``name`` is not a
+            defined subset for that group.
+
+        Examples
+        --------
+        ::
+
+            reader.define_subset(id_group='3', name='mach_07', cases_idx=[0, 1, 2])
+            print(reader.get_subset('3', 'mach_07'))   # [0, 1, 2]
+        """
+        key, _gd = self._resolve_group(id_group)
+        group_subsets = self.subsets.get(key, {})
+        if name not in group_subsets:
+            raise KeyError(
+                f"Subset '{name}' not found for '{key}'. "
+                f"Available subsets: {list(group_subsets)}."
+            )
+        return list(group_subsets[name])
+
+    def list_subsets(self, id_group: Union[str, int, None] = None) -> dict:
+        """
+        Return currently defined subsets.
+
+        Parameters
+        ----------
+        id_group : str, int or None
+            If given, return only the subsets defined for that CADGroup
+            (resolved as in :meth:`define_subset`), as
+            ``dict[str, list[int]]``. If None (default), return every
+            subset of every CADGroup, as
+            ``dict[str, dict[str, list[int]]]`` keyed by resolved CADGroup
+            key.
+
+        Returns
+        -------
+        dict
+            Deep-enough copy (every list is copied) — safe to mutate.
+
+        Raises
+        ------
+        KeyError
+            If ``id_group`` is given but cannot be resolved.
+
+        Examples
+        --------
+        ::
+
+            reader.define_subset(id_group='3', name='mach_07', cases_idx=[0, 1, 2])
+            print(reader.list_subsets('3'))
+            # {'mach_07': [0, 1, 2]}
+            print(reader.list_subsets())
+            # {'CADGroup_3': {'mach_07': [0, 1, 2]}}
+        """
+        if id_group is None:
+            return {
+                key: {name: list(idx) for name, idx in subs.items()}
+                for key, subs in self.subsets.items()
+            }
+        key, _gd = self._resolve_group(id_group)
+        return {name: list(idx) for name, idx in self.subsets.get(key, {}).items()}
+
+    def remove_subset(self, id_group: Union[str, int], name: str) -> None:
+        """
+        Delete a previously defined subset of a given CADGroup.
+
+        Parameters
+        ----------
+        id_group : str or int
+            CADGroup identifier (resolved as in :meth:`define_subset`).
+        name : str
+            Subset name to remove.
+
+        Raises
+        ------
+        KeyError
+            If ``id_group`` cannot be resolved, or if ``name`` is not a
+            defined subset for that group.
+
+        Examples
+        --------
+        ::
+
+            reader.remove_subset('3', 'mach_07')
+        """
+        key, _gd = self._resolve_group(id_group)
+        group_subsets = self.subsets.get(key, {})
+        if name not in group_subsets:
+            raise KeyError(
+                f"Subset '{name}' not found for '{key}'. "
+                f"Available subsets: {list(group_subsets)}."
+            )
+        del group_subsets[name]
+
+    def _resolve_cases_idx(
+        self,
+        id_group: Union[str, int],
+        cases_idx: Union[list, tuple, int, str] = 'all',
+        subset: Union[str, None] = None,
+    ) -> list:
+        """
+        Central case-selection resolver for a single CADGroup, shared by
+        :meth:`extract_inputs` (and by :meth:`define_subset`'s callers, if
+        they choose to normalise their own selection through here first).
+
+        Semantics (mirrors ``CODAReader._resolve_cases_idx`` exactly,
+        adapted to NUMPY's per-group case space):
+
+        * ``subset is None`` → behaves exactly like
+          :meth:`_normalise_cases_idx` applied to the resolved group's raw
+          case count: the pre-existing ``cases_idx``-based selection,
+          unchanged.
+        * ``subset`` is a valid subset name for the resolved group **and**
+          ``cases_idx`` is left at its default value (``'all'``) → the
+          subset's case positions are used, and ``cases_idx`` is silently
+          ignored (it was never set to anything meaningful by the caller).
+        * ``subset`` is valid **and** ``cases_idx`` was explicitly set to
+          something other than ``'all'`` → ambiguous; raises
+          ``ValueError`` rather than silently picking one.
+
+        Parameters
+        ----------
+        id_group : str or int
+            CADGroup identifier, resolved via :meth:`_resolve_group`.
+        cases_idx : 'all', int, range, list[int] or tuple[int]
+            Same accepted values as :meth:`_normalise_cases_idx`. Default
+            ``'all'``.
+        subset : str or None
+            Name of a subset previously defined for this group via
+            :meth:`define_subset`. Default None.
+
+        Returns
+        -------
+        list[int]
+            Resolved, validated list of case positions (raw, ``FlCc``-
+            relative positions of the resolved group).
+
+        Raises
+        ------
+        KeyError
+            If ``id_group`` cannot be resolved, or if ``subset`` is given
+            but not a defined subset name for that group.
+        ValueError
+            If both ``subset`` and a non-default ``cases_idx`` are given,
+            or if ``cases_idx`` itself is invalid.
+        IndexError
+            If ``cases_idx`` contains out-of-range positions.
+
+        Examples
+        --------
+        ::
+
+            reader.define_subset(id_group='3', name='mach_07', cases_idx=[0, 1, 2])
+            idx = reader._resolve_cases_idx('3', subset='mach_07')
+            # idx == [0, 1, 2]
+
+            idx = reader._resolve_cases_idx('3', cases_idx=[0, 1, 2])
+            # unchanged pre-subset behaviour
+        """
+        key, gd = self._resolve_group(id_group)
+
+        if subset is not None:
+            group_subsets = self.subsets.get(key, {})
+            if subset not in group_subsets:
+                raise KeyError(
+                    f"Subset '{subset}' not found for '{key}'. "
+                    f"Available subsets: {list(group_subsets)}."
+                )
+            is_default = isinstance(cases_idx, str) and cases_idx.lower() == 'all'
+            if not is_default:
+                raise ValueError(
+                    "Both 'subset' and an explicit 'cases_idx' were "
+                    "provided; this selection is ambiguous. Either omit "
+                    "'cases_idx' (or leave it as 'all') when using "
+                    "'subset', or omit 'subset' and select cases via "
+                    "'cases_idx' as before."
+                )
+            return list(group_subsets[subset])
+
+        n_cases_total = np.asarray(gd['FlCc']).shape[0]
+        return self._normalise_cases_idx(cases_idx, n_cases_total)
+
+    # =========================================================================
+    # extract_inputs / extract_outputs
+    # =========================================================================
+
     def extract_inputs(
         self,
         id_groups: Union[str, int, list, tuple],
         cases_idx: Union[list, tuple, int, str] = 'all',
+        subset: Union[str, None] = None,
         verbose: bool = False,
     ) -> None:
         """
@@ -336,11 +695,11 @@ class NUMPYReader(BaseReader):
         performed here (unlike CODA, which has to derive this from raw
         ``.vtu`` files): the NUMPY format assumes the arrays are already
         in their final, analysis-ready ordering. The only transformation
-        applied is an optional sub-selection of cases via ``cases_idx``,
-        which is propagated consistently to ``FlCc``, ``idx_sort`` and
-        ``idx_sort_nodes`` (their case axis) so that a later call to
-        ``extract_outputs`` with the same ``cases_idx`` yields consistent
-        data.
+        applied is a case selection — expressed either as ``cases_idx`` or
+        as a named ``subset`` (see below) — which is propagated
+        consistently to ``FlCc``, ``idx_sort`` and ``idx_sort_nodes``
+        (their case axis) so that a later call to ``extract_outputs`` with
+        the same group yields consistent data.
 
         Parameters
         ----------
@@ -354,7 +713,18 @@ class NUMPYReader(BaseReader):
             one-element list.
         cases_idx : list, tuple, int or 'all'
             Subset of case indices (rows of that group's ``FlCc``) to
-            keep. Default ``'all'``.
+            keep, expressed as raw positions into that group's on-disk
+            ``FlCc``. Default ``'all'``. Must be left at its default when
+            ``subset`` is given (see below).
+        subset : str or None
+            Name of a subset previously defined for **each** requested
+            group via :meth:`define_subset` (subsets are per-CADGroup —
+            see the module docstring). When given, the cases processed
+            for every group in ``id_groups`` are taken exclusively from
+            that group's subset, and ``cases_idx`` must be left at its
+            default value ``'all'`` (passing both raises ``ValueError`` —
+            see :meth:`_resolve_cases_idx`). Default None (use
+            ``cases_idx`` as before, unchanged behaviour).
         verbose : bool
             Print per-group progress information.
 
@@ -371,13 +741,17 @@ class NUMPYReader(BaseReader):
         ------------
         Stores the resolved ``cases_idx`` (as a list of ints, positions
         into the *original* ``FlCc``) in ``self._active_cases_idx[key]``
-        so that ``extract_outputs`` can subset the corresponding
-        ``Vars`` columns identically.
+        (also readable as ``self.active_cases_idx[key]``) so that
+        ``extract_outputs`` can subset the corresponding ``Vars`` (and, if
+        present, ``Aux``) columns identically.
 
         Raises
         ------
         KeyError
-            If a requested CADGroup cannot be resolved in any loaded file.
+            If a requested CADGroup cannot be resolved in any loaded file,
+            or if ``subset`` is given but not defined for that group.
+        ValueError
+            If both ``subset`` and a non-default ``cases_idx`` are given.
         IndexError
             If ``cases_idx`` contains out-of-range values.
 
@@ -391,6 +765,12 @@ class NUMPYReader(BaseReader):
         Load two groups, restricting the first to its first 50 cases::
 
             reader.extract_inputs(id_groups=['3_completo', '5'])
+
+        Using a named subset instead of an explicit ``cases_idx`` list::
+
+            reader.define_subset(id_group='3_completo', name='mach_07',
+                                  cases_idx=[0, 1, 2])
+            reader.extract_inputs(id_groups='3_completo', subset='mach_07')
         """
         if isinstance(id_groups, (str, int)):
             id_groups = [id_groups]
@@ -400,13 +780,16 @@ class NUMPYReader(BaseReader):
         for group_id in id_groups:
             key, gd = self._resolve_group(group_id)
 
-            n_cases_total = np.asarray(gd['FlCc']).shape[0]
-            local_cases_idx = self._normalise_cases_idx(cases_idx, n_cases_total)
+            n_cases_total   = np.asarray(gd['FlCc']).shape[0]
+            local_cases_idx = self._resolve_cases_idx(
+                group_id, cases_idx=cases_idx, subset=subset,
+            )
 
             if verbose:
                 print(
                     f"[NUMPYReader] extract_inputs — group '{key}': "
                     f"{len(local_cases_idx)}/{n_cases_total} case(s)."
+                    + (f" (subset='{subset}')" if subset is not None else "")
                 )
 
             flcc = np.asarray(gd['FlCc'])
@@ -446,14 +829,21 @@ class NUMPYReader(BaseReader):
         verbose: bool = False,
     ) -> None:
         """
-        Copy field variables for the given ``stage`` and one or more
-        CADGroups from the loaded ``.npy`` content into
-        ``self.data_dict[key]['Vars'][str(stage)]``, matching CODA's
+        Copy field variables for the given ``stage``, and any auxiliary
+        (``'Aux'``) arrays, for one or more CADGroups from the loaded
+        ``.npy`` content into ``self.data_dict[key]``, matching CODA's
         layout exactly.
 
         Requires ``extract_inputs`` to have been called first for every
         requested group (so that the case subset — stored in
         ``self._active_cases_idx`` — is known and applied consistently).
+        Whatever selection ``extract_inputs`` was called with (an explicit
+        ``cases_idx`` or a named ``subset``) is automatically replayed
+        here: this method has no ``cases_idx``/``subset`` argument of its
+        own by design, since — unlike CODA, which re-reads the case files
+        directly — it never performs an independent case selection; it
+        only ever slices the *same* raw arrays using the *same* case
+        positions ``extract_inputs`` already resolved and recorded.
 
         Parameters
         ----------
@@ -464,10 +854,14 @@ class NUMPYReader(BaseReader):
             Same resolution rules as in ``extract_inputs``.
         var_name_excluded : list, tuple or None
             Variable names to skip during extraction (e.g.
-            ``['GlobalNumber', 'CADGroupID']``). Default ``None`` (keep
-            every variable found for that stage).
+            ``['GlobalNumber', 'CADGroupID']``). Only applied to ``Vars``
+            — ``Aux`` entries (which are not stage-scoped and typically
+            few and purpose-specific, e.g. surface normals) are always
+            copied in full when present. Default ``None`` (keep every
+            variable found for that stage).
         verbose : bool
-            Print the list of copied variables per group.
+            Print the list of copied variables (and, when present,
+            auxiliary arrays) per group.
 
         Populates
         ---------
@@ -475,6 +869,23 @@ class NUMPYReader(BaseReader):
         shape ``(n_points, n_cases)`` (scalar) restricted to the case
         subset selected in ``extract_inputs``, exactly like
         ``CODAReader.extract_outputs``.
+
+        self.data_dict[key]['Aux'][aux_name], when the source CADGroup
+        dict has an ``'Aux'`` sub-dict (e.g. because it was produced by
+        ``CODASets.save_to_npy()``), populated **only** if that key is
+        present in the source — no empty ``'Aux'`` dict is fabricated
+        otherwise. Every auxiliary array whose trailing axis size matches
+        the group's total (raw, pre-selection) case count is sliced by the
+        same case positions used for ``Vars`` (so ``Vars`` and ``Aux``
+        always describe the same set and order of cases); an auxiliary
+        array with no matching trailing case axis (e.g. a purely
+        geometric feature of shape ``(n_points,)``, shared across every
+        case) is copied unfiltered. This mirrors, on purpose, the exact
+        same convention used by ``CODASets.save_to_npy()`` when it writes
+        ``Aux`` out in the first place, since that is the closest thing
+        the NUMPY format has to a documented ``Aux`` contract (the format
+        itself does not otherwise assume any particular ``Aux``
+        structure).
 
         Raises
         ------
@@ -498,6 +909,13 @@ class NUMPYReader(BaseReader):
                 reader.data_dict['CADGroup_3_completo']['Vars']['0']
                 .keys()
             )
+
+        With a source produced by ``CODASets.save_to_npy()`` that included
+        auxiliary arrays::
+
+            reader.extract_inputs(id_groups='3')
+            reader.extract_outputs(stage=0, id_groups='3')
+            print(reader.data_dict['CADGroup_3'].get('Aux', {}).keys())
         """
         if isinstance(id_groups, (str, int)):
             id_groups = [id_groups]
@@ -553,6 +971,34 @@ class NUMPYReader(BaseReader):
                     f"stage '{stage}': {copied}"
                 )
 
+            # ── Auxiliary arrays ('Aux'), when present in the source ────────
+            # Bugfix: this used to be silently ignored entirely — 'Aux' was
+            # never read anywhere in this reader, even though the raw
+            # on-disk dict can (and, when produced by
+            # CODASets.save_to_npy(), does) carry one. See the docstring
+            # above ("Populates") for the exact slicing contract, which
+            # mirrors CODASets.save_to_npy()'s own Aux-writing convention.
+            aux_dict = gd.get('Aux')
+            if aux_dict:
+                n_cases_total = np.asarray(gd['FlCc']).shape[0]
+                self.data_dict[key].setdefault('Aux', {})
+                copied_aux = []
+                for aux_name, aux_data in aux_dict.items():
+                    aux_arr = np.asarray(aux_data)
+                    if aux_arr.ndim >= 1 and aux_arr.shape[-1] == n_cases_total:
+                        self.data_dict[key]['Aux'][aux_name] = (
+                            aux_arr[..., local_cases_idx]
+                        )
+                    else:
+                        self.data_dict[key]['Aux'][aux_name] = aux_arr
+                    copied_aux.append(aux_name)
+
+                if verbose:
+                    print(
+                        f"[NUMPYReader] extract_outputs — group '{key}': "
+                        f"Aux: {copied_aux}"
+                    )
+
     # =========================================================================
     # Private helpers
     # =========================================================================
@@ -572,7 +1018,8 @@ class NUMPYReader(BaseReader):
         ----------
         group_id : str or int
             Identifier as passed by the caller to ``extract_inputs`` /
-            ``extract_outputs``.
+            ``extract_outputs`` / ``define_subset`` / ``get_subset`` /
+            ``list_subsets`` / ``remove_subset``.
 
         Returns
         -------
@@ -620,6 +1067,12 @@ class NUMPYReader(BaseReader):
         count directly (there is no ``df_cases`` DataFrame to consult in
         this format — the count comes straight from the group's own
         ``FlCc`` array).
+
+        This is the single, shared normalisation routine used by every
+        case-selection entry point in this reader
+        (``extract_inputs``, :meth:`define_subset`, and
+        :meth:`_resolve_cases_idx`) — none of them re-implement their own
+        variant.
 
         Parameters
         ----------
