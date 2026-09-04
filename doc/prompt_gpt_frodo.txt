@@ -17,13 +17,13 @@ FotR/characters/
 │   ├── __init__.py         # READER_REGISTRY  
 │   ├── base.py             # BaseReader (contrato abstracto)  
 │   ├── coda.py              # CODAReader  
-│   ├── numpy.py            # NUMPYReader  
+│   ├── numpy_file.py        # NUMPYFILEReader  
 │   └── pylom.py             # PYLOMReader  
 ├── sets/                   # Ensamblado de tensores ML y operaciones de malla  
 │   ├── __init__.py         # SETS_REGISTRY  
 │   ├── base.py             # BaseSets (contrato abstracto)  
 │   ├── coda.py              # CODASets  
-│   ├── numpy.py            # NUMPYSets  
+│   ├── numpy_file.py        # NUMPYFILESets  
 │   └── pylom.py             # PYLOMSets  
 ├── residuals/              # Monitorización de convergencia del solver  
 │   ├── __init__.py         # RESIDUALS_REGISTRY  
@@ -121,8 +121,10 @@ k=4, mesh_ref=0, cache=True, get_df_metrics_attr={}):
 - Para las demás fuentes: usa db.sets.interpolate_msh2msh(...) (IDW con KDTree, k vecinos)  
   para reproyectar sobre la malla de referencia. Tiene caché opcional de resultados  
   de interpolación (cache=True) para no recalcular entre fuentes repetidas.  
-- Concatena arrays FlCc de todas las fuentes con deduplicación (por redondeo a 8 decimales,  
-  con lógica de prioridad para mantener el registro de la malla de referencia).  
+- Concatena arrays FlCc de todas las fuentes. Se asume que no hay casos repetidos entre  
+  las fuentes; si se detectan duplicados, el merge debe lanzar un error explícito en lugar  
+  de eliminar casos silenciosamente. La identidad del caso se determina a partir de las  
+  variables de diseño/FlCc, no de la posición de la fila.  
 - Para las variables (Vars): calcula la unión de todos los "stages" y variables presentes  
   en todas las fuentes; si una variable falta en una fuente, la rellena con NaN para  
   mantener consistencia de forma (padding).  
@@ -170,11 +172,21 @@ CODAReader (readers/coda.py) — implementación relevante para las mejoras pedi
   Coord, FlCc, Vars (por stage).  
 - Atributos tras parseo: metadata (dict), sim_metadata (dict por carpeta con path,  
   stages, valores de variables de diseño), df_state (DataFrame).  
+- Gestión de subsets: permite definir subconjuntos de casos mediante una etiqueta/nombre  
+  y resolver posteriormente esa etiqueta a los casos correspondientes. Los métodos que  
+  seleccionan casos pueden aceptar `subset` opcional además de `case_idx`; cuando se usa  
+  `subset`, la selección viene determinada por el subset. La lógica de resolución de casos  
+  debe mantenerse centralizada para evitar duplicación.  
   
 NUMPYFILEReader (readers/numpy_file.py):  
 - Para datasets ya preprocesados y guardados como diccionarios .npy.  
 - Carga "eager" (todo en memoria) de todos los .npy durante __init__.  
 - Soporta reordenación de coordenadas en extract_inputs vía métodos 'centroid' o 'kdtree'.  
+- `extract_outputs()` lee también la clave `Aux` de `self.npy_dict` cuando existe, además  
+  de `Vars`, manteniendo la misma selección de casos/stage.  
+- Los casos simulados en NUMPY pueden utilizar el mismo concepto de `subset` que CODA:  
+  definición de subsets por nombre, resolución a casos y uso desde los métodos de extracción  
+  donde tenga sentido, manteniendo la compatibilidad con `case_idx`.  
   
 PYLOMReader (readers/pylom.py):  
 - Interfaz con la librería pyLOM (reducción de orden de modelos), envuelve  
@@ -380,3 +392,223 @@ CODAStats (stats/coda.py):
    automáticamente en (sets, reader, residuals, stats) en ese orden vía  
    __getattr__, permitiendo db.<metodo>(...) sin exponerlo explícitamente  
    en la clase FRODO.
+
+
+===========================================================================  
+7. ACTUALIZACIONES REALIZADAS — ESTADO ACTUAL DEL DISEÑO  
+===========================================================================  
+
+Esta sección recoge modificaciones implementadas posteriormente sobre el esquema original  
+y que deben considerarse parte del comportamiento esperado del repositorio.
+
+### 7.1. Gestión de `df_cases` y `df_state`
+
+Se revisó la relación entre ambos DataFrames, diferenciando sus responsabilidades:
+
+- `df_cases` representa la definición/identidad de los casos del dataset.
+- `df_state` representa el estado dinámico de las simulaciones (por ejemplo, stages  
+  disponibles/calculadas).
+- No se debe tratar `df_state` como una segunda copia arbitraria de `df_cases`.
+- Cuando se selecciona o extrae solamente un subconjunto de casos, cualquier estructura  
+  derivada que represente los casos realmente extraídos debe mantenerse coherente con esa  
+  selección.
+- `df_post` debe referirse a los mismos casos que las estructuras extraídas cuando se usa  
+  para postproceso/métricas.
+
+### 7.2. Sistema de subsets para CODA
+
+Se introdujo en `CODAReader` el concepto de subset:
+
+- Un subset es una agrupación nombrada de casos.
+- Se puede definir un subset a partir de índices de casos.
+- El subset se resuelve posteriormente a los casos que contiene.
+- Los métodos que aceptan selección de casos pueden aceptar `subset=None`.
+- Si se proporciona `subset`, esa selección tiene prioridad y `cases_idx` no debe utilizarse  
+  simultáneamente como segunda fuente de verdad.
+- Si `subset is None`, se conserva el comportamiento histórico basado en `cases_idx`.
+- La resolución de selección debe estar centralizada y reutilizarse en los métodos que lo  
+  necesiten.
+- El nombre/etiqueta del subset queda asociado a los casos en la estructura de metadatos  
+  elegida por la implementación.
+
+`extract_inputs()` y `extract_outputs()` de CODA fueron adaptados a esta semántica.
+
+### 7.3. Subsets en NUMPY
+
+El concepto de subset se extendió también a los casos simulados de `NUMPYFILEReader`,  
+manteniendo la misma filosofía que en CODA:
+
+```text
+subset=None
+    -> selección tradicional mediante case_idx
+
+subset="nombre"
+    -> resolver subset
+    -> utilizar exclusivamente sus casos
+```
+
+Debe mantenerse la compatibilidad con la API anterior.
+
+### 7.4. `CODASets.save_to_npy()` y exportación CODA → NUMPY
+
+Se corrigió `CODASets.save_to_npy()` para que la exportación sea consistente con el resto  
+de `CODASets` en cuanto a:
+
+- interpretación de `case_idx`;
+- selección de casos;
+- selección de stage;
+- construcción de `idx_sort`, `eltype` y `cellOrder`;
+- exportación de `Vars`;
+- exportación de `Aux` cuando existe;
+- orden y número de casos de las distintas estructuras.
+
+Un punto importante fue el tratamiento de `case_idx='all'`: el valor utilizado internamente  
+para indexar arrays NumPy debe ser un índice entero válido, siguiendo la misma resolución de  
+casos utilizada por el resto de la clase. No se debe aplicar un parche aislado convirtiendo  
+tipos sin comprobar primero la semántica de selección.
+
+`Aux` forma parte del contenido que puede exportarse desde CODA y no debe omitirse simplemente  
+porque determinadas bases no lo contengan. La ausencia de `Aux` debe seguir siendo válida.
+
+Se añadieron/ajustaron tests para cubrir, entre otros:
+
+- `case_idx='all'`;
+- listas de índices;
+- índices individuales cuando la API los admite;
+- presencia/ausencia de `Aux`;
+- varias variables auxiliares;
+- `Vars`;
+- `ignore_vars`;
+- distintos stages;
+- coherencia de casos y orden entre las estructuras exportadas.
+
+### 7.5. `NumpyReader.extract_outputs()` y lectura de `Aux`
+
+Se confirmó y corrigió un bug en `FotR/characters/readers/numpy.py`:
+
+`extract_outputs()` procesaba `Vars` pero no incorporaba la clave `Aux` de `self.npy_dict`  
+cuando ésta estaba presente.
+
+El comportamiento esperado ahora es:
+
+```text
+.npy
+ ├── Coord
+ ├── FlCc
+ ├── Vars
+ └── Aux       <- opcional
+       |
+       v
+NumpyReader.extract_outputs()
+       |
+       +--> Vars
+       |
+       +--> Aux (si existe)
+```
+
+La lectura de `Aux` debe respetar la misma selección de casos y stage aplicable al resto de  
+los outputs y no debe fallar en datasets que legítimamente no tengan esa clave.
+
+### 7.6. Reestructuración de `FRODO.merge_datasets()`
+
+`merge_datasets()` se revisó para que la lógica de los casos sea coherente con los datos  
+realmente extraídos de cada fuente.
+
+Principio fundamental:
+
+> El merge debe fusionar los casos que realmente están presentes en los `FlCc` de los  
+> grupos fuente, no todos los casos teóricos existentes en `df_cases` o `df_state`.
+
+Por tanto:
+
+```text
+source FlCc
+    |
+    v
+casos realmente extraídos
+    |
+    +------> df_cases resultante
+    |
+    +------> df_state resultante
+    |
+    +------> df_post resultante (cuando aplique)
+    |
+    +------> FlCc resultante
+```
+
+Consecuencias:
+
+- Un caso presente en `df_cases`/`df_state` pero no extraído no debe aparecer en el dataset  
+  fusionado.
+- `df_state` no debe copiarse completo de las bases fuente si contiene casos adicionales.
+- `df_post` debe estar alineado con los casos realmente fusionados.
+- Las filas de `FlCc`, `df_cases`, `df_state` y `df_post` deben corresponder al mismo caso  
+  y mantener un orden consistente.
+- El `case_idx` del dataset resultante debe ser coherente con el nuevo dataset y no provocar  
+  colisiones con los índices originales de las fuentes.
+
+Se eliminó la lógica de deduplicación silenciosa de `FlCc` basada en `seen`/`keep`. Se parte  
+de que las fuentes no contienen casos repetidos entre sí. Si aparece un duplicado, se debe  
+producir un `raise` explícito, porque constituye una inconsistencia de entrada.
+
+La identidad de un caso debe comprobarse mediante sus variables de diseño/`FlCc`, no mediante  
+la posición de la fila.
+
+La estructura general de `merge_datasets()` debe ser común a los formatos soportados:
+
+```text
+validar fuentes
+    |
+validar formato/grupos
+    |
+identificar casos realmente extraídos
+    |
+detectar duplicados
+    |
+homogeneizar mallas
+    |
+concatenar FlCc
+    |
+reconstruir metadata
+    |
+reconstruir df_cases
+    |
+reconstruir df_state (si aplica)
+    |
+reconstruir df_post (si aplica)
+    |
+construir nuevo FRODO
+```
+
+La lógica específica de CODA, como `get_df_metrics()`, debe permanecer encapsulada en la  
+parte que corresponda y no contaminar innecesariamente el camino común para NUMPY u otros  
+formatos.
+
+Se amplió la batería de tests de `merge_datasets()` para cubrir:
+
+- merge normal de datasets sin duplicados;
+- fuentes cuyo `df_cases`/`df_state` contiene más casos que los realmente extraídos;
+- diferentes subconjuntos de casos extraídos;
+- detección de casos duplicados;
+- coherencia de orden entre `FlCc`, `df_cases`, `df_state` y `df_post`;
+- integración CODA con `get_df_metrics()`;
+- funcionamiento de formatos no-CODA sin exigir métricas de CODA;
+- validaciones y errores de entrada.
+
+### 7.7. Invariantes importantes para futuras modificaciones
+
+Al trabajar posteriormente sobre este repositorio, conservar estas invariantes:
+
+1. `FlCc` representa los casos realmente extraídos en un `CADGroup`.
+2. Los DataFrames que describen los casos de un dataset derivado deben corresponder con esos  
+   casos y no con el universo teórico completo si éste contiene casos no extraídos.
+3. `df_cases` y `df_state` tienen responsabilidades distintas aunque puedan compartir  
+   columnas de identificación.
+4. La selección por `subset` y por `case_idx` debe tener una semántica única y predecible.
+5. Los duplicados entre datasets que se están fusionando son un error, no algo que el código  
+   deba ocultar mediante filtros.
+6. `Aux` es un dato válido tanto en CODA como en NUMPY cuando el dataset lo contiene.
+7. Las conversiones CODA → NUMPY → lectura NUMPY deben conservar `Coord`, `FlCc`, `Vars` y  
+   `Aux` siempre que estén presentes en el origen.
+8. Los cambios específicos de formato deben permanecer en las clases del formato y FRODO debe  
+   continuar actuando principalmente como coordinador.

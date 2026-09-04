@@ -114,7 +114,7 @@ list_folders = [
 #     ) for root_dir, cases in zip(list_folders, tuple_cases)
 # ]
 
-name = "rans3_PRUEBA_2"
+name = "rans3_#280"
 db_completo = juntar_db(
     list_folders = [
         os.path.join('/home/m.jaraiz/Documentos/DATASETS/data_TIFON/', folder) for folder in ['rans3_basic', 'rans3_basic_rest', 'rans3_transonic_1', 'rans3_propose_0']
