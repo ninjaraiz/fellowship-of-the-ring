@@ -59,8 +59,8 @@ except ModuleNotFoundError:
     pass
 
 try:
-    from .horses3d import HORSES3DReader
-    READER_REGISTRY['HORSES3D'] = HORSES3DReader
+    from .horses3d import Horses3DReader
+    READER_REGISTRY['HORSES3D'] = Horses3DReader
 except ModuleNotFoundError:
     pass
 
