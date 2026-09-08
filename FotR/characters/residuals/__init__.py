@@ -28,4 +28,10 @@ try:
 except ModuleNotFoundError:
     pass
 
+try:
+    from .horses3d import Horses3DResiduals
+    RESIDUALS_REGISTRY['HORSES3D'] = Horses3DResiduals
+except ModuleNotFoundError:
+    pass
+
 __all__ = ['BaseResiduals', 'RESIDUALS_REGISTRY']

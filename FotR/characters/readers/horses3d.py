@@ -440,6 +440,24 @@ class Horses3DReader(BaseReader):
                                 'solution_file':     'RESULTS/solution_p2.hsol',
                                 'residuals_file':    'RESULTS/solution_p2.residuals',
                                 'residuals_found':   True,
+                                'surface_monitors': {
+                                    'lift': {
+                                        'monitor_name':      'lift',
+                                        'surface_marker':    2,
+                                        'selected_variable': 'lift',
+                                        'dynamic_pressure':  6383.475,
+                                        'columns':  ['Iteration', 'Time', 'lift'],
+                                        'file':     'RESULTS/solution_p2.lift.surface',
+                                    },
+                                },
+                                'stopwatch': {
+                                    'events': {
+                                        'TotalTime': {'elapsed_s': 18650.6, 'cpu_s': 18650.6},
+                                        ...
+                                    },
+                                    'file': 'RESULTS/solution_p2.Stopwatch.info',
+                                },
+                                'other_files':       [],
                                 'restart':           False,
                                 'restart_file':      None,
                                 'restart_polorder':  None,
@@ -633,6 +651,13 @@ class Horses3DReader(BaseReader):
                     if not residuals_found:
                         residuals_file = None
 
+                # ── related result files (surface monitors, stopwatch, …) ──
+                related = (
+                    self._discover_related_result_files(case_path, solution_file)
+                    if solution_file is not None
+                    else {'surface_monitors': {}, 'stopwatch': None, 'other_files': []}
+                )
+
                 # ── restart ──────────────────────────────────────────────
                 restart          = bool(parsed['restart'])
                 restart_file     = parsed['restart_file']
@@ -682,6 +707,9 @@ class Horses3DReader(BaseReader):
                     'solution_file':     solution_file,
                     'residuals_file':    residuals_file,
                     'residuals_found':   residuals_found,
+                    'surface_monitors':  related['surface_monitors'],
+                    'stopwatch':         related['stopwatch'],
+                    'other_files':       related['other_files'],
                     'restart':           restart,
                     'restart_file':      restart_file,
                     'restart_polorder':  restart_polorder,
@@ -1159,6 +1187,272 @@ class Horses3DReader(BaseReader):
 
         return row
 
+    def _discover_related_result_files(
+        self,
+        case_path: str,
+        solution_file: str,
+    ) -> dict:
+        """
+        Catalogue every file inside the solution's result directory that
+        shares the solution's basename (i.e. the ``.hsol`` stem), beyond
+        the ``.hsol`` itself and its ``.residuals`` sibling (both handled
+        separately by the caller).
+
+        This is a **generic, closed-list-free** classification: no
+        specific monitor name (e.g. ``'lift'``, ``'drag'``) is ever
+        hardcoded. A file is recognised as belonging to this solution
+        purely because its name starts with ``'<stem>.'`` — the same
+        basename convention already used for the ``.residuals`` sibling.
+        From there, only the *file-type* suffix is pattern-matched:
+
+        * ``<stem>.<monitor_name>.surface`` → a surface/force monitor.
+          ``<monitor_name>`` is whatever text precedes ``.surface`` —
+          never assumed to be ``'lift'``, ``'drag'`` or any other fixed
+          name.
+        * ``<stem>.Stopwatch.info`` → the run's timing breakdown.
+        * anything else sharing the stem → recorded verbatim in
+          ``'other_files'`` so it is not silently dropped, without
+          guessing its meaning.
+
+        Parameters
+        ----------
+        case_path : str
+            Absolute path to the case folder.
+        solution_file : str
+            The ``solution file name`` declared in the control (relative
+            to ``case_path``), e.g. ``'RESULTS/solution_p2.hsol'``.
+
+        Returns
+        -------
+        dict
+            ``{'surface_monitors': dict[str, dict], 'stopwatch': dict or
+            None, 'other_files': list[str]}``.
+
+            ``surface_monitors`` maps each monitor name to the dict
+            returned by :meth:`_parse_surface_monitor_header` (plus a
+            ``'file'`` key with the path relative to ``case_path``).
+            ``stopwatch`` is the dict returned by
+            :meth:`_parse_stopwatch_file` (plus a ``'file'`` key), or
+            ``None`` if no ``.Stopwatch.info`` file was found next to the
+            solution. ``other_files`` lists paths (relative to
+            ``case_path``) of any further file sharing the stem that did
+            not match a recognised suffix.
+
+        Examples
+        --------
+        ::
+
+            related = reader._discover_related_result_files(
+                case_path, 'RESULTS/solution_p2.hsol',
+            )
+            print(list(related['surface_monitors']))
+            print(related['stopwatch'])
+        """
+        results_dir_rel = os.path.dirname(solution_file)
+        results_dir_abs = os.path.join(case_path, results_dir_rel)
+        stem = os.path.splitext(os.path.basename(solution_file))[0]
+
+        surface_monitors: dict = {}
+        stopwatch = None
+        other_files: list = []
+
+        if not os.path.isdir(results_dir_abs):
+            return {
+                'surface_monitors': surface_monitors,
+                'stopwatch':        stopwatch,
+                'other_files':      other_files,
+            }
+
+        for fname in sorted(os.listdir(results_dir_abs)):
+            if not fname.startswith(stem + "."):
+                continue
+
+            suffix = fname[len(stem) + 1:]
+            rel_path = os.path.join(results_dir_rel, fname) if results_dir_rel else fname
+
+            if suffix == "residuals" or fname == os.path.basename(solution_file):
+                # Already handled by the caller (.hsol / .residuals).
+                continue
+
+            if suffix.endswith(".surface"):
+                monitor_name = suffix[: -len(".surface")]
+                try:
+                    header = self._parse_surface_monitor_header(
+                        os.path.join(results_dir_abs, fname)
+                    )
+                except Exception as exc:
+                    warnings.warn(
+                        f"Could not parse surface monitor file '{rel_path}': "
+                        f"{exc}. Cataloguing it without metadata.",
+                        UserWarning,
+                    )
+                    header = {
+                        'monitor_name':      monitor_name,
+                        'surface_marker':    None,
+                        'selected_variable': None,
+                        'dynamic_pressure':  None,
+                        'columns':           None,
+                    }
+                header['file'] = rel_path
+                surface_monitors[monitor_name] = header
+                continue
+
+            if suffix == "Stopwatch.info":
+                try:
+                    stopwatch = self._parse_stopwatch_file(
+                        os.path.join(results_dir_abs, fname)
+                    )
+                except Exception as exc:
+                    warnings.warn(
+                        f"Could not parse stopwatch file '{rel_path}': "
+                        f"{exc}. Cataloguing it without metadata.",
+                        UserWarning,
+                    )
+                    stopwatch = {'events': {}}
+                stopwatch['file'] = rel_path
+                continue
+
+            other_files.append(rel_path)
+
+        return {
+            'surface_monitors': surface_monitors,
+            'stopwatch':        stopwatch,
+            'other_files':      other_files,
+        }
+
+    @staticmethod
+    def _parse_surface_monitor_header(path: str) -> dict:
+        """
+        Parse the metadata header of a HORSES3D ``*.surface`` monitor
+        file (e.g. a force/moment monitor), without loading its full
+        iteration history into memory.
+
+        Expected layout::
+
+             Monitor name:      <name>
+             Surface marker:    <marker>
+             Selected variable: <variable>
+              Dynamic pressure:         <value>
+
+             Iteration                      Time                      <name>
+                     0    0.0000000000000000E+00   -6.4057841531848791E-03
+                     ...
+
+        Parameters
+        ----------
+        path : str
+            Absolute path to the ``.surface`` file.
+
+        Returns
+        -------
+        dict
+            Keys: ``'monitor_name'`` (str or None), ``'surface_marker'``
+            (int or None), ``'selected_variable'`` (str or None),
+            ``'dynamic_pressure'`` (float or None), ``'columns'``
+            (``list[str]`` — the history's column header, split on
+            whitespace, or ``None`` if it could not be located).
+
+        Examples
+        --------
+        ::
+
+            header = Horses3DReader._parse_surface_monitor_header(
+                '/data/case_001/RESULTS/solution_p2.lift.surface'
+            )
+            print(header['monitor_name'], header['columns'])
+        """
+        monitor_name = surface_marker = selected_variable = None
+        dynamic_pressure = None
+        columns = None
+
+        with open(path, 'r') as fh:
+            for line in fh:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                lower = stripped.lower()
+
+                if lower.startswith("monitor name"):
+                    monitor_name = stripped.split(":", 1)[1].strip()
+                elif lower.startswith("surface marker"):
+                    val = stripped.split(":", 1)[1].strip()
+                    try:
+                        surface_marker = int(val)
+                    except ValueError:
+                        surface_marker = val
+                elif lower.startswith("selected variable"):
+                    selected_variable = stripped.split(":", 1)[1].strip()
+                elif lower.startswith("dynamic pressure"):
+                    val = stripped.split(":", 1)[1].strip()
+                    try:
+                        dynamic_pressure = float(val)
+                    except ValueError:
+                        dynamic_pressure = None
+                elif lower.startswith("iteration"):
+                    columns = stripped.split()
+                    break
+
+        return {
+            'monitor_name':      monitor_name,
+            'surface_marker':    surface_marker,
+            'selected_variable': selected_variable,
+            'dynamic_pressure':  dynamic_pressure,
+            'columns':           columns,
+        }
+
+    @staticmethod
+    def _parse_stopwatch_file(path: str) -> dict:
+        """
+        Parse a HORSES3D ``*.Stopwatch.info`` timing-breakdown file.
+
+        Expected layout::
+
+            #Stopwatch information file
+            # Event                                            Elapsed time(s)    CPU-Time (s)
+            <event_name>                                       <elapsed>          <cpu>
+            ...
+
+        Parameters
+        ----------
+        path : str
+            Absolute path to the ``.Stopwatch.info`` file.
+
+        Returns
+        -------
+        dict
+            ``{'events': {event_name: {'elapsed_s': float, 'cpu_s':
+            float}}}``. Lines starting with ``'#'`` (comments/header) are
+            skipped; every other non-blank line is expected to have the
+            form ``<event_name> <elapsed> <cpu>``.
+
+        Examples
+        --------
+        ::
+
+            info = Horses3DReader._parse_stopwatch_file(
+                '/data/case_001/RESULTS/solution_p2.Stopwatch.info'
+            )
+            print(info['events']['TotalTime'])
+        """
+        events: dict = {}
+        with open(path, 'r') as fh:
+            for line in fh:
+                stripped = line.strip()
+                if not stripped or stripped.startswith('#'):
+                    continue
+                tokens = stripped.split()
+                if len(tokens) < 3:
+                    continue
+                name = tokens[0]
+                try:
+                    elapsed_s = float(tokens[1])
+                    cpu_s     = float(tokens[2])
+                except ValueError:
+                    continue
+                events[name] = {'elapsed_s': elapsed_s, 'cpu_s': cpu_s}
+
+        return {'events': events}
+
     def _parse_control_file(self, path: str) -> dict:
         """
         Parse a HORSES3D ``.control`` file into a flat dict of
@@ -1253,6 +1547,9 @@ class Horses3DReader(BaseReader):
             'convergence tolerance': ('convergence_tolerance', _to_float),
             'simulation type':       ('simulation_type',           str),
             'final time':            ('final_time',                   _to_float),
+            'cfl':                   ('cfl',                        _to_float),
+            'dcfl':                  ('dcfl',                   _to_float),
+            'dt':                    ('dt',                      _to_float)
         }
         params = {}
         for raw_key, (out_key, caster) in param_keys.items():
