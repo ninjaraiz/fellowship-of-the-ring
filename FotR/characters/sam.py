@@ -1963,6 +1963,195 @@ class SAM():
             )
             return pd.concat([df_iter, df], axis=1)
 
+        # -- HORSES3D helpers (MESH *.h5 prioritario + .hsol header+lazy) -----
+
+        @staticmethod
+        def read_horses_mesh_h5(path: str) -> dict:
+            """
+            Read a HORSES3D high-order mesh (Hopr/PyHOPE HDF5).
+
+            Only the ``MESH/*.h5`` file declared in the ``.control`` is
+            read here — never ``.bmesh`` / ``.pmesh`` / ``.hmesh`` /
+            ``.cgns`` / ``.msh``, which are post-solver artefacts.
+
+            Parameters
+            ----------
+            path : str
+                Absolute path to the ``MESH/*.h5`` file.
+
+            Returns
+            -------
+            dict with keys:
+                'Coord' (n_nodes,3) float64 — high-order nodes as stored
+                ('NodeCoords'), kept verbatim (no dedup to unique nodes,
+                no averaging to cell centres),
+                'GlobalNodeIDs', 'ElemInfo', 'ElemCounter', 'SideInfo',
+                'BCNames', 'BCType', 'attrs' (root attrs incl. Ngeo,
+                nElems, nNodes, nUniqueNodes).
+
+            Examples
+            --------
+            ::
+
+                m = SAM.Backpack.read_horses_mesh_h5('MESH/my_esphere_v2g2_mesh.h5')
+                print(m['Coord'].shape, m['attrs']['Ngeo'])
+            """
+            import h5py
+
+            if not os.path.isfile(path):
+                raise FileNotFoundError(
+                    f"HORSES3D mesh file not found: {path}"
+                )
+            out = {}
+            with h5py.File(path, 'r') as hf:
+                for key in (
+                    'NodeCoords', 'GlobalNodeIDs', 'ElemInfo',
+                    'ElemCounter', 'SideInfo', 'BCNames', 'BCType',
+                ):
+                    if key in hf:
+                        ds = hf[key]
+                        vals = ds[()]
+                        if isinstance(vals, bytes):
+                            out[key] = vals
+                        else:
+                            try:
+                                out[key] = np.asarray(vals)
+                            except Exception:
+                                out[key] = vals
+                out['attrs'] = dict(hf.attrs)
+            if 'NodeCoords' not in out:
+                raise KeyError(
+                    f"'NodeCoords' not found in HORSES3D mesh file: {path}"
+                )
+            out['Coord'] = np.asarray(out['NodeCoords'], dtype=np.float64)
+            if out['Coord'].ndim != 2 or out['Coord'].shape[1] != 3:
+                raise ValueError(
+                    f"Unexpected NodeCoords shape {out['Coord'].shape} "
+                    f"in {path}; expected (n_nodes, 3)."
+                )
+            return out
+
+        @staticmethod
+        def horses_expected_vars(flow_equations=None) -> list:
+            """
+            Conservative variable names expected in a HORSES3D ``.hsol``.
+
+            The ``.hsol`` Fortran binary carries no variable-name header,
+            so names are inferred from the ``flow_equations`` control
+            parameter instead of parsed from disk.
+
+            Parameters
+            ----------
+            flow_equations : str or None
+                E.g. ``'NS'`` / ``'Euler'``. Case-insensitive.
+
+            Returns
+            -------
+            list[str]
+                ``['rho','rhou','rhov','rhow','rhoE']`` for NS/Euler,
+                ``[]`` when unknown.
+            """
+            if flow_equations is None:
+                return []
+            tag = str(flow_equations).strip().lower()
+            if tag in ('ns', 'navier-stokes', 'navier_stokes', 'euler'):
+                return ['rho', 'rhou', 'rhov', 'rhow', 'rhoE']
+            return []
+
+        @staticmethod
+        def read_horses_hsol_header(path: str) -> dict:
+            """
+            Lightweight header probe of a HORSES3D ``.hsol`` file.
+
+            ``.hsol`` is a Fortran unformatted binary (not HDF5) and
+            solution snapshots can be numerous (LES time series) and
+            large (~50MB each), so this function intentionally reads
+            only file metadata — never the field data.
+
+            Parameters
+            ----------
+            path : str
+                Absolute path to the declared ``RESULTS/*.hsol`` file
+                (never a timestamped ``*_<iter>.hsol`` snapshot).
+
+            Returns
+            -------
+            dict with keys:
+                'path', 'size_bytes', 'mtime', 'format'
+                (``'horses-hsol-fortran-binary'``), 'is_hdf5' (False),
+                'note' (why full parsing is deferred).
+
+            Raises
+            ------
+            FileNotFoundError
+                If the file does not exist on disk.
+            """
+            if not os.path.isfile(path):
+                raise FileNotFoundError(
+                    f"HORSES3D solution file not found: {path}"
+                )
+            st = os.stat(path)
+            with open(path, 'rb') as fh:
+                magic = fh.read(8)
+            return {
+                'path':       path,
+                'size_bytes': st.st_size,
+                'mtime':      st.st_mtime,
+                'format':     'horses-hsol-fortran-binary',
+                'is_hdf5':    False,
+                'magic_head': magic,
+                'note': (
+                    'Full .hsol field parsing is deferred: Fortran '
+                    'binary, no embedded var-name header, snapshots are '
+                    'numerous. Use HorsesLazyField.load() once a '
+                    'validated HORSES3D field parser lands in SAM.'
+                ),
+            }
+
+        class HorsesLazyField:
+            """
+            Lazy placeholder for one HORSES3D ``.hsol`` variable.
+
+            Stored in ``data_dict[key]['Vars'][str(p)][var]`` instead of
+            a dense ``(n_points, n_cases)`` array so that
+            ``extract_outputs`` stays cheap over numerous LES snapshots.
+            Call :meth:`load` to materialise the field once a validated
+            Fortran-binary parser exists in SAM.
+            """
+
+            def __init__(
+                self, name: str, path: str, p: int, case: str,
+                n_points: int, flow_equations=None,
+            ):
+                self.name = name
+                self.path = path
+                self.p = int(p)
+                self.case = case
+                self.n_points = int(n_points)
+                self.flow_equations = flow_equations
+
+            @property
+            def shape(self):
+                """Declared shape ``(n_points,)`` for one case."""
+                return (self.n_points,)
+
+            def load(self) -> np.ndarray:
+                """Materialise the field (not yet implemented)."""
+                raise NotImplementedError(
+                    f"HORSES3D .hsol field parsing not yet implemented "
+                    f"(var='{self.name}', case='{self.case}', p={self.p}, "
+                    f"file='{self.path}'). No validated Fortran-binary "
+                    f".hsol reader exists in SAM yet; header metadata "
+                    f"only. See SAM.Backpack.read_horses_hsol_header."
+                )
+
+            def __repr__(self) -> str:
+                return (
+                    f"<HorsesLazyField {self.name!r} case={self.case!r} "
+                    f"p={self.p} n_points={self.n_points} "
+                    f"file={os.path.basename(self.path)!r}>"
+                )
+
         @staticmethod
         def _fornberg_weights(x, x0, m):
             """

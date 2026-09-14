@@ -132,7 +132,35 @@ def _write_control(
 def _make_mesh(case_path, mesh_name="case_v2g2_mesh.h5"):
     mesh_dir = os.path.join(case_path, "MESH")
     os.makedirs(mesh_dir, exist_ok=True)
-    open(os.path.join(mesh_dir, mesh_name), "w").close()
+    mesh_path = os.path.join(mesh_dir, mesh_name)
+    # Minimal valid Hopr-like HDF5 mesh so extract_inputs can read
+    # NodeCoords verbatim (no .bmesh/.hmesh needed).
+    try:
+        import h5py
+        import numpy as _np
+
+        coords = _np.array(
+            [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0],
+             [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            dtype=_np.float64,
+        )
+        with h5py.File(mesh_path, "w") as hf:
+            hf.create_dataset("NodeCoords", data=coords)
+            hf.create_dataset(
+                "GlobalNodeIDs",
+                data=_np.arange(1, 5, dtype=_np.int32),
+            )
+            hf.create_dataset(
+                "ElemInfo", data=_np.zeros((1, 6), dtype=_np.int32)
+            )
+            hf.create_dataset(
+                "ElemCounter", data=_np.zeros((1, 2), dtype=_np.int32)
+            )
+            hf.attrs["Ngeo"] = 2
+            hf.attrs["nElems"] = 1
+            hf.attrs["nNodes"] = 4
+    except ImportError:
+        open(mesh_path, "w").close()
     return mesh_name
 
 
@@ -140,6 +168,8 @@ def _make_basic_dataset(root_dir):
     """
     case_1: p=[2, 3], g=2 (inferred from 'v2g2'), p=3 restarts from p=2.
     case_2: p=[2], g=2.
+    design_vars come from metadata/cases_metadata.json (FlCc uses
+    user design_vars only, never .control params).
     """
     outputs = os.path.join(root_dir, "outputs")
     os.makedirs(outputs, exist_ok=True)
@@ -157,6 +187,20 @@ def _make_basic_dataset(root_dir):
     os.makedirs(case_2, exist_ok=True)
     mesh_2 = _make_mesh(case_2)
     _write_control(case_2, p=2, mesh_name=mesh_2, mach=0.5, aoa=2.0)
+
+    meta_dir = os.path.join(root_dir, "metadata")
+    os.makedirs(meta_dir, exist_ok=True)
+    cm = {
+        "eq_type": "NS",
+        "design_vars": ["mach", "aoa"],
+        "df_cases": {
+            "folder": ["case_1", "case_2"],
+            "mach":   [0.3, 0.5],
+            "aoa":    [0.0, 2.0],
+        },
+    }
+    with open(os.path.join(meta_dir, "cases_metadata.json"), "w") as fh:
+        json.dump(cm, fh)
 
     return root_dir
 
@@ -346,14 +390,32 @@ def test_subset_refers_to_physical_cases_not_p(basic_dataset):
 # extract_inputs / extract_outputs — interface contract
 # =============================================================================
 
-def test_extract_inputs_raises_not_implemented_but_resolves_flcc(basic_dataset):
+def test_extract_inputs_builds_codalike_group(basic_dataset):
     reader = Horses3DReader(root_dir=basic_dataset)
     reader.parse_simulation_dirs()
-    with pytest.raises(NotImplementedError):
-        reader.extract_inputs(subset=None, cases_idx='all')
-    # Case/FlCc bookkeeping performed before the NotImplementedError:
-    assert reader.data_dict['FlCc'].shape[0] == 2
-    assert reader.data_dict['case_order'] == ['case_1', 'case_2']
+    reader.extract_inputs(subset=None, cases_idx='all')
+    # One group per (mesh, g); FlCc uses user design_vars only.
+    group_keys = [k for k in reader.data_dict if k.startswith("CADGroup_")]
+    assert len(group_keys) == 1
+    grp = reader.data_dict[group_keys[0]]
+    assert grp["FlCc"].shape == (2, 2)
+    assert grp["case_order"] == ["case_1", "case_2"]
+    assert grp["design_vars"] == ["mach", "aoa"]
+    assert grp["Coord"].shape == (4, 3)
+    assert grp["g"] == 2
+    # Backward-compatible top-level view:
+    assert reader.data_dict["FlCc"].shape[0] == 2
+
+
+def test_extract_inputs_flcc_uses_design_vars_only(basic_dataset):
+    reader = Horses3DReader(root_dir=basic_dataset)
+    reader.parse_simulation_dirs()
+    reader.extract_inputs()
+    grp = reader.data_dict[
+        next(k for k in reader.data_dict if k.startswith("CADGroup_"))
+    ]
+    # mach/aoa from cases_metadata.json — never cfl/dcfl/.control params.
+    assert grp["FlCc"].tolist() == [[0.3, 0.0], [0.5, 2.0]]
 
 
 def test_extract_outputs_requires_extract_inputs_first(basic_dataset):
@@ -363,15 +425,30 @@ def test_extract_outputs_requires_extract_inputs_first(basic_dataset):
         reader.extract_outputs()
 
 
-def test_extract_outputs_raises_not_implemented_after_inputs(basic_dataset):
+def test_extract_outputs_header_lazy_after_inputs(basic_dataset):
     reader = Horses3DReader(root_dir=basic_dataset)
     reader.parse_simulation_dirs()
-    try:
-        reader.extract_inputs()
-    except NotImplementedError:
-        pass
+    reader.extract_inputs(p=2)
+    reader.extract_outputs(p=2)
+    grp = reader.data_dict[
+        next(k for k in reader.data_dict if k.startswith("CADGroup_"))
+    ]
+    assert set(grp["Vars"]["2"].keys()) == {
+        "rho", "rhou", "rhov", "rhow", "rhoE"
+    }
+    lazy = grp["Vars"]["2"]["rho"][0]
+    assert lazy.shape == (4,)
     with pytest.raises(NotImplementedError):
-        reader.extract_outputs()
+        lazy.load()
+
+
+def test_extract_outputs_rejects_mixed_p(basic_dataset):
+    reader = Horses3DReader(root_dir=basic_dataset)
+    reader.parse_simulation_dirs()
+    reader.extract_inputs(p="max")
+    # case_1 max p=3, case_2 max p=2 -> mixed -> ValueError.
+    with pytest.raises(ValueError):
+        reader.extract_outputs(p="max")
 
 
 # =============================================================================
@@ -554,9 +631,19 @@ def test_optional_cases_metadata_joins_design_vars(tmp_path):
     ].iloc[0] == 200.0
 
 
-def test_missing_cases_metadata_does_not_block_discovery(basic_dataset):
-    # basic_dataset has no metadata/cases_metadata.json at all.
-    reader = Horses3DReader(root_dir=basic_dataset)
+def test_missing_cases_metadata_does_not_block_discovery(tmp_path):
+    # Dataset without metadata/cases_metadata.json and without an
+    # inferable '<name>_<value>' folder pattern: discovery proceeds
+    # with folder names as the sole case identity.
+    root = str(tmp_path)
+    outputs = os.path.join(root, "outputs")
+    os.makedirs(outputs)
+    for case_name in ("runA", "runB"):
+        case = os.path.join(outputs, case_name)
+        os.makedirs(case)
+        mesh = _make_mesh(case)
+        _write_control(case, p=2, mesh_name=mesh)
+    reader = Horses3DReader(root_dir=root)
     reader.parse_simulation_dirs()
     assert len(reader.df_state) == 2
     assert reader.metadata["design_vars"] is None

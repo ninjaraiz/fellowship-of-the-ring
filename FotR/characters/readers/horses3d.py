@@ -84,12 +84,14 @@ This iteration builds correct **discovery and metadata**:
 ``parse_simulation_dirs`` (case discovery, control parsing, mesh/``g``
 association, ``design_vars``/``df_cases`` inference, validations) and a
 **subset mechanism** over physical cases, mirroring the one used by
-``CODAReader``. ``extract_inputs`` / ``extract_outputs`` are defined
-with the same responsibility split used by every other FotR reader (mesh
-+ FlCc vs. field variables), but binary ``.hsol`` / mesh reading is
-intentionally left unimplemented: no HORSES3D binary-format utility
-exists yet in ``FotR.characters.sam.SAM`` to reuse, and guessing one
-would be speculative.
+``CODAReader``. ``extract_inputs`` reads the ``MESH/*.h5`` Hopr mesh
+(``NodeCoords`` verbatim) and builds a CODA-like ``data_dict`` grouped
+by ``(mesh file, g)`` with ``FlCc`` from user ``design_vars`` only.
+``extract_outputs`` records ``.hsol`` header metadata (header + lazy:
+no bulk Fortran-binary field read over numerous LES snapshots) under
+``Vars[str(p)]`` as :class:`SAM.Backpack.HorsesLazyField` placeholders.
+``.bmesh`` / ``.pmesh`` / ``.hmesh`` / ``.cgns`` are never read (post-
+solver artefacts); timestamped ``*_<iter>.hsol`` snapshots are ignored.
 """
 
 import os
@@ -796,6 +798,21 @@ class Horses3DReader(BaseReader):
             if n_sims != 1 else "1 simulation found."
         )
 
+    @staticmethod
+    def _group_key(mesh_file: Union[str, None], g: Union[int, None]) -> str:
+        """
+        Build a CODA-like group key for one (mesh file, g) pair.
+
+        One group per mesh/g — never one group mixing meshes — so that
+        ``Coord`` can be shared verbatim across every case in the group.
+        """
+        stem = (
+            os.path.splitext(os.path.basename(mesh_file))[0]
+            if mesh_file else 'nomesh'
+        )
+        stem = re.sub(r'[^0-9A-Za-z]+', '_', stem).strip('_') or 'nomesh'
+        return f"CADGroup_g{g if g is not None else 'X'}_{stem}"
+
     def extract_inputs(
         self,
         p: Union[int, str] = 'max',
@@ -804,30 +821,46 @@ class Horses3DReader(BaseReader):
         verbose: bool = False,
     ) -> None:
         """
-        Extract mesh geometry and flight/solver-condition data for the
-        selected physical cases.
+        Extract mesh geometry and user design variables, grouped by mesh.
 
-        Responsibility split (mirrors ``CODAReader`` / ``NUMPYReader``)
+        Responsibility split (mirrors ``CODAReader``)
         -------------------------------------------------------------
-        Responsible for the mesh (read from the ``MESH/`` file declared
-        by each case's control) and for ``FlCc`` (flight/solver
-        parameters, assembled from the selected representative
-        solution's parsed ``params``). Field variables inside ``.hsol``
-        files are the responsibility of :meth:`extract_outputs`.
+        Responsible for the mesh — read **only** from the ``MESH/*.h5``
+        file declared in each case's control
+        (``SAM.Backpack.read_horses_mesh_h5``) — and for ``FlCc`` built
+        **only** from the user's ``design_vars``
+        (``metadata['design_vars']``, i.e. folder-name inference or
+        ``cases_metadata.json``). Solver ``params`` from the
+        ``.control`` (mach_number, cfl, …) stay in ``sim_metadata`` and
+        never enter ``FlCc``. Field variables inside ``.hsol`` files
+        are the responsibility of :meth:`extract_outputs`.
+
+        Cases are partitioned by ``(mesh file, g)`` into one
+        ``data_dict['CADGroup_g<g>_<stem>']`` per mesh, each with
+        CODA-like keys::
+
+            {Coord, NodeCoord, FlCc, Conec, idx_sort, idx_sort_nodes,
+             eltype, cellOrder, pointOrder, mesh_file, g, p_used,
+             case_order, case_idx_map, design_vars}
+
+        * ``Coord``/``NodeCoord`` are the high-order ``NodeCoords``
+          ``(n_nodes, 3)`` verbatim (no dedup to unique nodes, no
+          averaging to cell centres).
+        * ``FlCc`` is ``(n_cases, n_design_vars)`` in
+          ``metadata['design_vars']`` order.
+        * ``idx_sort``/``idx_sort_nodes`` are ``(1, n_cases, n_points)``
+          lexsort orders (single slot, no stages in HORSES3D).
 
         Parameters
         ----------
         p : int or 'max'
-            Which polynomial-order solution's control/mesh reference to
-            use as representative for each case (the mesh is shared
-            across ``p`` within a case; ``params`` are re-read from this
-            specific solution's control since they could in principle be
-            overridden between restarts). ``'max'`` (default) uses the
-            highest available ``p`` per case.
+            Solution whose control is used as representative per case
+            (mesh is shared across ``p``; ``p`` is validated to exist
+            and satisfy ``p >= g``). ``'max'`` uses the highest
+            available ``p`` per case.
         subset : str or None
-            Name of a subset registered via :meth:`define_subset`.
-            Mutually exclusive with an explicit (non-``'all'``)
-            ``cases_idx``.
+            Named subset from :meth:`define_subset`, mutually exclusive
+            with non-default ``cases_idx``.
         cases_idx : list, tuple, int or 'all'
             Physical ``case_idx`` selection. Default ``'all'``.
         verbose : bool
@@ -836,34 +869,41 @@ class Horses3DReader(BaseReader):
         Raises
         ------
         ValueError
-            If both ``subset`` and a non-default ``cases_idx`` are given.
-        NotImplementedError
-            Mesh binary reading (``.h5`` / ``.bmesh`` / ``.pmesh`` /
-            ``.hmesh``) is not implemented: no HORSES3D mesh-I/O utility
-            currently exists in ``FotR.characters.sam.SAM`` to reuse.
-            Case/subset resolution and ``FlCc`` assembly from
-            already-parsed control parameters are performed first (and
-            can be exercised independently of mesh I/O), then this
-            method raises with a clear message at the point mesh reading
-            would begin.
+            If ``design_vars`` are unknown (no ``cases_metadata.json``
+            and no inferable folder pattern); if a selected case has no
+            solutions; if cases in one mesh group disagree on
+            coordinates.
+        KeyError
+            If the requested ``p`` is missing for a case.
+        FileNotFoundError
+            If a declared ``MESH/*.h5`` file is missing on disk.
 
         Examples
         --------
-        Once mesh I/O is available::
+        ::
 
-            reader.extract_inputs(p='max', subset='training')
-            print(reader.data_dict['FlCc'])
+            reader.extract_inputs(p='max')
+            print(reader.data_dict['CADGroup_g2_my_esphere_v2g2_mesh']['FlCc'])
         """
         resolved_idx = self._resolve_cases_idx(subset, cases_idx)
 
-        design_vars = self._infer_param_names()
-        flcc_rows, case_order = [], []
+        design_vars = self.metadata.get('design_vars')
+        if not design_vars:
+            raise ValueError(
+                "design_vars are unknown: no usable "
+                "metadata/cases_metadata.json and no consistent "
+                "'<name>_<value>_...' folder pattern. FlCc is built "
+                "only from user design_vars, never from .control params."
+            )
 
+        # ── Partition selected cases by (mesh file, g) ───────────────────
+        partitions: dict = {}
+        p_used: dict = {}
         for case_idx in resolved_idx:
             case_name = self._case_name_from_idx(case_idx)
-            sols      = self.sim_metadata[case_name]['solutions']
+            sols = self.sim_metadata[case_name]['solutions']
             if not sols:
-                raise KeyError(
+                raise ValueError(
                     f"Case '{case_name}' (idx={case_idx}) has no solutions."
                 )
             p_use = max(sols) if p == 'max' else int(p)
@@ -872,33 +912,107 @@ class Horses3DReader(BaseReader):
                     f"p={p_use} not available for case '{case_name}'. "
                     f"Available: {sorted(sols)}."
                 )
+            p_used[case_idx] = p_use
+            mesh_file = self.sim_metadata[case_name]['mesh']['file']
+            g = self.sim_metadata[case_name]['mesh']['g']
+            partitions.setdefault((mesh_file, g), []).append(case_idx)
 
-            params = sols[p_use]['params']
-            flcc_rows.append([params.get(dv, np.nan) for dv in design_vars])
-            case_order.append(case_name)
+        self._active_cases_idx['inputs'] = list(resolved_idx)
+        self._active_inputs_p = p if isinstance(p, str) else int(p)
 
-            if verbose:
-                print(
-                    f"[Horses3DReader] extract_inputs — case '{case_name}' "
-                    f"(idx={case_idx}), p={p_use}: mesh="
-                    f"{self.sim_metadata[case_name]['mesh']['file']}"
+        for (mesh_file, g), idx_list in partitions.items():
+            if mesh_file is None:
+                raise FileNotFoundError(
+                    "A selected case declares no 'mesh file name'."
                 )
+            key = self._group_key(mesh_file, g)
+            first_case = self._case_name_from_idx(idx_list[0])
+            mesh_abs = os.path.join(
+                self.sim_metadata[first_case]['path'], mesh_file
+            )
+            if not os.path.isfile(mesh_abs):
+                raise FileNotFoundError(
+                    f"HORSES3D mesh file not found: {mesh_abs}"
+                )
+            mesh = SAM.Backpack.read_horses_mesh_h5(mesh_abs)
+            coord_base = np.asarray(mesh['Coord'], dtype=np.float64)
+            n_points = coord_base.shape[0]
 
-        self._active_cases_idx['inputs'] = resolved_idx
-        self.data_dict['FlCc']           = np.asarray(flcc_rows, dtype=np.float64)
-        self.data_dict['case_order']     = case_order
-        self.metadata['design_vars']     = design_vars
+            # Deterministic lexsort order (shared mesh → same for all).
+            try:
+                _, order = SAM.Weapons.sort_lexsort(points=coord_base)
+                order = np.asarray(order, dtype=np.int32)
+            except Exception:
+                order = np.arange(n_points, dtype=np.int32)
+            coord_sorted = coord_base[order]
 
-        raise NotImplementedError(
-            "Horses3DReader.extract_inputs: case/subset resolution and "
-            "FlCc assembly from parsed .control parameters succeeded "
-            "(see self.data_dict['FlCc'] / ['case_order']), but mesh "
-            "geometry reading ('MESH/*.h5' / '.bmesh' / '.pmesh' / "
-            "'.hmesh') is not yet implemented. No HORSES3D mesh I/O "
-            "utility is available in FotR.characters.sam.SAM to reuse, "
-            "and a speculative binary parser was intentionally not "
-            "written here."
-        )
+            # Consistency: every case in the group must share the mesh.
+            for case_idx in idx_list[1:]:
+                case_name = self._case_name_from_idx(case_idx)
+                other_file = self.sim_metadata[case_name]['mesh']['file']
+                if other_file != mesh_file:
+                    raise ValueError(
+                        f"Mesh mismatch inside group '{key}': "
+                        f"'{mesh_file}' vs '{other_file}'. Groups are "
+                        f"one-per-mesh by construction; this should not "
+                        f"happen — check partition logic."
+                    )
+
+            ncases = len(idx_list)
+            flcc = np.zeros((ncases, len(design_vars)), dtype=np.float64)
+            case_order = []
+            for cont, case_idx in enumerate(idx_list):
+                case_name = self._case_name_from_idx(case_idx)
+                dv_row = self.sim_metadata[case_name].get('design_vars', {})
+                try:
+                    flcc[cont] = [float(dv_row[dv]) for dv in design_vars]
+                except KeyError as exc:
+                    raise KeyError(
+                        f"Case '{case_name}' is missing design variable "
+                        f"{exc} (design_vars={design_vars})."
+                    ) from exc
+                case_order.append(case_name)
+                if verbose:
+                    print(
+                        f"[Horses3DReader] extract_inputs — case "
+                        f"'{case_name}' (idx={case_idx}), "
+                        f"p={p_used[case_idx]}: mesh={mesh_file}"
+                    )
+
+            idx_sort = np.tile(order[None, None, :], (1, ncases, 1)).astype(
+                np.int32
+            )
+            n_cells = int(mesh['attrs'].get('nElems', 0)) or None
+
+            self.data_dict[key] = {
+                'Coord':          coord_sorted,
+                'NodeCoord':      coord_sorted.copy(),
+                'FlCc':           flcc,
+                'Conec':          np.asarray(mesh.get('ElemInfo')) if mesh.get('ElemInfo') is not None else None,
+                'idx_sort':       idx_sort,
+                'idx_sort_nodes': idx_sort.copy(),
+                'eltype':         np.asarray(mesh.get('ElemCounter')) if mesh.get('ElemCounter') is not None else None,
+                'cellOrder':      np.arange(
+                    n_cells if n_cells else 0, dtype=np.float64
+                ) if n_cells else np.arange(0, dtype=np.float64),
+                'pointOrder':     np.arange(n_points, dtype=np.float64),
+                'mesh_file':      mesh_file,
+                'g':              g,
+                'p_used':         [p_used[i] for i in idx_list],
+                'case_order':     case_order,
+                'case_idx_map':   list(idx_list),
+                'design_vars':    list(design_vars),
+                'mesh_attrs':     dict(mesh.get('attrs', {})),
+            }
+
+        # Backward-compatible top-level view (first group) for callers
+        # that expect data_dict['FlCc'] / ['case_order'].
+        if partitions:
+            first_key = self._group_key(*next(iter(partitions)))
+            self.data_dict['FlCc'] = self.data_dict[first_key]['FlCc']
+            self.data_dict['case_order'] = self.data_dict[first_key][
+                'case_order'
+            ]
 
     def extract_outputs(
         self,
@@ -909,78 +1023,155 @@ class Horses3DReader(BaseReader):
         verbose: bool = False,
     ) -> None:
         """
-        Extract field variables from the ``.hsol`` solution file(s) of
-        the selected physical cases, for a given polynomial order ``p``.
+        Extract ``.hsol`` field descriptors (header + lazy, no bulk read).
 
-        Responsibility split
-        ---------------------
-        Mirrors :meth:`extract_inputs`. Requires ``extract_inputs`` to
-        have been called first (mirroring ``CODAReader.extract_outputs``
-        depending on ``idx_sort`` from ``extract_inputs``).
+        Requires :meth:`extract_inputs` first. Only the single
+        ``RESULTS/*.hsol`` file declared in each case's control for the
+        requested ``p`` is considered — timestamped LES snapshots
+        (``*_<iter>.hsol``) are always ignored.
+
+        A single integer ``p`` is enforced across every selected case
+        (no mixed-``p`` stacking: DOF counts differ between polynomial
+        orders). Pass ``p='max'`` only when all selected cases share
+        the same maximum ``p``; otherwise an explicit ``p`` is required.
+
+        Populates ``data_dict[key]['Vars'][str(p)][var]`` with
+        :class:`SAM.Backpack.HorsesLazyField` placeholders
+        (``.shape == (n_points,)``, ``.load()`` raises until a validated
+        Fortran-binary field parser lands in SAM) plus
+        ``data_dict[key]['hsol_meta'][case]`` with header metadata
+        (path, size, mtime, expected vars from ``flow_equations``).
 
         Parameters
         ----------
         p : int or 'max'
-            Polynomial order whose solution file should be read for each
-            case. Default ``'max'``.
+            Polynomial order to extract. ``'max'`` resolves per case but
+            must coincide across the selection.
         subset : str or None
-            Named subset of ``case_idx``. See :meth:`extract_inputs`.
+            Named subset; mutually exclusive with non-default
+            ``cases_idx``.
         cases_idx : list, tuple, int or 'all'
-            Physical ``case_idx`` selection. Default ``'all'``.
+            Physical ``case_idx`` selection; must match the
+            :meth:`extract_inputs` selection scope (subset of it).
         var_name_excluded : list, tuple or None
-            Variable names to skip, once ``.hsol`` reading exists.
+            Variable names to skip.
         verbose : bool
             Print per-case progress.
 
         Raises
         ------
         RuntimeError
-            If ``extract_inputs`` has not been called first.
-        NotImplementedError
-            ``.hsol`` binary field reading is not implemented, for the
-            reason documented in :meth:`extract_inputs`. The intended
-            output layout is documented here so a future implementation
-            slots directly into existing FRODO conventions: a
-            ``(n_points, n_cases)`` (or ``(n_dim, n_points, n_cases)`` for
-            vector fields) array per variable, stored under
-            ``self.data_dict[case_name]['Vars'][str(p)][var_name]``.
+            If :meth:`extract_inputs` was not called first.
+        KeyError
+            If ``p`` is missing for a case or the declared ``.hsol``
+            file is absent on disk.
+        ValueError
+            If the resolved ``p`` differs between selected cases.
 
         Examples
         --------
-        Once ``.hsol`` reading is available::
+        ::
 
-            reader.extract_inputs(p=2, subset='training')
-            reader.extract_outputs(p=2, subset='training')
-            print(reader.data_dict['case_001']['Vars']['2'].keys())
+            reader.extract_inputs(p=2)
+            reader.extract_outputs(p=2)
+            print(reader.data_dict['CADGroup_g2_...']['Vars']['2'].keys())
+            reader.data_dict['CADGroup_g2_...']['Vars']['2']['rho'].load()
         """
         if 'inputs' not in self._active_cases_idx:
             raise RuntimeError(
                 "No case selection found. Run extract_inputs() first."
             )
         resolved_idx = self._resolve_cases_idx(subset, cases_idx)
+        allowed = set(self._active_cases_idx['inputs'])
+        if not set(resolved_idx) <= allowed:
+            raise ValueError(
+                "extract_outputs selection must be within the "
+                "extract_inputs selection "
+                f"(inputs={sorted(allowed)}, outputs={resolved_idx})."
+            )
 
+        # ── Resolve one common p ─────────────────────────────────────────
+        per_case_p = {}
         for case_idx in resolved_idx:
             case_name = self._case_name_from_idx(case_idx)
-            sols      = self.sim_metadata[case_name]['solutions']
-            p_use     = max(sols) if p == 'max' else int(p)
+            sols = self.sim_metadata[case_name]['solutions']
+            p_use = max(sols) if p == 'max' else int(p)
             if p_use not in sols:
                 raise KeyError(
                     f"p={p_use} not available for case '{case_name}'. "
                     f"Available: {sorted(sols)}."
                 )
-            if verbose:
-                print(
-                    f"[Horses3DReader] extract_outputs — case '{case_name}' "
-                    f"(idx={case_idx}), p={p_use}: solution="
-                    f"{sols[p_use]['solution_file']}"
-                )
+            per_case_p[case_idx] = p_use
+        if len(set(per_case_p.values())) != 1:
+            raise ValueError(
+                "Mixed p across selected cases: "
+                f"{ {self._case_name_from_idx(k): v for k, v in per_case_p.items()} }. "
+                "Pass an explicit single p present in every case."
+            )
+        p_common = next(iter(per_case_p.values()))
 
-        raise NotImplementedError(
-            "Horses3DReader.extract_outputs: '.hsol' binary field reading "
-            "is not yet implemented — no HORSES3D solution-file I/O "
-            "utility is available in FotR.characters.sam.SAM to reuse. "
-            "See the docstring for the intended data_dict layout."
-        )
+        excluded = set(var_name_excluded or [])
+
+        # ── Partition like inputs (mesh groups already built) ────────────
+        for key, group in list(self.data_dict.items()):
+            if not key.startswith('CADGroup_') or 'case_idx_map' not in group:
+                continue
+            local = [c for c in group['case_idx_map'] if c in resolved_idx]
+            if not local:
+                continue
+            n_points = group['Coord'].shape[0]
+            group.setdefault('Vars', {}).setdefault(str(p_common), {})
+            group.setdefault('hsol_meta', {})
+
+            for case_idx in local:
+                case_name = self._case_name_from_idx(case_idx)
+                sol = self.sim_metadata[case_name]['solutions'][p_common]
+                sol_file = sol.get('solution_file')
+                if sol_file is None:
+                    raise KeyError(
+                        f"Case '{case_name}' p={p_common} declares no "
+                        f"solution file."
+                    )
+                abs_path = os.path.join(
+                    self.sim_metadata[case_name]['path'], sol_file
+                )
+                if not os.path.isfile(abs_path):
+                    raise KeyError(
+                        f"Case '{case_name}' p={p_common}: declared "
+                        f"solution file '{sol_file}' not found on disk."
+                    )
+                header = SAM.Backpack.read_horses_hsol_header(abs_path)
+                expected = SAM.Backpack.horses_expected_vars(
+                    sol.get('params', {}).get('flow_equations')
+                )
+                if not expected:
+                    expected = ['rho', 'rhou', 'rhov', 'rhow', 'rhoE']
+                header['expected_vars'] = expected
+                group['hsol_meta'][case_name] = header
+
+                for var in expected:
+                    if var in excluded:
+                        continue
+                    if var not in group['Vars'][str(p_common)]:
+                        group['Vars'][str(p_common)][var] = []
+                    group['Vars'][str(p_common)][var].append(
+                        SAM.Backpack.HorsesLazyField(
+                            name=var, path=abs_path, p=p_common,
+                            case=case_name, n_points=n_points,
+                            flow_equations=sol.get('params', {}).get(
+                                'flow_equations'
+                            ),
+                        )
+                    )
+                if verbose:
+                    print(
+                        f"[Horses3DReader] extract_outputs — case "
+                        f"'{case_name}' (idx={case_idx}), p={p_common}: "
+                        f"solution={sol_file} "
+                        f"({header['size_bytes']} bytes, header+lazy)"
+                    )
+
+        self._active_cases_idx['outputs'] = list(resolved_idx)
 
     # =========================================================================
     # Subsets

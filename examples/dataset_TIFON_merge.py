@@ -168,6 +168,6 @@ df_post.to_csv(
 
 for stage in [0, 1]:
     old_name = f'/home/m.jaraiz/Documentos/DATASETS/data_TIFON/{name}/outputs/CADGroup_3_completo_stage_{stage}.h5'
-    new_name = f'/home/m.jaraiz/Documentos/DATASETS/data_TIFON/{name}/outputs/CADGroup_3_PRUEBA0_stage_{stage}.h5'
+    new_name = f'/home/m.jaraiz/Documentos/DATASETS/data_TIFON/{name}/outputs/CADGroup_3_stage_{stage}.h5'
 
     os.rename(old_name, new_name)
