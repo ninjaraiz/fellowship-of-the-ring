@@ -1268,6 +1268,7 @@ class SAM():
                     print(f"WARNING: No files found in '{path}'.")
 
                 return files
+        
         class pattern_pocket_ant:
             @dataclass(slots=True)
             class FilenamePattern:

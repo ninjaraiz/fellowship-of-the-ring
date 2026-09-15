@@ -30,7 +30,12 @@ import pytest
 #    (transitively imported by Horses3DReader) does not require them to be
 #    actually installed. Only stub what is not already importable. ────────
 def _stub_module(name: str, **attrs):
-    if importlib.util.find_spec(name) is not None:
+    try:
+        if importlib.util.find_spec(name) is not None:
+            return
+    except ValueError:
+        # Otro modulo de tests ya inserto un stub sin __spec__ en
+        # sys.modules durante la recoleccion conjunta; reutilizarlo.
         return
     mod = types.ModuleType(name)
     for k, v in attrs.items():
@@ -53,6 +58,21 @@ _stub_module("tqdm.auto", tqdm=lambda x, **k: x)
 _stub_module("plotly")
 _stub_module("plotly.graph_objects")
 _stub_module("networkx")
+
+# ── Joint-collection robustness: sibling test modules install a minimal
+#    FotR.characters.sam stub (find_files -> []) for isolation. This suite
+#    exercises the real SAM mesh/hsol helpers, so evict the stand-in when
+#    it is not the real implementation before importing the reader. ──────
+_incumbent = sys.modules.get("FotR.characters.sam")
+_incumbent_bp = getattr(getattr(_incumbent, "SAM", None), "Backpack", None)
+if _incumbent is not None and not hasattr(
+    _incumbent_bp, "read_horses_mesh_h5"
+):
+    for _dotted in (
+        "FotR.characters.readers.horses3d",
+        "FotR.characters.sam",
+    ):
+        sys.modules.pop(_dotted, None)
 
 from FotR.characters.readers.horses3d import Horses3DReader  # noqa: E402
 

@@ -944,14 +944,32 @@ class NUMPYReader(BaseReader):
             self.data_dict[key]['Vars'].setdefault(str(stage), {})
 
             copied = []
+            n_cases_total = np.asarray(gd["FlCc"]).shape[0]
+            n_points = None
+            if "Coord" in self.data_dict.get(key, {}):
+                n_points = np.asarray(
+                    self.data_dict[key]["Coord"]
+                ).shape[0]
             for var_name, arr in stage_vars.items():
                 if var_name_excluded and var_name in var_name_excluded:
                     continue
 
                 arr = np.asarray(arr)
                 if arr.ndim == 2:
+                    if arr.shape == (n_points, n_cases_total):
+                        out = arr[:, local_cases_idx]
+                    elif arr.shape == (n_cases_total, n_points):
+                        # Layout written by CODASets.save_to_npy():
+                        # scalar stored transposed as (n_cases, n_points).
+                        out = arr[local_cases_idx, :].T
+                    else:
+                        raise ValueError(
+                            f"Variable '{var_name}' in group '{key}' has "
+                            f"shape {arr.shape}, incompatible with "
+                            f"(n_points, n_cases)={(n_points, n_cases_total)}."
+                        )
                     self.data_dict[key]['Vars'][str(stage)][var_name] = (
-                        arr[:, local_cases_idx].astype(np.float64)
+                        out.astype(np.float64)
                     )
                 elif arr.ndim == 3:
                     # (n_dim, n_points, n_cases) vector field
