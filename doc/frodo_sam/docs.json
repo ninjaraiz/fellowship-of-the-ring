@@ -1,0 +1,4176 @@
+{
+  "modules": [
+    {
+      "file": "FotR/characters/frodo.py",
+      "classes": [
+        {
+          "id": "FRODO",
+          "file": "FotR/characters/frodo.py",
+          "doc": {
+            "summary": "Framework for Reusable Organized Data Output",
+            "sections": {
+              "Parameters": false,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "FRODO.some_light",
+              "class": "FRODO",
+              "name": "some_light",
+              "signature": "some_light(name)",
+              "kind": "classmethod",
+              "doc": {
+                "summary": "Shortcut to Eärendil's Light help system.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO.__init__",
+              "class": "FRODO",
+              "name": "__init__",
+              "signature": "__init__(root_dir, format, initial_parse, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "FRODO._set_subclasses",
+              "class": "FRODO",
+              "name": "_set_subclasses",
+              "signature": "_set_subclasses()",
+              "kind": "method",
+              "doc": {
+                "summary": "Instantiate reader, sets and residuals from the format registries.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO._parse",
+              "class": "FRODO",
+              "name": "_parse",
+              "signature": "_parse()",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "FRODO._sync_reader",
+              "class": "FRODO",
+              "name": "_sync_reader",
+              "signature": "_sync_reader()",
+              "kind": "method",
+              "doc": {
+                "summary": "Sync attributes computed by the reader back into FRODO.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO.extract_inputs",
+              "class": "FRODO",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(*args, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "FRODO.extract_outputs",
+              "class": "FRODO",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(*args, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "FRODO.summary_data",
+              "class": "FRODO",
+              "name": "summary_data",
+              "signature": "summary_data()",
+              "kind": "method",
+              "doc": {
+                "summary": "Print a rich-tree summary of data_dict.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO.copy",
+              "class": "FRODO",
+              "name": "copy",
+              "signature": "copy()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a deep copy of this FRODO instance.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO._case_identity_key",
+              "class": "FRODO",
+              "name": "_case_identity_key",
+              "signature": "_case_identity_key(row, decimals)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build a hashable identity key for a single case from its",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO._check_no_duplicate_cases",
+              "class": "FRODO",
+              "name": "_check_no_duplicate_cases",
+              "signature": "_check_no_duplicate_cases(flcc_by_source, decimals, source_labels)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Verify that no two sources contain the same physical case.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO._match_rows_by_identity",
+              "class": "FRODO",
+              "name": "_match_rows_by_identity",
+              "signature": "_match_rows_by_identity(flcc, design_vars, reference_df, decimals, context)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Reorder (and filter) a case-indexed DataFrame so that its rows",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "FRODO.merge_datasets",
+              "class": "FRODO",
+              "name": "merge_datasets",
+              "signature": "merge_datasets(root_dir, name, sources, new_group_id, method, k, mesh_ref, cache, get_df_metrics_attr, dedup_decimals)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Merge multiple FRODO datasets into a single unified one.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/sam.py",
+      "classes": [
+        {
+          "id": "SAM",
+          "file": "FotR/characters/sam.py",
+          "doc": {
+            "summary": "SAM – Simulations & Analytics Module",
+            "sections": {
+              "Parameters": false,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "SAM.some_light",
+              "class": "SAM",
+              "name": "some_light",
+              "signature": "some_light(name)",
+              "kind": "classmethod",
+              "doc": {
+                "summary": "Shortcut to Eärendil's Light help system.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Gardener.create_final_tensor",
+              "class": "SAM.Gardener",
+              "name": "create_final_tensor",
+              "signature": "create_final_tensor(tensor_ptos, tensor_flcc, tensors_out, tensors_aux, sol, idx_flcc, ref, verbose)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Assemble mesh coordinates, flight conditions, auxiliary arrays and",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Gardener.create_final_tensor_scored",
+              "class": "SAM.Gardener",
+              "name": "create_final_tensor_scored",
+              "signature": "create_final_tensor_scored(tensor_ptos, tensor_flcc, tensor_out, score_law, sol, score_csv_path, n, ref, verbose)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Assemble a joint tensor and attach an importance score to each",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Gardener.concatenate_sets",
+              "class": "SAM.Gardener",
+              "name": "concatenate_sets",
+              "signature": "concatenate_sets(sets, ref, score)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Concatenate multiple joint-tensor result dicts along the row axis.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Gardener.reduce_dataset_per_frequency",
+              "class": "SAM.Gardener",
+              "name": "reduce_dataset_per_frequency",
+              "signature": "reduce_dataset_per_frequency(dataset, lim, reduce_factor, ref, plot_path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Remove a fraction of rows that fall into over-represented value",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.HDF5reader.__init__",
+              "class": "SAM.HDF5reader",
+              "name": "__init__",
+              "signature": "__init__(file_path, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "SAM.HDF5reader._explore",
+              "class": "SAM.HDF5reader",
+              "name": "_explore",
+              "signature": "_explore(verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "SAM.HDF5reader.print_keys",
+              "class": "SAM.HDF5reader",
+              "name": "print_keys",
+              "signature": "print_keys()",
+              "kind": "method",
+              "doc": {
+                "summary": "Print all dataset paths in the file.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.HDF5reader.load_to_numpy",
+              "class": "SAM.HDF5reader",
+              "name": "load_to_numpy",
+              "signature": "load_to_numpy(key, show_data)",
+              "kind": "method",
+              "doc": {
+                "summary": "Load a dataset as a float32 numpy array.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.HDF5reader.load_to_tensor",
+              "class": "SAM.HDF5reader",
+              "name": "load_to_tensor",
+              "signature": "load_to_tensor(key, show_data)",
+              "kind": "method",
+              "doc": {
+                "summary": "Load a dataset as a float32 torch tensor.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.FilenamePattern.from_files",
+              "class": "SAM.Backpack.pattern_pocket.FilenamePattern",
+              "name": "from_files",
+              "signature": "from_files(files)",
+              "kind": "classmethod",
+              "doc": {
+                "summary": "Infer a FilenamePattern from a collection of filenames/paths.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.FilenamePattern.from_template",
+              "class": "SAM.Backpack.pattern_pocket.FilenamePattern",
+              "name": "from_template",
+              "signature": "from_template(template, numeric)",
+              "kind": "classmethod",
+              "doc": {
+                "summary": "Build a FilenamePattern directly from a template string.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.FilenamePattern.match",
+              "class": "SAM.Backpack.pattern_pocket.FilenamePattern",
+              "name": "match",
+              "signature": "match(name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return True if `name` fully matches this pattern.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.FilenamePattern.search",
+              "class": "SAM.Backpack.pattern_pocket.FilenamePattern",
+              "name": "search",
+              "signature": "search(name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a Match if the pattern is found anywhere in `name`.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.FilenamePattern.findall",
+              "class": "SAM.Backpack.pattern_pocket.FilenamePattern",
+              "name": "findall",
+              "signature": "findall(path, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Find files in `path` whose names match this pattern.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.FilenamePattern.format",
+              "class": "SAM.Backpack.pattern_pocket.FilenamePattern",
+              "name": "format",
+              "signature": "format(*values, **named_values)",
+              "kind": "method",
+              "doc": {
+                "summary": "Reconstruct a concrete filename/foldername from this pattern's",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.FilenamePattern.compiled",
+              "class": "SAM.Backpack.pattern_pocket.FilenamePattern",
+              "name": "compiled",
+              "signature": "compiled()",
+              "kind": "property",
+              "doc": {
+                "summary": "El re.Pattern compilado, equivalente al valor que devolvía",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket._tokenize_filename",
+              "class": "SAM.Backpack.pattern_pocket",
+              "name": "_tokenize_filename",
+              "signature": "_tokenize_filename(filename)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Split a filename into alternating alphabetic, numeric and separator",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket.find_files",
+              "class": "SAM.Backpack.pattern_pocket",
+              "name": "find_files",
+              "signature": "find_files(path, pattern, endswith, contains, not_contains, literal, ignore_case, sort, verbose)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Return files inside a directory whose filenames satisfy one or more",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket_ant.infer_filename_pattern",
+              "class": "SAM.Backpack.pattern_pocket_ant",
+              "name": "infer_filename_pattern",
+              "signature": "infer_filename_pattern(files)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Infer the common filename pattern from a collection of files.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket_ant._tokenize_filename",
+              "class": "SAM.Backpack.pattern_pocket_ant",
+              "name": "_tokenize_filename",
+              "signature": "_tokenize_filename(filename)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Split a filename into alternating alphabetic, numeric and separator",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket_ant.find_files",
+              "class": "SAM.Backpack.pattern_pocket_ant",
+              "name": "find_files",
+              "signature": "find_files(path, endswith, contains, not_contains, literal, ignore_case, sort, verbose)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Return files inside a directory whose filenames satisfy one or more",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.pattern_pocket_ant.folder_fmt_to_pattern",
+              "class": "SAM.Backpack.pattern_pocket_ant",
+              "name": "folder_fmt_to_pattern",
+              "signature": "folder_fmt_to_pattern(folder_fmt)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Convert a folder format string such as ``'aoa_{}_mach_{}'`` into",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.read_cfd_times",
+              "class": "SAM.Backpack",
+              "name": "read_cfd_times",
+              "signature": "read_cfd_times(case_path, verbose)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Extract wall-clock timing information from a CODA ``-out.txt``",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.same_columns",
+              "class": "SAM.Backpack",
+              "name": "same_columns",
+              "signature": "same_columns(array, atol, rtol)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Check whether all \"slices\" along the first axis of *array* are",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.get_unified_connectivity",
+              "class": "SAM.Backpack",
+              "name": "get_unified_connectivity",
+              "signature": "get_unified_connectivity(mesh)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build a padded connectivity array from a PyVista mesh that may",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.ensure_cell_data",
+              "class": "SAM.Backpack",
+              "name": "ensure_cell_data",
+              "signature": "ensure_cell_data(mesh)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Convert all point_data arrays to cell_data if the mesh only has",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.create_tensors_from_h5",
+              "class": "SAM.Backpack",
+              "name": "create_tensors_from_h5",
+              "signature": "create_tensors_from_h5(file_path, stage)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Load coordinates, sorting indices, flight conditions and variables",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.get_df_from_csv",
+              "class": "SAM.Backpack",
+              "name": "get_df_from_csv",
+              "signature": "get_df_from_csv(files_list)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Read one or more CODA-format CSV monitor files into a single",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.read_horses_mesh_h5",
+              "class": "SAM.Backpack",
+              "name": "read_horses_mesh_h5",
+              "signature": "read_horses_mesh_h5(path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Read a HORSES3D high-order mesh (Hopr/PyHOPE HDF5).",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.horses_expected_vars",
+              "class": "SAM.Backpack",
+              "name": "horses_expected_vars",
+              "signature": "horses_expected_vars(flow_equations)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Conservative variable names expected in a HORSES3D ``.hsol``.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.read_horses_hsol_header",
+              "class": "SAM.Backpack",
+              "name": "read_horses_hsol_header",
+              "signature": "read_horses_hsol_header(path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Lightweight header probe of a HORSES3D ``.hsol`` file.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.HorsesLazyField.__init__",
+              "class": "SAM.Backpack.HorsesLazyField",
+              "name": "__init__",
+              "signature": "__init__(name, path, p, case, n_points, flow_equations)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "SAM.Backpack.HorsesLazyField.shape",
+              "class": "SAM.Backpack.HorsesLazyField",
+              "name": "shape",
+              "signature": "shape()",
+              "kind": "property",
+              "doc": {
+                "summary": "Declared shape ``(n_points,)`` for one case.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack.HorsesLazyField.load",
+              "class": "SAM.Backpack.HorsesLazyField",
+              "name": "load",
+              "signature": "load()",
+              "kind": "method",
+              "doc": {
+                "summary": "Materialise the field (not yet implemented).",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Backpack._fornberg_weights",
+              "class": "SAM.Backpack",
+              "name": "_fornberg_weights",
+              "signature": "_fornberg_weights(x, x0, m)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Compute finite-difference weights using Fornberg's algorithm.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.sort_by_centroid",
+              "class": "SAM.Weapons",
+              "name": "sort_by_centroid",
+              "signature": "sort_by_centroid(points)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Sort an unordered point cloud by polar angle around its centroid,",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.sort_lexsort",
+              "class": "SAM.Weapons",
+              "name": "sort_lexsort",
+              "signature": "sort_lexsort(points)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Sort points lexicographically (last column is the primary key).",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.sort_closed_curve_by_kdtree",
+              "class": "SAM.Weapons",
+              "name": "sort_closed_curve_by_kdtree",
+              "signature": "sort_closed_curve_by_kdtree(points, k, start_index, alpha)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Order points sampled on a closed 1-D curve (2-D or 3-D) using a",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.sort_points_by_hull_projection",
+              "class": "SAM.Weapons",
+              "name": "sort_points_by_hull_projection",
+              "signature": "sort_points_by_hull_projection(points, alpha)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Order all points by projecting them onto the concave hull of the",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.surface_derivative",
+              "class": "SAM.Weapons",
+              "name": "surface_derivative",
+              "signature": "surface_derivative(X, f, order, min_ds, stencil_width, poly_order)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Compute first- or second-order derivatives of a scalar field",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.finite_diff_derivative",
+              "class": "SAM.Weapons",
+              "name": "finite_diff_derivative",
+              "signature": "finite_diff_derivative(X, f, order)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Compute the *n*-th order derivative of *f* with respect to each",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.finite_diff_derivative_Fornberg",
+              "class": "SAM.Weapons",
+              "name": "finite_diff_derivative_Fornberg",
+              "signature": "finite_diff_derivative_Fornberg(X, f, order, stencil_width)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Finite differences on arbitrarily spaced nodes using",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.build_element_neighbors",
+              "class": "SAM.Weapons",
+              "name": "build_element_neighbors",
+              "signature": "build_element_neighbors(connectivity)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build a face-neighbour table for a triangular mesh.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.compute_3dgrad_greengauss",
+              "class": "SAM.Weapons",
+              "name": "compute_3dgrad_greengauss",
+              "signature": "compute_3dgrad_greengauss(nodes, connectivity, neighbors, tensor_out, var_index, chunk_size, export_vtk, vtk_filename, device)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Compute the Green-Gauss gradient of a scalar field defined at",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons.GMM",
+              "class": "SAM.Weapons",
+              "name": "GMM",
+              "signature": "GMM(df_data, BIC_study, groupby, nclusters, features, save_pictures, folder_to_save, format_to_save, n_components_range, random_state, return_metrics_table, plot_global_analysis, verbose, **kwargs)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Apply Gaussian Mixture Model (GMM) clustering with optional",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons._interpolate_idw",
+              "class": "SAM.Weapons",
+              "name": "_interpolate_idw",
+              "signature": "_interpolate_idw(coord_src, var_src, coord_dst, k, eps)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Inverse-distance weighting interpolation (builds KDTree internally).",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons._interpolate_idw_tree",
+              "class": "SAM.Weapons",
+              "name": "_interpolate_idw_tree",
+              "signature": "_interpolate_idw_tree(tree, coord_src, var_src, coord_dst, k, eps)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "IDW interpolation using a pre-built cKDTree (avoids rebuilding).",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons._interpolate_griddata",
+              "class": "SAM.Weapons",
+              "name": "_interpolate_griddata",
+              "signature": "_interpolate_griddata(coord_src, var_src, coord_dst, method)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Scattered data interpolation via ``scipy.interpolate.griddata``.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons._build_pyvista_grid",
+              "class": "SAM.Weapons",
+              "name": "_build_pyvista_grid",
+              "signature": "_build_pyvista_grid(coord, conec)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build a PyVista tetrahedral UnstructuredGrid.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.Weapons._interpolate_pyvista",
+              "class": "SAM.Weapons",
+              "name": "_interpolate_pyvista",
+              "signature": "_interpolate_pyvista(coord_src, conec_src, var_src_stack, coord_dst, conec_dst)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Mesh-to-mesh interpolation using PyVista's ``sample`` probe.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DifferentialOperators._polynomial_basis",
+              "class": "SAM.DifferentialOperators",
+              "name": "_polynomial_basis",
+              "signature": "_polynomial_basis(DX, poly_order)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Parameters",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DifferentialOperators._build_gradient_operators",
+              "class": "SAM.DifferentialOperators",
+              "name": "_build_gradient_operators",
+              "signature": "_build_gradient_operators(X, radius, stencil_width, poly_order)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Precompute MLS differentiation operators.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DifferentialOperators.gradient",
+              "class": "SAM.DifferentialOperators",
+              "name": "gradient",
+              "signature": "gradient(X, f, radius, stencil_width, poly_order)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Gradient of scalar field.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DifferentialOperators.jacobian",
+              "class": "SAM.DifferentialOperators",
+              "name": "jacobian",
+              "signature": "jacobian(X, U, radius, stencil_width, poly_order)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Parameters",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DifferentialOperators.divergence",
+              "class": "SAM.DifferentialOperators",
+              "name": "divergence",
+              "signature": "divergence(X, U, radius, stencil_width, poly_order)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Parameters",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DictVisualizer._simplify",
+              "class": "SAM.DictVisualizer",
+              "name": "_simplify",
+              "signature": "_simplify(obj)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "SAM.DictVisualizer.pretty_print",
+              "class": "SAM.DictVisualizer",
+              "name": "pretty_print",
+              "signature": "pretty_print(d, depth, output_file)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Pretty-print a (possibly nested) dictionary, replacing large",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DictVisualizer.rich_tree",
+              "class": "SAM.DictVisualizer",
+              "name": "rich_tree",
+              "signature": "rich_tree(d)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Print a nested dictionary as a Rich tree in the terminal.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "SAM.DictVisualizer.plot_graph",
+              "class": "SAM.DictVisualizer",
+              "name": "plot_graph",
+              "signature": "plot_graph(d)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Render a nested dictionary as a directed graph with networkx.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/readers/base.py",
+      "classes": [
+        {
+          "id": "BaseReader",
+          "file": "FotR/characters/readers/base.py",
+          "doc": {
+            "summary": "Abstract base class for all FRODO format readers.",
+            "sections": {
+              "Parameters": false,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "BaseReader.__init__",
+              "class": "BaseReader",
+              "name": "__init__",
+              "signature": "__init__(root_dir, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Parameters",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseReader.parse_simulation_dirs",
+              "class": "BaseReader",
+              "name": "parse_simulation_dirs",
+              "signature": "parse_simulation_dirs()",
+              "kind": "method",
+              "doc": {
+                "summary": "Walk ``self.root_dir``, discover simulations and populate",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseReader.extract_inputs",
+              "class": "BaseReader",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(*args, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract mesh geometry and flight-condition data into",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseReader.extract_outputs",
+              "class": "BaseReader",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(*args, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract field variables into ``self.data_dict``.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseReader._normalise_cases_idx",
+              "class": "BaseReader",
+              "name": "_normalise_cases_idx",
+              "signature": "_normalise_cases_idx(cases_idx, df_cases)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Normalise a ``cases_idx`` argument to a sorted-by-input list of",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseReader.summary",
+              "class": "BaseReader",
+              "name": "summary",
+              "signature": "summary()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a short human-readable summary of the parsed dataset.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/readers/coda.py",
+      "classes": [
+        {
+          "id": "CODAReader",
+          "file": "FotR/characters/readers/coda.py",
+          "doc": {
+            "summary": "Reader for CODA CFD solver output (.vtu surface / volume files).",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODAReader.__init__",
+              "class": "CODAReader",
+              "name": "__init__",
+              "signature": "__init__(root_dir, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "CODAReader._infer_metadata_from_folders",
+              "class": "CODAReader",
+              "name": "_infer_metadata_from_folders",
+              "signature": "_infer_metadata_from_folders()",
+              "kind": "method",
+              "doc": {
+                "summary": "Infer metadata from output folder names when JSON is missing.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.define_subset",
+              "class": "CODAReader",
+              "name": "define_subset",
+              "signature": "define_subset(name, cases_idx, overwrite)",
+              "kind": "method",
+              "doc": {
+                "summary": "Define (or redefine) a named subset of cases from",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.get_subset",
+              "class": "CODAReader",
+              "name": "get_subset",
+              "signature": "get_subset(name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the list of case positions belonging to a named subset.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.list_subsets",
+              "class": "CODAReader",
+              "name": "list_subsets",
+              "signature": "list_subsets()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return every currently defined subset.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.remove_subset",
+              "class": "CODAReader",
+              "name": "remove_subset",
+              "signature": "remove_subset(name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Delete a previously defined subset.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader._sync_subsets_column",
+              "class": "CODAReader",
+              "name": "_sync_subsets_column",
+              "signature": "_sync_subsets_column()",
+              "kind": "method",
+              "doc": {
+                "summary": "Refresh the read-only ``'subsets'`` mirror column on",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader._resolve_cases_idx",
+              "class": "CODAReader",
+              "name": "_resolve_cases_idx",
+              "signature": "_resolve_cases_idx(cases_idx, subset)",
+              "kind": "method",
+              "doc": {
+                "summary": "Central case-selection resolver shared by every CODA method that",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.parse_simulation_dirs",
+              "class": "CODAReader",
+              "name": "parse_simulation_dirs",
+              "signature": "parse_simulation_dirs()",
+              "kind": "method",
+              "doc": {
+                "summary": "Walk ``outputs/`` and build ``sim_metadata`` and ``df_state``.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.extract_inputs",
+              "class": "CODAReader",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(id_groups, vtu_type, method_to_sort, cases_idx, subset, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract input mesh and metadata for one or multiple CADGroup IDs.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.extract_outputs",
+              "class": "CODAReader",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(stage, id_groups, vtu_type, cases_idx, subset, var_name_excluded, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract cell-based output variables for one or multiple CADGroup IDs.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.load_vtu_from_stage",
+              "class": "CODAReader",
+              "name": "load_vtu_from_stage",
+              "signature": "load_vtu_from_stage(case_name, stage, vtu_type, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Load a .vtu file for a given simulation and stage.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.print_available_cadgroup_ids",
+              "class": "CODAReader",
+              "name": "print_available_cadgroup_ids",
+              "signature": "print_available_cadgroup_ids(stage, vtu_type)",
+              "kind": "method",
+              "doc": {
+                "summary": "Print available CADGroupID and cell_data key combinations across",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.case_per_idx",
+              "class": "CODAReader",
+              "name": "case_per_idx",
+              "signature": "case_per_idx(idx)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the sim_metadata folder name for a df_state row index.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.plot_state",
+              "class": "CODAReader",
+              "name": "plot_state",
+              "signature": "plot_state(figsize)",
+              "kind": "method",
+              "doc": {
+                "summary": "Plot the design-variable space coloured by simulation completion state.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader.plot_integrals_from_case",
+              "class": "CODAReader",
+              "name": "plot_integrals_from_case",
+              "signature": "plot_integrals_from_case(case_name, case_idx, stage, save_dir, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Plot wall boundary integral variables for a single simulation.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAReader._parse_group_id",
+              "class": "CODAReader",
+              "name": "_parse_group_id",
+              "signature": "_parse_group_id(group_id)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Return (ids_to_combine, key_suffix) from a group_id.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/readers/horses3d.py",
+      "classes": [
+        {
+          "id": "Horses3DReader",
+          "file": "FotR/characters/readers/horses3d.py",
+          "doc": {
+            "summary": "Reader for HORSES3D CFD solver output.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": true,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "Horses3DReader.__init__",
+              "class": "Horses3DReader",
+              "name": "__init__",
+              "signature": "__init__(root_dir, strict, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "Horses3DReader._load_optional_cases_metadata",
+              "class": "Horses3DReader",
+              "name": "_load_optional_cases_metadata",
+              "signature": "_load_optional_cases_metadata(root_dir)",
+              "kind": "method",
+              "doc": {
+                "summary": "Load ``metadata/cases_metadata.json`` when present, as the",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._infer_metadata_from_folders",
+              "class": "Horses3DReader",
+              "name": "_infer_metadata_from_folders",
+              "signature": "_infer_metadata_from_folders()",
+              "kind": "method",
+              "doc": {
+                "summary": "Infer ``design_vars`` and ``df_cases`` directly from the",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader.parse_simulation_dirs",
+              "class": "Horses3DReader",
+              "name": "parse_simulation_dirs",
+              "signature": "parse_simulation_dirs()",
+              "kind": "method",
+              "doc": {
+                "summary": "Walk ``outputs/``, treating every subdirectory as one physical",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._group_key",
+              "class": "Horses3DReader",
+              "name": "_group_key",
+              "signature": "_group_key(mesh_file, g)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build a CODA-like group key for one (mesh file, g) pair.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader.extract_inputs",
+              "class": "Horses3DReader",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(p, subset, cases_idx, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract mesh geometry and user design variables, grouped by mesh.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader.extract_outputs",
+              "class": "Horses3DReader",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(p, subset, cases_idx, var_name_excluded, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract ``.hsol`` field descriptors (header + lazy, no bulk read).",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader.define_subset",
+              "class": "Horses3DReader",
+              "name": "define_subset",
+              "signature": "define_subset(name, case_idx)",
+              "kind": "method",
+              "doc": {
+                "summary": "Register a named subset of physical cases.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._resolve_cases_idx",
+              "class": "Horses3DReader",
+              "name": "_resolve_cases_idx",
+              "signature": "_resolve_cases_idx(subset, cases_idx)",
+              "kind": "method",
+              "doc": {
+                "summary": "Resolve a ``(subset, cases_idx)`` pair to a concrete, sorted list",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._case_name_from_idx",
+              "class": "Horses3DReader",
+              "name": "_case_name_from_idx",
+              "signature": "_case_name_from_idx(case_idx)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the case folder name for a given ``case_idx``.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._infer_param_names",
+              "class": "Horses3DReader",
+              "name": "_infer_param_names",
+              "signature": "_infer_param_names()",
+              "kind": "method",
+              "doc": {
+                "summary": "Union of every flight/solver parameter key seen across every",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._build_state_row",
+              "class": "Horses3DReader",
+              "name": "_build_state_row",
+              "signature": "_build_state_row(case_name, case_idx, mesh_file, g, solutions, design_vars_row)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build a single ``df_state`` row for a physical case.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._discover_related_result_files",
+              "class": "Horses3DReader",
+              "name": "_discover_related_result_files",
+              "signature": "_discover_related_result_files(case_path, solution_file)",
+              "kind": "method",
+              "doc": {
+                "summary": "Catalogue every file inside the solution's result directory that",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._parse_surface_monitor_header",
+              "class": "Horses3DReader",
+              "name": "_parse_surface_monitor_header",
+              "signature": "_parse_surface_monitor_header(path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Parse the metadata header of a HORSES3D ``*.surface`` monitor",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._parse_stopwatch_file",
+              "class": "Horses3DReader",
+              "name": "_parse_stopwatch_file",
+              "signature": "_parse_stopwatch_file(path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Parse a HORSES3D ``*.Stopwatch.info`` timing-breakdown file.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._parse_control_file",
+              "class": "Horses3DReader",
+              "name": "_parse_control_file",
+              "signature": "_parse_control_file(path)",
+              "kind": "method",
+              "doc": {
+                "summary": "Parse a HORSES3D ``.control`` file into a flat dict of",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._infer_geometric_g",
+              "class": "Horses3DReader",
+              "name": "_infer_geometric_g",
+              "signature": "_infer_geometric_g(mesh_filename)",
+              "kind": "classmethod",
+              "doc": {
+                "summary": "Opportunistically infer the mesh geometric order ``g`` (NGeo)",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DReader._normalise_cases_idx",
+              "class": "Horses3DReader",
+              "name": "_normalise_cases_idx",
+              "signature": "_normalise_cases_idx(cases_idx, n_cases)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Normalise a ``cases_idx`` argument to a sorted list of valid",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/readers/numpy.py",
+      "classes": [
+        {
+          "id": "NUMPYReader",
+          "file": "FotR/characters/readers/numpy.py",
+          "doc": {
+            "summary": "Reader for the ``NUMPY`` format: pre-assembled CADGroup dictionaries",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": true,
+              "Examples": true,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "NUMPYReader.__init__",
+              "class": "NUMPYReader",
+              "name": "__init__",
+              "signature": "__init__(root_dir, file, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "NUMPYReader.active_cases_idx",
+              "class": "NUMPYReader",
+              "name": "active_cases_idx",
+              "signature": "active_cases_idx()",
+              "kind": "property",
+              "doc": {
+                "summary": "Public alias of ``self._active_cases_idx`` (kept private for",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader.parse_simulation_dirs",
+              "class": "NUMPYReader",
+              "name": "parse_simulation_dirs",
+              "signature": "parse_simulation_dirs()",
+              "kind": "method",
+              "doc": {
+                "summary": "Discover every CADGroup contained in the loaded ``.npy`` files and",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader.define_subset",
+              "class": "NUMPYReader",
+              "name": "define_subset",
+              "signature": "define_subset(id_group, name, cases_idx, overwrite)",
+              "kind": "method",
+              "doc": {
+                "summary": "Define (or redefine) a named subset of cases for a single CADGroup.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader.get_subset",
+              "class": "NUMPYReader",
+              "name": "get_subset",
+              "signature": "get_subset(id_group, name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the list of case positions belonging to a named subset of a",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader.list_subsets",
+              "class": "NUMPYReader",
+              "name": "list_subsets",
+              "signature": "list_subsets(id_group)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return currently defined subsets.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader.remove_subset",
+              "class": "NUMPYReader",
+              "name": "remove_subset",
+              "signature": "remove_subset(id_group, name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Delete a previously defined subset of a given CADGroup.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader._resolve_cases_idx",
+              "class": "NUMPYReader",
+              "name": "_resolve_cases_idx",
+              "signature": "_resolve_cases_idx(id_group, cases_idx, subset)",
+              "kind": "method",
+              "doc": {
+                "summary": "Central case-selection resolver for a single CADGroup, shared by",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader.extract_inputs",
+              "class": "NUMPYReader",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(id_groups, cases_idx, subset, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Copy geometry and flight-condition arrays for one or more CADGroups",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader.extract_outputs",
+              "class": "NUMPYReader",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(stage, id_groups, var_name_excluded, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Copy field variables for the given ``stage``, and any auxiliary",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader._resolve_group",
+              "class": "NUMPYReader",
+              "name": "_resolve_group",
+              "signature": "_resolve_group(group_id)",
+              "kind": "method",
+              "doc": {
+                "summary": "Resolve a user-supplied group identifier into its canonical",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYReader._normalise_cases_idx",
+              "class": "NUMPYReader",
+              "name": "_normalise_cases_idx",
+              "signature": "_normalise_cases_idx(cases_idx, n_cases)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Normalise a ``cases_idx`` argument to a sorted list of valid",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/readers/numpy_file.py",
+      "classes": [
+        {
+          "id": "NUMPYFILEReader",
+          "file": "FotR/characters/readers/numpy_file.py",
+          "doc": {
+            "summary": "Reader for pre-processed numpy dictionary datasets (``.npy`` files).",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": true,
+              "Examples": true,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "NUMPYFILEReader.__init__",
+              "class": "NUMPYFILEReader",
+              "name": "__init__",
+              "signature": "__init__(root_dir, file, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "NUMPYFILEReader.parse_simulation_dirs",
+              "class": "NUMPYFILEReader",
+              "name": "parse_simulation_dirs",
+              "signature": "parse_simulation_dirs()",
+              "kind": "method",
+              "doc": {
+                "summary": "Inspect the loaded ``.npy`` dictionaries and record the shape of",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYFILEReader.extract_inputs",
+              "class": "NUMPYFILEReader",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(keys_inputs, keys_aux, method_to_sort, common, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract input arrays and auxiliary arrays from the ``.npy``",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYFILEReader.extract_outputs",
+              "class": "NUMPYFILEReader",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(keys_outputs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract output field arrays from the ``.npy`` dictionaries into",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYFILEReader._split_key_path",
+              "class": "NUMPYFILEReader",
+              "name": "_split_key_path",
+              "signature": "_split_key_path(key_path)",
+              "kind": "method",
+              "doc": {
+                "summary": "Split a ``'<filename>/<key>'`` string into its two components.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYFILEReader._check_input_shapes",
+              "class": "NUMPYFILEReader",
+              "name": "_check_input_shapes",
+              "signature": "_check_input_shapes()",
+              "kind": "method",
+              "doc": {
+                "summary": "Verify that arrays in ``self.data_dict['inputs']`` have at most two",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/readers/pylom.py",
+      "classes": [
+        {
+          "id": "PYLOMReader",
+          "file": "FotR/characters/readers/pylom.py",
+          "doc": {
+            "summary": "Reader for pyLOM datasets (``.h5`` / ``.pkl`` files).",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": true,
+              "Examples": true,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "PYLOMReader.__init__",
+              "class": "PYLOMReader",
+              "name": "__init__",
+              "signature": "__init__(root_dir, file, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "PYLOMReader._load_dataset",
+              "class": "PYLOMReader",
+              "name": "_load_dataset",
+              "signature": "_load_dataset()",
+              "kind": "method",
+              "doc": {
+                "summary": "Load the pyLOM Dataset from disk and cache it.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMReader.parse_simulation_dirs",
+              "class": "PYLOMReader",
+              "name": "parse_simulation_dirs",
+              "signature": "parse_simulation_dirs()",
+              "kind": "method",
+              "doc": {
+                "summary": "Load the pyLOM Dataset and populate ``sim_metadata`` with a summary",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMReader.extract_inputs",
+              "class": "PYLOMReader",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(keys_inputs, keys_aux, filter_by_vars, filter_by_fields)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract mesh coordinates and parametric variables from the pyLOM",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMReader.extract_outputs",
+              "class": "PYLOMReader",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(keys_outputs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract spatial field variables from the pyLOM Dataset into",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMReader._field_to_frodo",
+              "class": "PYLOMReader",
+              "name": "_field_to_frodo",
+              "signature": "_field_to_frodo(value, ndim, npoints)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Convert a pyLOM field array to FRODO's storage convention.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/sets/base.py",
+      "classes": [
+        {
+          "id": "BaseSets",
+          "file": "FotR/characters/sets/base.py",
+          "doc": {
+            "summary": "Abstract base class for all FRODO Sets classes.",
+            "sections": {
+              "Parameters": false,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "BaseSets.__init__",
+              "class": "BaseSets",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "Parameters",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseSets.create_jset",
+              "class": "BaseSets",
+              "name": "create_jset",
+              "signature": "create_jset(*args, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Assemble mesh coordinates, flight conditions, auxiliary arrays and",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseSets.add_aux",
+              "class": "BaseSets",
+              "name": "add_aux",
+              "signature": "add_aux(array_name, array, notes)",
+              "kind": "method",
+              "doc": {
+                "summary": "Store an auxiliary array in ``db.data_dict['aux']`` and record its",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseSets.summary",
+              "class": "BaseSets",
+              "name": "summary",
+              "signature": "summary()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a short description of the Sets class and its db.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/sets/coda.py",
+      "classes": [
+        {
+          "id": "CODASets",
+          "file": "FotR/characters/sets/coda.py",
+          "doc": {
+            "summary": "Sets class for CODA-format FRODO databases.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODASets.__init__",
+              "class": "CODASets",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "CODASets.remove_data",
+              "class": "CODASets",
+              "name": "remove_data",
+              "signature": "remove_data(id_group, stage, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Remove a CADGroup or a specific stage from the data_dict.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.create_jset",
+              "class": "CODASets",
+              "name": "create_jset",
+              "signature": "create_jset(stage, id_group, sol, idx_flcc, save_path, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Assemble mesh coordinates, flight conditions, auxiliary arrays and",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.create_pylom_mesh",
+              "class": "CODASets",
+              "name": "create_pylom_mesh",
+              "signature": "create_pylom_mesh(id_groups)",
+              "kind": "method",
+              "doc": {
+                "summary": "Create pyLOM ``Mesh`` objects from stored CADGroup geometry data.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.create_NN_pylom",
+              "class": "CODASets",
+              "name": "create_NN_pylom",
+              "signature": "create_NN_pylom(id_groups, stage, idx_to_print, external_vars, save_path, nan_policy, nan_fill_value)",
+              "kind": "method",
+              "doc": {
+                "summary": "Create pyLOM ``Dataset`` objects combining mesh geometry and",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.add_to_data_dict",
+              "class": "CODASets",
+              "name": "add_to_data_dict",
+              "signature": "add_to_data_dict(arr, id_group, array_name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Store an auxiliary array inside a CADGroup's ``'Aux'`` sub-dict.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.change_order_coord",
+              "class": "CODASets",
+              "name": "change_order_coord",
+              "signature": "change_order_coord(id_group, new_order, new_nodes_order)",
+              "kind": "method",
+              "doc": {
+                "summary": "Re-sort cell centroids (and nodes) of a CADGroup in-place.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.crop_bounding_box",
+              "class": "CODASets",
+              "name": "crop_bounding_box",
+              "signature": "crop_bounding_box(id_group, bbox, radius_center, new_group_suffix)",
+              "kind": "method",
+              "doc": {
+                "summary": "Create a new CADGroup containing only cells within a bounding box",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.interpolate_vol2surf",
+              "class": "CODASets",
+              "name": "interpolate_vol2surf",
+              "signature": "interpolate_vol2surf(vol_group, surf_group, stage, vars, k, eps)",
+              "kind": "method",
+              "doc": {
+                "summary": "Interpolate volume cell-centred fields onto surface cell centroids",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.interpolate_msh2msh",
+              "class": "CODASets",
+              "name": "interpolate_msh2msh",
+              "signature": "interpolate_msh2msh(id_group_src, new_group_id, new_mesh, vars, method, k)",
+              "kind": "method",
+              "doc": {
+                "summary": "Interpolate all field variables from a source CADGroup onto a",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.save_to_npy",
+              "class": "CODASets",
+              "name": "save_to_npy",
+              "signature": "save_to_npy(stage, id_group, filepath, case_idx, ignore_vars, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Save a stage and group subset of ``data_dict`` to a ``.npy`` file.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets._normalise_cases_idx",
+              "class": "CODASets",
+              "name": "_normalise_cases_idx",
+              "signature": "_normalise_cases_idx(cases_idx, n_cases)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Normalise a ``case_idx``-style selector into a validated list of",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets.save_to_h5",
+              "class": "CODASets",
+              "name": "save_to_h5",
+              "signature": "save_to_h5(filepath, overwrite, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Save the full ``data_dict`` to a compressed HDF5 file.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASets._save_result",
+              "class": "CODASets",
+              "name": "_save_result",
+              "signature": "_save_result(result, save_path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Persist a ``SAM.Gardener`` result dict to disk.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/sets/numpy_file.py",
+      "classes": [
+        {
+          "id": "NUMPYFILESets",
+          "file": "FotR/characters/sets/numpy_file.py",
+          "doc": {
+            "summary": "Sets class for NUMPYFILE-format FRODO databases.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": true,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "NUMPYFILESets.__init__",
+              "class": "NUMPYFILESets",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "NUMPYFILESets.create_jset",
+              "class": "NUMPYFILESets",
+              "name": "create_jset",
+              "signature": "create_jset(sol, save_path, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Assemble mesh coordinates, parametric variables, auxiliary arrays",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYFILESets.add_aux",
+              "class": "NUMPYFILESets",
+              "name": "add_aux",
+              "signature": "add_aux(array_name, array, notes)",
+              "kind": "method",
+              "doc": {
+                "summary": "Store an auxiliary spatial array in ``data_dict['aux']``.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "NUMPYFILESets._save_result",
+              "class": "NUMPYFILESets",
+              "name": "_save_result",
+              "signature": "_save_result(result, save_path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Persist a ``SAM.Gardener`` result dict to disk.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/sets/pylom.py",
+      "classes": [
+        {
+          "id": "PYLOMSets",
+          "file": "FotR/characters/sets/pylom.py",
+          "doc": {
+            "summary": "Sets class for PYLOM-format FRODO databases.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "PYLOMSets.__init__",
+              "class": "PYLOMSets",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "PYLOMSets.create_jset",
+              "class": "PYLOMSets",
+              "name": "create_jset",
+              "signature": "create_jset(sol, save_path, idx_flcc, ref, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Assemble mesh coordinates, parametric variables, auxiliary arrays",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.get_xyz",
+              "class": "PYLOMSets",
+              "name": "get_xyz",
+              "signature": "get_xyz()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the mesh node coordinates array.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.get_variable",
+              "class": "PYLOMSets",
+              "name": "get_variable",
+              "signature": "get_variable(name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a parametric (case-level) variable as a 1-D array.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.get_field",
+              "class": "PYLOMSets",
+              "name": "get_field",
+              "signature": "get_field(name, idim, section)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return an output field with optional component and case selection.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.field_names",
+              "class": "PYLOMSets",
+              "name": "field_names",
+              "signature": "field_names()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the list of available output field aliases.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.variable_names",
+              "class": "PYLOMSets",
+              "name": "variable_names",
+              "signature": "variable_names()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the list of available parametric variable aliases.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.to_pylom_dataset",
+              "class": "PYLOMSets",
+              "name": "to_pylom_dataset",
+              "signature": "to_pylom_dataset()",
+              "kind": "method",
+              "doc": {
+                "summary": "Reconstruct a ``pyLOM.Dataset`` from the current ``data_dict``.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.add_aux",
+              "class": "PYLOMSets",
+              "name": "add_aux",
+              "signature": "add_aux(array_name, array, notes)",
+              "kind": "method",
+              "doc": {
+                "summary": "Store an auxiliary spatial array in ``data_dict['aux']``.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets.summary",
+              "class": "PYLOMSets",
+              "name": "summary",
+              "signature": "summary()",
+              "kind": "method",
+              "doc": {
+                "summary": "Print a compact tabular overview of ``data_dict`` contents.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "PYLOMSets._save_result",
+              "class": "PYLOMSets",
+              "name": "_save_result",
+              "signature": "_save_result(result, save_path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Persist a ``SAM.Gardener`` result dict to disk.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/stats/base.py",
+      "classes": [
+        {
+          "id": "BaseStats",
+          "file": "FotR/characters/stats/base.py",
+          "doc": {
+            "summary": "Abstract base class for all FRODO Stats classes.",
+            "sections": {
+              "Parameters": false,
+              "Returns": false,
+              "Raises": false,
+              "Examples": true,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "BaseStats.__init__",
+              "class": "BaseStats",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "Parameters",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseStats.compute_stats",
+              "class": "BaseStats",
+              "name": "compute_stats",
+              "signature": "compute_stats(*args, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Compute descriptive statistics from the data stored in",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseStats.summary",
+              "class": "BaseStats",
+              "name": "summary",
+              "signature": "summary()",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a short description of the Stats class and its db.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/stats/coda.py",
+      "classes": [
+        {
+          "id": "CODAStats",
+          "file": "FotR/characters/stats/coda.py",
+          "doc": {
+            "summary": "Stats class for CODA-format FRODO databases.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODAStats.__init__",
+              "class": "CODAStats",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "CODAStats.compute_stats",
+              "class": "CODAStats",
+              "name": "compute_stats",
+              "signature": "compute_stats(id_group, stage, variables, cases_idx, vector_handling, percentiles, per_case, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Compute descriptive statistics for every field variable of a",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats.stage_difference_stats",
+              "class": "CODAStats",
+              "name": "stage_difference_stats",
+              "signature": "stage_difference_stats(id_group, stages, pairs, variables, cases_idx, diff_mode, vector_handling, percentiles, paired_test, relative_eps, store_raw_diff, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Statistically compare field variables across two or more CODA",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats.stage_difference_stats_variable",
+              "class": "CODAStats",
+              "name": "stage_difference_stats_variable",
+              "signature": "stage_difference_stats_variable(id_group, stages, variable, pairs, cases_idx, diff_mode, vector_handling, relative_eps, coord_idx, n_coord_bins, flcc_vars, case_metric, plots, kwargs_plots, annotate_case_idx, figsize, save_dir, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Compare a single field variable between two (or more) CODA solver",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._normalise_cases_idx",
+              "class": "CODAStats",
+              "name": "_normalise_cases_idx",
+              "signature": "_normalise_cases_idx(cases_idx, n_cases)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Normalise a ``cases_idx`` argument to a list of valid integer case",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._select_variables",
+              "class": "CODAStats",
+              "name": "_select_variables",
+              "signature": "_select_variables(stage_vars, variables, excluded)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Resolve which variable names to analyse from a ``Vars[<stage>]``",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._expand_vector_fields",
+              "class": "CODAStats",
+              "name": "_expand_vector_fields",
+              "signature": "_expand_vector_fields(stage_vars, var_list, vector_handling)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Reduce every requested variable to one (or more) 2-D scalar",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._describe_array",
+              "class": "CODAStats",
+              "name": "_describe_array",
+              "signature": "_describe_array(values, percentiles, label, case_idx, n_cases)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build a single descriptive-statistics record for a 1-D array of",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._resolve_stage_pairs",
+              "class": "CODAStats",
+              "name": "_resolve_stage_pairs",
+              "signature": "_resolve_stage_pairs(stages, pairs)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Build the list of ``(stage_a, stage_b)`` pairs to compare from a",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._bin_coordinate",
+              "class": "CODAStats",
+              "name": "_bin_coordinate",
+              "signature": "_bin_coordinate(coord_values, n_bins)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Bin a 1-D coordinate array into ``n_bins`` quantile-based bins and",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._plot_diff_boxplot",
+              "class": "CODAStats",
+              "name": "_plot_diff_boxplot",
+              "signature": "_plot_diff_boxplot(df_point, label, stage_a, stage_b, diff_mode, coord_idx, figsize, save_dir, **kwargs_plot)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Draw a boxplot of the point-wise difference (``df_point['diff']``)",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._plot_diff_scatter",
+              "class": "CODAStats",
+              "name": "_plot_diff_scatter",
+              "signature": "_plot_diff_scatter(df_case, label, stage_a, stage_b, flcc_vars_use, case_metric, annotate_case_idx, figsize, save_dir, **kwargs_plot)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Draw a scatter plot of ``case_metric`` across the design / flight",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._plot_diff_violinplot",
+              "class": "CODAStats",
+              "name": "_plot_diff_violinplot",
+              "signature": "_plot_diff_violinplot(df_point, label, stage_a, stage_b, diff_mode, coord_idx, figsize, save_dir, **kwargs_plot)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Draw a violin plot of the point-wise difference (``df_point['diff']``)",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._plot_diff_histogram",
+              "class": "CODAStats",
+              "name": "_plot_diff_histogram",
+              "signature": "_plot_diff_histogram(df_point, label, stage_a, stage_b, diff_mode, figsize, save_dir, **kwargs_plot)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Draw a histogram (with KDE) of the pooled point-wise difference",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAStats._plot_diff_histogram_2D",
+              "class": "CODAStats",
+              "name": "_plot_diff_histogram_2D",
+              "signature": "_plot_diff_histogram_2D(df_point, label, stage_a, stage_b, diff_mode, figsize, save_dir, **kwargs_plot)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "CODAStats._plot_heatmap",
+              "class": "CODAStats",
+              "name": "_plot_heatmap",
+              "signature": "_plot_heatmap()",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/residuals/base.py",
+      "classes": [
+        {
+          "id": "BaseResiduals",
+          "file": "FotR/characters/residuals/base.py",
+          "doc": {
+            "summary": "Abstract base class for all FRODO Residuals classes.",
+            "sections": {
+              "Parameters": false,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "BaseResiduals.__init__",
+              "class": "BaseResiduals",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "Parameters",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseResiduals.get_all_final_residuals",
+              "class": "BaseResiduals",
+              "name": "get_all_final_residuals",
+              "signature": "get_all_final_residuals(stage, verbose, only_finished, load_in_metadata)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a DataFrame with the last residual values for every",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseResiduals.summary",
+              "class": "BaseResiduals",
+              "name": "summary",
+              "signature": "summary()",
+              "kind": "method",
+              "doc": {
+                "summary": "Short description of this Residuals object.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/residuals/coda.py",
+      "classes": [
+        {
+          "id": "CODAResiduals",
+          "file": "FotR/characters/residuals/coda.py",
+          "doc": {
+            "summary": "Residuals class for CODA-format FRODO databases.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODAResiduals.__init__",
+              "class": "CODAResiduals",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "CODAResiduals.get_all_final_residuals",
+              "class": "CODAResiduals",
+              "name": "get_all_final_residuals",
+              "signature": "get_all_final_residuals(stage, verbose, only_finished, load_in_metadata, subset)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a DataFrame with the last residual values for every",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.get_df_residuals_from_case",
+              "class": "CODAResiduals",
+              "name": "get_df_residuals_from_case",
+              "signature": "get_df_residuals_from_case(case_name, case_idx, stage, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a DataFrame with absolute, normalised and scaled residuals",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.get_df_residuals_from_txt",
+              "class": "CODAResiduals",
+              "name": "get_df_residuals_from_txt",
+              "signature": "get_df_residuals_from_txt(case_path, verbose, txt_from_end)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Parse a CODA ``-out.txt`` residual log file into a pandas DataFrame.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.update_converged_state",
+              "class": "CODAResiduals",
+              "name": "update_converged_state",
+              "signature": "update_converged_state(threshold, exclude_residuals)",
+              "kind": "method",
+              "doc": {
+                "summary": "Tag each row in ``db.df_state`` as converged / not-converged based",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.get_df_metrics",
+              "class": "CODAResiduals",
+              "name": "get_df_metrics",
+              "signature": "get_df_metrics(var_metrics, iter_var, save, subset)",
+              "kind": "method",
+              "doc": {
+                "summary": "Build a DataFrame with mean and variance of integral metrics",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.integrals_convergence_criteria",
+              "class": "CODAResiduals",
+              "name": "integrals_convergence_criteria",
+              "signature": "integrals_convergence_criteria(iterations_back, only_finished, only_converged, residual_threshold, columns_to_remove, mode, plot, verbose, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Analyse convergence of integral variables based on the last",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.plot_residuals_from_case",
+              "class": "CODAResiduals",
+              "name": "plot_residuals_from_case",
+              "signature": "plot_residuals_from_case(case_name, case_idx, stage, mode, save_dir, verbose, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Plot scaled (or normalised / absolute) residuals for a single case,",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.plot_all_final_residuals",
+              "class": "CODAResiduals",
+              "name": "plot_all_final_residuals",
+              "signature": "plot_all_final_residuals(save_dir, mode, stage, only_finished, print_non_converged, activate_idx, ncols, lim_converged, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Plot scatter maps of final residuals across all simulations in the",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.plot_state_calculation",
+              "class": "CODAResiduals",
+              "name": "plot_state_calculation",
+              "signature": "plot_state_calculation(num_stages, txt_from_end, figsize)",
+              "kind": "method",
+              "doc": {
+                "summary": "Plot one residual panel per simulation that has exactly",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals._plot_convergence",
+              "class": "CODAResiduals",
+              "name": "_plot_convergence",
+              "signature": "_plot_convergence(result_mean, result_std, columns, mode, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Internal dispatcher to 2-D scatter or 3-D Plotly surface plots.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/residuals/horses3d.py",
+      "classes": [
+        {
+          "id": "Horses3DResiduals",
+          "file": "FotR/characters/residuals/horses3d.py",
+          "doc": {
+            "summary": "Residuals class for HORSES3D-format FRODO databases.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "Horses3DResiduals.__init__",
+              "class": "Horses3DResiduals",
+              "name": "__init__",
+              "signature": "__init__(db)",
+              "kind": "method",
+              "doc": {
+                "summary": "",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": false
+              }
+            },
+            {
+              "id": "Horses3DResiduals.get_all_final_residuals",
+              "class": "Horses3DResiduals",
+              "name": "get_all_final_residuals",
+              "signature": "get_all_final_residuals(p, subset, cases_idx, only_finished, load_in_metadata, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return a DataFrame with the last residual values for every",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DResiduals.get_df_residuals_from_case",
+              "class": "Horses3DResiduals",
+              "name": "get_df_residuals_from_case",
+              "signature": "get_df_residuals_from_case(case_idx, case_name, p, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Return the full iteration history stored in a single case's",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DResiduals.update_converged_state",
+              "class": "Horses3DResiduals",
+              "name": "update_converged_state",
+              "signature": "update_converged_state(threshold, p, residual_columns, exclude_residuals)",
+              "kind": "method",
+              "doc": {
+                "summary": "Tag each row in ``db.df_state`` as converged / not-converged",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DResiduals.plot_residuals_from_case",
+              "class": "Horses3DResiduals",
+              "name": "plot_residuals_from_case",
+              "signature": "plot_residuals_from_case(case_idx, case_name, p, columns, save_dir, verbose, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Plot residual convergence history for a single case, with a",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DResiduals.plot_all_final_residuals",
+              "class": "Horses3DResiduals",
+              "name": "plot_all_final_residuals",
+              "signature": "plot_all_final_residuals(p, save_dir, only_finished, residual_columns, activate_idx, ncols, lim_converged, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Plot scatter maps of final residuals across every case in the",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DResiduals._read_residuals_file",
+              "class": "Horses3DResiduals",
+              "name": "_read_residuals_file",
+              "signature": "_read_residuals_file(path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Parse a HORSES3D ``.residuals`` ASCII file into a DataFrame.",
+                "sections": {
+                  "Parameters": true,
+                  "Returns": true,
+                  "Raises": true,
+                  "Examples": true,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

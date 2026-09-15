@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FRODO + SAM — tripas</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:1rem;line-height:1.5}
+nav{position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;padding:.5rem 0}
+nav a{margin-right:1rem}
+table{border-collapse:collapse;width:100%;margin:.5rem 0}
+th,td{border:1px solid #ccc;padding:.35rem .5rem;text-align:left;font-size:.9rem}
+.ok{background:#e6f4ea}.partial{background:#fef7e0}.none{background:#f5f5f5}.obsolete{background:#fce8e6}
+.card{border:1px solid #ddd;border-radius:6px;padding:.5rem .75rem;margin:.4rem 0}
+.mono{font-family:monospace;font-size:.85rem}
+.badge{font-size:.75rem;border:1px solid #999;border-radius:4px;padding:0 .35rem;margin-left:.4rem}
+pre{background:#f6f6f6;padding:.6rem;overflow:auto}
+input[type=search]{width:100%;padding:.4rem;font-size:1rem}
+</style>
+</head>
+<body>
+<nav><span id="tagline"></span> · <span id="nav"></span> · <button id="lang">EN</button></nav>
+<h1>FRODO + SAM</h1>
+<h2 id="t-map"></h2><p id="b-map"></p>
+<div class="card mono">FRODO(root_dir, format) → reader · sets · residuals · stats<br>SAM.Gardener → tensores · SAM.Backpack → ficheros/mallas · SAM.Weapons/DifferentialOperators → cálculo · SAM.DictVisualizer/HDF5reader → inspección</div>
+<h2 id="t-matrix"></h2><p id="b-matrix"></p>
+<table id="matrix"><thead><tr><th>format</th><th>reader</th><th>sets</th><th>stats</th><th>residuals</th></tr></thead><tbody></tbody></table>
+<h2 id="t-ref"></h2>
+<input type="search" id="q" placeholder="">
+<div id="ref"></div>
+<h2 id="t-flows"></h2><p id="b-flows"></p>
+<div id="flows"></div>
+<h2 id="t-dict"></h2>
+<div class="card mono">CODA/NUMPY: data_dict['CADGroup_X'] = {Coord, NodeCoord, FlCc, Conec, idx_sort, Vars{stage{var:(npts,ncases)}}}<br>HORSES3D: data_dict['CADGroup_g&lt;g&gt;_&lt;mesh&gt;'] = {Coord=NodeCoords, FlCc(design_vars), Vars{str(p){var: HorsesLazyField}}, hsol_meta}<br>NUMPYFILE/PYLOM: data_dict = {inputs:{ptos,…}, outputs:{…}, aux:{…}}</div>
+<script>
+let LANG='es', I18N={}, DOCS=[];
+const MATRIX=[
+ ['CODA','ok','ok','ok','ok'],
+ ['HORSES3D','ok','none','none','ok'],
+ ['NUMPY','ok','ok','ok','none'],
+ ['NUMPYFILE','ok','ok','none','none'],
+ ['PYLOM','ok','ok','none','none'],
+];
+async function load(){I18N=await (await fetch('i18n.json')).json();DOCS=(await (await fetch('docs.json')).json()).modules;render();}
+function render(){
+ const t=I18N[LANG],other=LANG==='es'?'en':'es';
+ document.documentElement.lang=LANG;document.getElementById('lang').textContent=other.toUpperCase();
+ document.getElementById('tagline').textContent=t.tagline;
+ document.getElementById('nav').innerHTML=`<a href="#t-map">${t.nav.map}</a><a href="#t-matrix">${t.nav.matrix}</a><a href="#t-ref">${t.nav.ref}</a><a href="#t-flows">${t.nav.flows}</a><a href="#t-dict">${t.nav.dict}</a>`;
+ document.getElementById('t-map').textContent=t.map_title;document.getElementById('b-map').textContent=t.map_body;
+ document.getElementById('t-matrix').textContent=t.matrix_title;document.getElementById('b-matrix').textContent=t.matrix_note;
+ document.getElementById('t-ref').textContent=t.ref_title;document.getElementById('q').placeholder=t.ref_search;
+ document.getElementById('t-flows').textContent=t.flows_title;document.getElementById('b-flows').textContent=t.flows_note;
+ document.getElementById('t-dict').textContent=t.dict_title;
+ const tb=document.querySelector('#matrix tbody');tb.innerHTML='';
+ MATRIX.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML=`<td><b>${r[0]}</b></td>`+r.slice(1).map(s=>`<td class="${s==='ok'?'ok':s==='partial'?'partial':s==='obsolete'?'obsolete':'none'}">${t.status[s]||s}</td>`).join('');tb.appendChild(tr);});
+ renderRef('');renderFlows();
+}
+function renderRef(q){
+ const t=I18N[LANG],box=document.getElementById('ref');box.innerHTML='';q=q.toLowerCase();
+ DOCS.forEach(m=>m.classes.forEach(c=>{
+  const hits=c.methods.filter(md=>(md.id+md.doc.summary).toLowerCase().includes(q));
+  if(!hits.length)return;
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML=`<b>${c.id}</b> <span class="mono">${m.file}</span><br><i>${c.doc.summary||''}</i>`;
+  hits.forEach(md=>{const p=document.createElement('div');p.className='mono';
+   p.innerHTML=`· ${md.id}(${md.signature}) <span class="badge">${md.kind}</span><br><span style="font-family:system-ui">${md.doc.summary||'<i>'+t.ref_nodoc+'</i>'}</span>`;
+   d.appendChild(p);});
+  box.appendChild(d);});});
+}
+async function renderFlows(){
+ const box=document.getElementById('flows');box.innerHTML='';
+ for(const f of ['flow_numpy','flow_coda','flow_pylom','flow_horses3d']){
+  try{const txt=await (await fetch(`flows/${f}.md`)).text();
+   const d=document.createElement('div');d.className='card';
+   d.innerHTML=`<b>${f}</b><pre></pre>`;d.querySelector('pre').textContent=txt.slice(0,4000);box.appendChild(d);
+  }catch(e){const d=document.createElement('div');d.className='card';d.innerHTML=`<b>${f}</b> — pendiente de re-ejecución`;box.appendChild(d);}
+ }}
+document.getElementById('q').addEventListener('input',e=>renderRef(e.target.value));
+document.getElementById('lang').addEventListener('click',()=>{LANG=LANG==='es'?'en':'es';render();});
+load();
+</script>
+</body>
+</html>
