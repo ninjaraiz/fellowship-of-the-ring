@@ -397,5 +397,35 @@ def test_resolve_cases_idx_passthrough_without_subset(tmp_path):
     assert reader._resolve_cases_idx('3', cases_idx='all') == [0, 1, 2, 3, 4]
 
 
+# =========================================================================
+# 5. save_to_npy layout: scalar Vars stored as (n_cases, n_points)
+# =========================================================================
+
+def test_extract_outputs_transposes_save_to_npy_layout(tmp_path):
+    """Round-trip with the layout CODASets.save_to_npy() writes.
+
+    Scalar Vars arrive as (n_cases, n_points) and must come back as
+    (n_points, n_cases) with matching values; vectors stay
+    (n_dim, n_points, n_cases).
+    """
+    rng = np.random.default_rng(1)
+    n_cases, npoints = 4, 5
+    gd = _make_group_dict(n_cases=n_cases, npoints=npoints, with_aux=False)
+    raw_pressure = rng.random((n_cases, npoints))
+    raw_velocity = rng.random((3, npoints, n_cases))
+    gd["Vars"]["0"]["Pressure"] = raw_pressure
+    gd["Vars"]["0"]["Velocity"] = raw_velocity
+    reader = _make_reader(tmp_path, {"CADGroup_3": gd})
+
+    reader.extract_inputs(id_groups="3", cases_idx=[0, 2])
+    reader.extract_outputs(stage=0, id_groups="3")
+
+    out = reader.data_dict["CADGroup_3"]["Vars"]["0"]
+    assert out["Pressure"].shape == (npoints, 2)
+    np.testing.assert_allclose(out["Pressure"], raw_pressure[[0, 2], :].T)
+    assert out["Velocity"].shape == (3, npoints, 2)
+    np.testing.assert_allclose(out["Velocity"], raw_velocity[:, :, [0, 2]])
+
+
 if __name__ == '__main__':
     raise SystemExit(pytest.main([__file__, '-v']))

@@ -15,15 +15,15 @@ Provides:
 
 import os
 import re
+import logging
 import warnings
-from typing import Literal, Union, TYPE_CHECKING
+from typing import Literal, Optional, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-import matplotlib.cm as cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import plotly.graph_objects as go
 
@@ -32,6 +32,8 @@ from .base import BaseResiduals
 
 if TYPE_CHECKING:
     from ..frodo import FRODO
+
+log = logging.getLogger(__name__)
 
 
 class CODAResiduals(BaseResiduals):
@@ -48,7 +50,8 @@ class CODAResiduals(BaseResiduals):
         Parent FRODO instance.
     """
 
-    def __init__(self, db: 'FRODO'):
+    def __init__(self, db: 'FRODO') -> None:
+        """Attach to the parent FRODO database (see BaseResiduals)."""
         super().__init__(db)
 
     # =========================================================================
@@ -128,8 +131,8 @@ class CODAResiduals(BaseResiduals):
                 self.db.metadata['df_cases'].loc[resolved_idx, 'folder']
             )
 
-        df_all  = []
-        df_one  = None
+        df_all = []
+        df_ref = None
 
         for folder in self.db.sim_metadata:
             if not re.match(pattern, folder):
@@ -148,9 +151,10 @@ class CODAResiduals(BaseResiduals):
 
             if only_finished and stages_done < self.db.metadata['num_stages']:
                 if verbose:
-                    print(
-                        f"Skipping '{folder}': "
-                        f"{stages_done}/{self.db.metadata['num_stages']} stages."
+                    log.debug(
+                        "Skipping '%s': %s/%s stages.",
+                        folder, stages_done,
+                        self.db.metadata['num_stages'],
                     )
                 continue
 
@@ -160,39 +164,31 @@ class CODAResiduals(BaseResiduals):
 
             if df_one is None or df_one.empty:
                 if verbose:
-                    print(f"No residual data for '{folder}'.")
-                res = np.full((1, 26), np.nan)
+                    log.debug("No residual data for '%s'.", folder)
+                if df_ref is None:
+                    continue
+                res = np.full((1, len(df_ref.columns)), np.nan)
             else:
+                if df_ref is None:
+                    df_ref = df_one
                 res = df_one.tail(1).values.reshape(1, -1)
-            # print(res, res.shape, np.asarray(params_float))
             fila = np.concatenate(
                 (res, np.atleast_2d(np.asarray(params_float, dtype=np.float64))),
                 axis=1, dtype=np.float64,
             )
             df_all.append(fila)
 
-        if not df_all or df_one is None:
-            warnings.warn(
-                "No residual data found. Returning empty DataFrame.",
-                UserWarning,
+        if not df_all or df_ref is None:
+            return self._save_final_residuals(
+                pd.DataFrame(), load_in_metadata=False
             )
-            return pd.DataFrame()
 
-        names    = list(df_one.columns) + self.db.metadata['design_vars']
+        names = list(df_ref.columns) + self.db.metadata['design_vars']
         df_final = pd.DataFrame(np.vstack(df_all), columns=names)
 
-        if load_in_metadata:
-            os.makedirs(
-                os.path.join(self.db.root_dir, 'metadata'), exist_ok=True
-            )
-            df_final.to_csv(
-                os.path.join(
-                    self.db.root_dir, 'metadata', 'all_final_residuals.csv'
-                ),
-                index=False,
-            )
-
-        return df_final
+        return self._save_final_residuals(
+            df_final, load_in_metadata=load_in_metadata
+        )
 
     # =========================================================================
     # Case-level residual extraction
@@ -200,8 +196,8 @@ class CODAResiduals(BaseResiduals):
 
     def get_df_residuals_from_case(
         self,
-        case_name: str = None,
-        case_idx: Union[int, None] = None,
+        case_name: Optional[str] = None,
+        case_idx: Optional[int] = None,
         stage: Union[list, tuple, str] = 'all',
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -306,9 +302,9 @@ class CODAResiduals(BaseResiduals):
 
             if verbose:
                 res_cols = [c for c in df_stage.columns if 'Residual' in c]
-                print(
-                    f"[INFO] Stage {s}: {len(df_stage)} iterations  |  "
-                    f"vars: {res_cols}"
+                log.debug(
+                    "[INFO] Stage %s: %s iterations  |  vars: %s",
+                    s, len(df_stage), res_cols,
                 )
 
         df_all                    = pd.concat(dfs_stage, ignore_index=True)
@@ -324,7 +320,7 @@ class CODAResiduals(BaseResiduals):
         case_path: str,
         verbose: bool = True,
         txt_from_end: int = 1,
-    ) -> pd.DataFrame:
+    ) -> Optional[pd.DataFrame]:
         """
         Parse a CODA ``-out.txt`` residual log file into a pandas DataFrame.
 
@@ -358,12 +354,22 @@ class CODAResiduals(BaseResiduals):
             if df is not None:
                 plt.semilogy(df['iters'], df['rho_res'])
         """
-        files = SAM.Backpack.pattern_pocket.find_files(case_path, endswith="-out.txt", verbose=False)
+        files = SAM.Backpack.pattern_pocket.find_files(
+            path=case_path, endswith="-out.txt", verbose=False
+        )
         if not files:
             if verbose:
-                print(f"WARNING: No -out.txt file found in {case_path}.")
+                warnings.warn(
+                    f"No -out.txt file found in {case_path}.",
+                    UserWarning,
+                )
             return None
 
+        if not 1 <= txt_from_end <= len(files):
+            raise IndexError(
+                f"txt_from_end={txt_from_end} out of range for "
+                f"{len(files)} file(s) in {case_path}."
+            )
         files = [files[-txt_from_end]] if isinstance(files, list) else [files]
 
         regex = re.compile(
@@ -374,8 +380,8 @@ class CODAResiduals(BaseResiduals):
         list_df = []
         for file in files:
             if verbose:
-                print(f"Reading {file}")
-            with open(file, 'r') as fh:
+                log.debug("Reading %s", file)
+            with open(file, 'r', encoding='utf-8', errors='replace') as fh:
                 content = fh.read()
 
             rows = [
@@ -566,8 +572,7 @@ class CODAResiduals(BaseResiduals):
             }
             
             df_finals  = df_finals.rename(columns=rename_dict)
-            # print(df_finals.columns.to_list()[-3:], df_post.columns.to_list(), [v.lower() for v in design_vars])
-            
+
             df_post    = df_post.merge(df_finals, on=[v.lower() for v in design_vars], how="left")
 
         # Fill integral metric columns
@@ -639,7 +644,7 @@ class CODAResiduals(BaseResiduals):
         plot: bool = False,
         verbose: bool = False,
         **kwargs,
-    ) -> tuple:
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Analyse convergence of integral variables based on the last
         ``iterations_back`` iterations, with optional 2-D or 3-D plots.
@@ -713,9 +718,10 @@ class CODAResiduals(BaseResiduals):
             )
         """
         if only_converged and not only_finished:
-            print(
-                "WARNING: only_converged requires only_finished=True. "
-                "Enabling it automatically."
+            warnings.warn(
+                "only_converged requires only_finished=True. "
+                "Enabling it automatically.",
+                UserWarning,
             )
             only_finished = True
 
@@ -759,7 +765,7 @@ class CODAResiduals(BaseResiduals):
 
             if only_finished and stages_done < self.db.metadata['num_stages']:
                 if verbose:
-                    print(f"Skipping '{folder_name}': not finished.")
+                    log.debug("Skipping '%s': not finished.", folder_name)
                 continue
 
             # ── Resolve exact design-variable values for this folder ───────
@@ -770,9 +776,9 @@ class CODAResiduals(BaseResiduals):
             case_row = df_cases.loc[df_cases['folder'] == folder_name]
             if case_row.empty:
                 if verbose:
-                    print(
-                        f"Skipping '{folder_name}': "
-                        "no matching entry found in df_cases."
+                    log.debug(
+                        "Skipping '%s': no matching entry in df_cases.",
+                        folder_name,
                     )
                 continue
             valores = case_row[design_vars].iloc[0].astype(float).tolist()
@@ -783,9 +789,9 @@ class CODAResiduals(BaseResiduals):
 
             if not mask.any():
                 if verbose:
-                    print(
-                        f"Skipping '{folder_name}': "
-                        "does not meet convergence criteria."
+                    log.debug(
+                        "Skipping '%s': does not meet convergence criteria.",
+                        folder_name,
                     )
                 continue
 
@@ -829,8 +835,8 @@ class CODAResiduals(BaseResiduals):
 
     def plot_residuals_from_case(
         self,
-        case_name: str = None,
-        case_idx: Union[int, None] = None,
+        case_name: Optional[str] = None,
+        case_idx: Optional[int] = None,
         stage: Union[list, tuple, str] = 'all',
         mode: Literal['absolute', 'norm', 'scaled'] = 'scaled',
         save_dir: Union[str, None] = None,
@@ -866,10 +872,9 @@ class CODAResiduals(BaseResiduals):
 
             db.residuals.plot_residuals_from_case(case_idx=5, mode='norm')
         """
-        if case_name is None:
-            if case_idx is None:
-                raise ValueError("Provide either case_name or case_idx.")
-            case_name = self.db.reader.case_per_idx(case_idx)
+        case_name = self._resolve_case_name(
+            case_idx=case_idx, case_name=case_name
+        )
 
         stages = (
             list(self.db.sim_metadata[case_name]['stages'].keys())
@@ -886,7 +891,7 @@ class CODAResiduals(BaseResiduals):
             and 'MomentumYResidual' not in c
             and mode in c
         ]
-        colors = cm.tab10.colors[:len(columns)]
+        colors = self._cycled_colors(len(columns))
         for ycol, color in zip(columns, colors):
             df_res.plot(
                 x='total_iterations', y=ycol, s=3,
@@ -916,7 +921,7 @@ class CODAResiduals(BaseResiduals):
             os.makedirs(save_dir, exist_ok=True)
             path = os.path.join(save_dir, f"{case_name}_residuals.png")
             plt.savefig(path, bbox_inches='tight')
-            print(f"Figure saved to {path}")
+            log.info("Figure saved to %s", path)
         else:
             plt.show()
 
@@ -979,7 +984,7 @@ class CODAResiduals(BaseResiduals):
             only_finished=only_finished, load_in_metadata=False,
         )
         if df_finals.empty:
-            print("No data to plot.")
+            warnings.warn("No data to plot.", UserWarning)
             return
 
         columns = [
@@ -989,6 +994,12 @@ class CODAResiduals(BaseResiduals):
             and 'TurbulentSANuTilde' not in c
             and mode in c
         ]
+        if not columns:
+            warnings.warn(
+                f"No residual columns found for mode '{mode}'.",
+                UserWarning,
+            )
+            return
         nrows = int(np.ceil(len(columns) / ncols))
         fig, axes = plt.subplots(
             nrows, ncols,
@@ -1006,29 +1017,35 @@ class CODAResiduals(BaseResiduals):
             if df_finals[v].nunique() > 1
         ]
 
+        if not dvf:
+            warnings.warn(
+                "Design variables are constant; nothing to scatter.",
+                UserWarning,
+            )
+            return
+
         if len(dvf) == 1:
             for i, col in enumerate(columns):
                 x = df_finals[dvf[0]]
                 y = df_finals[col]
-                c = df_finals["total_iterations"]
                 sc_nc = axes[i].scatter(
                     x[~converged_mask], y[~converged_mask],
-                    c=c[~converged_mask], cmap=cmap_name, norm=None,
+                    c=y[~converged_mask], cmap=cmap_name, norm=norm,
                     s=60, edgecolor='k', label='Non-converged',
                 )
                 axes[i].scatter(
                     x[converged_mask], y[converged_mask],
-                    c=c[converged_mask], cmap=cmap_name, norm=None,
+                    c=y[converged_mask], cmap=cmap_name, norm=norm,
                     s=60, marker='*', linewidth=1.5, label='Converged',
                 )
                 if activate_idx:
-                    for p in df_finals[dvf].values:
+                    for p, yy in zip(df_finals[dvf[0]].values, y.values):
                         matches = np.where(
-                            self.db.df_state.iloc[:, 0] == p[0]
+                            self.db.df_state.iloc[:, 0] == p
                         )[0]
                         if matches.size > 0:
                             axes[i].annotate(
-                                f"{matches[0]}", (p[0], p[1]),
+                                f"{matches[0]}", (p, yy),
                                 textcoords="offset points",
                                 xytext=(0, 7), ha='center', fontsize=8,
                             )
@@ -1085,7 +1102,7 @@ class CODAResiduals(BaseResiduals):
             plt.show()
 
         if print_non_converged:
-            print("Non-converged cases:")
+            log.info("Non-converged cases:")
             df_finals[columns][~converged_mask].to_csv(
                 os.path.join(
                     self.db.root_dir, 'metadata', 'non_converged_cases.csv'
@@ -1094,20 +1111,21 @@ class CODAResiduals(BaseResiduals):
             )
             for i, row in df_finals[~converged_mask].iterrows():
                 res_str = " ".join(f"{v:.2E}" for v in row[3:].values)
-                print(
-                    f"  Case {i}: "
-                    + ", ".join(
+                log.info(
+                    "  Case %s: %s  Residuals: %s",
+                    i,
+                    ", ".join(
                         f"{dvf[j]}={row[dvf[j]]:.4f}"
                         for j in range(len(dvf))
-                    )
-                    + f"  Residuals: {res_str}"
+                    ),
+                    res_str,
                 )
 
     def plot_state_calculation(
         self,
         num_stages: int = 1,
         txt_from_end: int = 1,
-        figsize: tuple = None,
+        figsize: Optional[tuple] = None,
     ) -> None:
         """
         Plot one residual panel per simulation that has exactly
@@ -1150,10 +1168,16 @@ class CODAResiduals(BaseResiduals):
                 if df is not None:
                     data_to_plot.append((name, df))
                 else:
-                    print(f"\tWARNING: Case '{name}' has not started yet.\n")
+                    warnings.warn(
+                        f"Case '{name}' has not started yet.",
+                        UserWarning,
+                    )
 
         if not data_to_plot:
-            print("No data found for the specified criteria.")
+            warnings.warn(
+                "No data found for the specified criteria.",
+                UserWarning,
+            )
             return
 
         ncols = 2 if len(data_to_plot) > 1 else 1

@@ -55,20 +55,21 @@ for the full API.
 import os
 import re
 import json
+import logging
 import warnings
-import time
 from collections import defaultdict
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
 import pyvista as pv
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 from matplotlib.colors import BoundaryNorm
 
 from ..sam import SAM
 from .base import BaseReader
+
+log = logging.getLogger(__name__)
 
 
 class CODAReader(BaseReader):
@@ -111,10 +112,10 @@ class CODAReader(BaseReader):
         first call to ``extract_inputs``.
     """
 
-    def __init__(self, root_dir: str, **kwargs):
+    def __init__(self, root_dir: str, **kwargs) -> None:
         super().__init__(root_dir, **kwargs)
         self.output_dir = os.path.join(self.root_dir, "outputs")
-        print(f'\n NEW CODA SIMULATION WILL BE LOADED FROM {root_dir}')
+        log.info('NEW CODA SIMULATION WILL BE LOADED FROM %s', root_dir)
 
         # ── Case subsets & extraction bookkeeping ──────────────────────────
         # 'subsets' is the single source of truth for named case groupings
@@ -146,19 +147,20 @@ class CODAReader(BaseReader):
                 df_cases.insert(0, "case_idx", df_cases.index.astype(np.int32))
             self.metadata['df_cases'] = df_cases
 
-        except Exception as exc:
-            print(
-                "WARNING: cases_metadata.json not found or could not be "
-                "loaded. Folder format will be inferred from folder names.\n"
+        except (FileNotFoundError, json.JSONDecodeError, KeyError) as exc:
+            warnings.warn(
+                "cases_metadata.json not found or could not be loaded "
+                f"({exc}). Folder format will be inferred from folder "
+                "names.",
+                UserWarning,
             )
-            print(exc)
             self._infer_metadata_from_folders()
 
         self._sync_subsets_column()
 
     # ── Metadata inference fallback ───────────────────────────────────────────
 
-    def _infer_metadata_from_folders(self):
+    def _infer_metadata_from_folders(self) -> None:
         """Infer metadata from output folder names when JSON is missing."""
         folders       = os.listdir(self.output_dir)
         possible_sep  = ['_', '-']
@@ -224,7 +226,7 @@ class CODAReader(BaseReader):
     def define_subset(
         self,
         name: str,
-        cases_idx: Union[list, tuple, int, str],
+        cases_idx: Union[list, tuple, range, int, str],
         overwrite: bool = False,
     ) -> list:
         """
@@ -461,7 +463,7 @@ class CODAReader(BaseReader):
 
     def _resolve_cases_idx(
         self,
-        cases_idx: Union[list, tuple, int, str] = 'all',
+        cases_idx: Union[list, tuple, range, int, str] = 'all',
         subset: Union[str, None] = None,
     ) -> list:
         """
@@ -583,6 +585,7 @@ class CODAReader(BaseReader):
             self.metadata["folder_fmt"], numeric=True
         ).compiled
 
+        self.sim_metadata = {}
         for folder in os.listdir(self.output_dir):
             if not pattern.match(folder):
                 continue
@@ -637,7 +640,7 @@ class CODAReader(BaseReader):
                  zip(self.metadata["design_vars"], nums)}
             )
 
-        print(f"{len(self.sim_metadata)} simulations found.")
+        log.info("%s simulations found.", len(self.sim_metadata))
 
         n_dv = len(self.metadata['design_vars'])
         state_array = np.zeros(
@@ -669,7 +672,7 @@ class CODAReader(BaseReader):
         method_to_sort: Literal[
             'lexsort', 'centroid', 'kdtree', 'convex_hull'
         ] = 'lexsort',
-        cases_idx: Union[list, tuple, int, str] = 'all',
+        cases_idx: Union[list, tuple, range, int, str] = 'all',
         subset: Union[str, None] = None,
         verbose: bool = False,
     ) -> None:
@@ -746,7 +749,6 @@ class CODAReader(BaseReader):
 
         sort_fn_map = {
             'lexsort':     SAM.Weapons.sort_lexsort,
-            None:          SAM.Weapons.sort_lexsort,
             'centroid':    SAM.Weapons.sort_by_centroid,
             'kdtree':      SAM.Weapons.sort_closed_curve_by_kdtree,
             'convex_hull': SAM.Weapons.sort_points_by_hull_projection,
@@ -768,11 +770,14 @@ class CODAReader(BaseReader):
 
             for stage in range(num_stages):
                 if verbose:
-                    print(f'Stage {stage}:')
+                    log.debug('Stage %s:', stage)
                 for cont, case_i in enumerate(cases_idx):
                     sim_key = sim_keys[cont]
                     if verbose:
-                        print(f'\t cont={cont}  case={case_i}  folder={sim_key}')
+                        log.debug(
+                            '\t cont=%s  case=%s  folder=%s',
+                            cont, case_i, sim_key,
+                        )
                     try:
                         mesh = self.load_vtu_from_stage(sim_key, stage, vtu_type)
 
@@ -840,9 +845,11 @@ class CODAReader(BaseReader):
                             ]
 
                     except Exception as exc:
-                        print(
+                        warnings.warn(
                             f"Error reading inputs for '{sim_key}', "
-                            f"group {group_id}, stage {stage}: {exc}"
+                            f"group {group_id}, stage {stage}: {exc}. "
+                            "This case was skipped.",
+                            UserWarning,
                         )
 
             self.data_dict.setdefault(key, {}).update({
@@ -864,7 +871,7 @@ class CODAReader(BaseReader):
         stage: int,
         id_groups: Union[int, tuple],
         vtu_type: Literal['volume', 'surface'] = 'surface',
-        cases_idx: Union[list, tuple, int, str] = 'all',
+        cases_idx: Union[list, tuple, range, int, str] = 'all',
         subset: Union[str, None] = None,
         var_name_excluded: Union[list, tuple, None] = None,
         verbose: bool = False,
@@ -955,8 +962,9 @@ class CODAReader(BaseReader):
             for cont, case_i in enumerate(cases_idx):
                 sim_key = sim_keys[cont]
                 if verbose:
-                    print(
-                        f'\t cont={cont}  case={case_i}  folder={sim_key}'
+                    log.debug(
+                        '\t cont=%s  case=%s  folder=%s',
+                        cont, case_i, sim_key,
                     )
 
                 mesh   = self.load_vtu_from_stage(sim_key, stage, vtu_type)
@@ -1042,10 +1050,10 @@ class CODAReader(BaseReader):
                 mesh = pv.read(os.path.join(path, fname))
                 mesh = SAM.Backpack.ensure_cell_data(mesh)
                 if verbose:
-                    print(f"Mesh from '{sim['folder']}' loaded")
-                    print(f"  Points: {mesh.n_points}")
+                    log.debug("Mesh from '%s' loaded", sim['folder'])
+                    log.debug("  Points: %s", mesh.n_points)
                     for k in mesh.cells_dict:
-                        print(f"  {k}: {mesh.cells_dict[k].shape}")
+                        log.debug("  %s: %s", k, mesh.cells_dict[k].shape)
                 return mesh
 
         raise FileNotFoundError(
@@ -1077,7 +1085,10 @@ class CODAReader(BaseReader):
                 cell_keys = tuple(sorted(mesh.cell_data.keys()))
                 summary[(cad_ids, cell_keys)].append(sim["folder"])
             except Exception as exc:
-                print(f"Error in simulation '{sim_key}': {exc}")
+                warnings.warn(
+                    f"Error in simulation '{sim_key}': {exc}",
+                    UserWarning,
+                )
 
         print("\nCADGroupID / cell_data summary:")
         for (cad_ids, cell_keys), folders in summary.items():
@@ -1351,14 +1362,14 @@ class CODAReader(BaseReader):
                 "_wall_integrals.png",
             )
             fig.savefig(save_path, bbox_inches='tight')
-            print(f"Figure saved to {save_path}")
+            log.info("Figure saved to %s", save_path)
         else:
             plt.show()
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _parse_group_id(group_id) -> tuple:
+    def _parse_group_id(group_id: Union[int, tuple]) -> tuple:
         """Return (ids_to_combine, key_suffix) from a group_id."""
         if isinstance(group_id, tuple):
             return group_id, "_".join(map(str, group_id))

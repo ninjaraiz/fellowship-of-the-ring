@@ -44,10 +44,11 @@ method ``_field_to_frodo``:
 * Vector multi snap  → ``(ndim, n_points, n_cases)``
 """
 
+import logging
 import os
 import time
 import warnings
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -55,6 +56,8 @@ import pandas as pd
 import pyLOM as SMEAGOL
 
 from .base import BaseReader
+
+log = logging.getLogger(__name__)
 
 
 class PYLOMReader(BaseReader):
@@ -122,7 +125,7 @@ class PYLOMReader(BaseReader):
         print(reader.data_dict['outputs']['cp'].shape)
     """
 
-    def __init__(self, root_dir: str, file: Union[str, list, tuple], **kwargs):
+    def __init__(self, root_dir: str, file: Union[str, list, tuple], **kwargs) -> None:
         super().__init__(root_dir, **kwargs)
 
         # ── Normalise ``file`` argument ────────────────────────────────────
@@ -145,6 +148,12 @@ class PYLOMReader(BaseReader):
             if not os.path.exists(full):
                 raise FileNotFoundError(f"File not found: {full}")
 
+        if len(self.files) > 1:
+            warnings.warn(
+                "Only the first file is used as primary dataset; "
+                f"ignoring {self.files[1:]}.",
+                UserWarning,
+            )
         self.file     = self.files[0]
         self.data_dict = {"inputs": {}, "outputs": {}, "aux": {}}
         self._dataset  = None
@@ -181,7 +190,7 @@ class PYLOMReader(BaseReader):
                 os.path.join(self.root_dir, self.file)
             )
             elapsed = time.perf_counter() - t0
-            print(f"[PYLOMReader] Dataset loaded in {elapsed:.3f} s")
+            log.info("[PYLOMReader] Dataset loaded in %.3f s", elapsed)
         return self._dataset
 
     # =========================================================================
@@ -236,7 +245,10 @@ class PYLOMReader(BaseReader):
         }
 
         ds      = self._load_dataset()
-        print(ds)
+        log.info(
+            "[PYLOMReader] Dataset: %s points, %s vars, %s fields",
+            len(ds), len(ds.vars), len(ds.fields),
+        )
         npoints = len(ds)
 
         self.sim_metadata["npoints"]   = npoints
@@ -251,27 +263,27 @@ class PYLOMReader(BaseReader):
             for fname, fdata in ds.fields.items()
         }
 
-        # Build df_state from case-level variables (idim == 0)
+        # Build df_state from case-level variables (idim == 0).
+        # Lengths must agree; ragged inputs are an error, not NaN padding.
         case_vars = {
             k: np.asarray(v["value"]).ravel()
             for k, v in ds.vars.items()
             if v["idim"] == 0
         }
         if case_vars:
-            try:
-                self.df_state = pd.DataFrame(case_vars)
-            except ValueError:
-                self.df_state = pd.DataFrame(
-                    {k: pd.Series(v) for k, v in case_vars.items()}
+            lengths = {len(v) for v in case_vars.values()}
+            if len(lengths) != 1:
+                raise ValueError(
+                    f"Case-level variables have mismatched lengths "
+                    f"{sorted(lengths)} in '{self.file}'."
                 )
+            self.df_state = pd.DataFrame(case_vars)
         else:
             self.df_state = pd.DataFrame()
 
-        print(
-            f"[PYLOMReader] Parsed '{self.file}'  "
-            f"({npoints} points, "
-            f"{len(ds.vars)} vars, "
-            f"{len(ds.fields)} fields)"
+        log.info(
+            "[PYLOMReader] Parsed '%s' (%s points, %s vars, %s fields)",
+            self.file, npoints, len(ds.vars), len(ds.fields),
         )
 
     def extract_inputs(
@@ -401,6 +413,7 @@ class PYLOMReader(BaseReader):
         self.sim_metadata["keys_aux"]    = keys_aux
 
         # ── Rebuild df_state from scalar inputs ───────────────────────────
+        # Lengths must agree; ragged inputs are an error, not NaN padding.
         scalar_inputs = {
             k: v.ravel()
             for k, v in self.data_dict["inputs"].items()
@@ -408,17 +421,17 @@ class PYLOMReader(BaseReader):
             and v.ndim <= 2
         }
         if scalar_inputs:
-            try:
-                self.df_state = pd.DataFrame(scalar_inputs)
-            except ValueError:
-                self.df_state = pd.DataFrame(
-                    {k: pd.Series(v) for k, v in scalar_inputs.items()}
+            lengths = {len(v) for v in scalar_inputs.values()}
+            if len(lengths) != 1:
+                raise ValueError(
+                    "Scalar inputs have mismatched lengths "
+                    f"{sorted(lengths)}; cannot build df_state."
                 )
+            self.df_state = pd.DataFrame(scalar_inputs)
 
-        print(
-            f"[PYLOMReader] extract_inputs done — "
-            f"inputs: {list(self.data_dict['inputs'])}  |  "
-            f"aux: {list(self.data_dict['aux'])}"
+        log.info(
+            "[PYLOMReader] extract_inputs done — inputs: %s  |  aux: %s",
+            list(self.data_dict["inputs"]), list(self.data_dict["aux"]),
         )
 
     def extract_outputs(self, keys_outputs: dict) -> None:
@@ -486,9 +499,9 @@ class PYLOMReader(BaseReader):
 
         self.sim_metadata["keys_outputs"] = keys_outputs
 
-        print(
-            f"[PYLOMReader] extract_outputs done — "
-            f"outputs: {list(self.data_dict['outputs'])}"
+        log.info(
+            "[PYLOMReader] extract_outputs done — outputs: %s",
+            list(self.data_dict["outputs"]),
         )
 
     # =========================================================================

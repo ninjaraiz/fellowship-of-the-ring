@@ -21,17 +21,21 @@ import time
 import os
 import copy
 import json
-from typing import Literal, Union
+import logging
+import warnings
+from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
 
 from ..EarendilsLight import EarendilsLight
 from .sam import SAM
-from .readers   import READER_REGISTRY
-from .sets      import SETS_REGISTRY
+from .readers import READER_REGISTRY
+from .sets import SETS_REGISTRY
 from .residuals import RESIDUALS_REGISTRY
-from .stats     import STATS_REGISTRY
+from .stats import STATS_REGISTRY
+
+log = logging.getLogger(__name__)
 
 class FRODO:
     """
@@ -46,7 +50,7 @@ class FRODO:
     Supported formats
     -----------------
     Determined at runtime from READER_REGISTRY. Currently:
-    'CODA', 'Airfoil', 'NUMPYFILE', 'PYLOM'.
+    'CODA', 'HORSES3D', 'NUMPY', 'NUMPYFILE', 'PYLOM'.
     """
 
     light = EarendilsLight(__name__)
@@ -86,21 +90,28 @@ class FRODO:
         format: Literal['CODA', 'Airfoil', 'NUMPYFILE', 'PYLOM'],
         initial_parse: bool = True,
         **kwargs,
-    ):
-        self.format          = format
-        self.root_dir        = os.path.abspath(root_dir)
-        self.sim_metadata    = {}
-        self.data_dict       = {}
-        self.kwargs          = kwargs
-        self.update_df_state = kwargs.pop("update_df_state", False)
-        self.name            = kwargs.pop("name", "FRODO Database")
+    ) -> None:
+        """Create the database and wire the format sub-objects.
+
+        ``format`` selects the reader/sets/residuals/stats quartet from
+        the registries (see :meth:`_set_subclasses`). With
+        ``initial_parse=True`` (default) the simulation folders are
+        parsed immediately via :meth:`_parse`.
+        """
+        self.format = format
+        self.root_dir = os.path.abspath(root_dir)
+        self.sim_metadata = {}
+        self.data_dict = {}
+        self.kwargs = dict(kwargs)
+        self.update_df_state = self.kwargs.pop("update_df_state", False)
+        self.name = self.kwargs.pop("name", "FRODO Database")
 
         self._set_subclasses()
 
         if initial_parse:
             t0 = time.perf_counter()
             self._parse()
-            print(f"Parse took: {time.perf_counter() - t0:.4f} s")
+            log.info("Parse took: %.4f s", time.perf_counter() - t0)
 
     # ── Internal wiring ───────────────────────────────────────────────────────
 
@@ -127,9 +138,10 @@ class FRODO:
             self.sets = sets_cls(db=self)
         else:
             self.sets = None
-            print(
-                "\n\tWARNING: No Sets class for this format. "
-                "Sets methods will not be available.\n"
+            warnings.warn(
+                f"No Sets class for format '{self.format}'. "
+                "Sets methods will not be available.",
+                UserWarning,
             )
 
         # ── RESIDUALS ───────────────────────────────────────────────────────
@@ -138,9 +150,10 @@ class FRODO:
             self.residuals = residuals_cls(db=self)
         else:
             self.residuals = None
-            print(
-                "\n\tWARNING: No Residuals class for this format. "
-                "Residuals methods will not be available.\n"
+            warnings.warn(
+                f"No Residuals class for format '{self.format}'. "
+                "Residuals methods will not be available.",
+                UserWarning,
             )
 
         # ── STATS ───────────────────────────────────────────────────────────
@@ -150,17 +163,19 @@ class FRODO:
             self.stats = stats_cls(db=self)
         else:
             self.stats = None
-            print(
-                "\n\tWARNING: No Stats class for this format. "
-                "Stats methods will not be available.\n"
+            warnings.warn(
+                f"No Stats class for format '{self.format}'. "
+                "Stats methods will not be available.",
+                UserWarning,
             )
-            
-    def _parse(self):
+
+    def _parse(self) -> None:
+        """Parse simulation folders into sim_metadata/df_state."""
         self.reader.parse_simulation_dirs()
         self.sim_metadata = self.reader.sim_metadata
-        self.df_state     = self.reader.df_state
+        self.df_state = self.reader.df_state
 
-    def _sync_reader(self):
+    def _sync_reader(self) -> None:
         """Sync attributes computed by the reader back into FRODO."""
         for attr in ('sim_metadata', 'df_state', 'data_dict'):
             if hasattr(self.reader, attr):
@@ -168,15 +183,17 @@ class FRODO:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def extract_inputs(self, *args, **kwargs):
+    def extract_inputs(self, *args, **kwargs) -> None:
+        """Delegate to ``reader.extract_inputs`` and re-sync (see reader)."""
         self.reader.extract_inputs(*args, **kwargs)
         self._sync_reader()
 
-    def extract_outputs(self, *args, **kwargs):
+    def extract_outputs(self, *args, **kwargs) -> None:
+        """Delegate to ``reader.extract_outputs`` and re-sync (see reader)."""
         self.reader.extract_outputs(*args, **kwargs)
         self._sync_reader()
 
-    def summary_data(self):
+    def summary_data(self) -> None:
         """Print a rich-tree summary of data_dict."""
         if hasattr(self, 'data_dict'):
             SAM.DictVisualizer.rich_tree(self.data_dict)
@@ -187,14 +204,16 @@ class FRODO:
 
     def copy(self) -> 'FRODO':
         """Return a deep copy of this FRODO instance."""
-        new                 = FRODO.__new__(FRODO)
-        new.format          = self.format
-        new.root_dir        = self.root_dir
-        new.sim_metadata    = copy.deepcopy(self.sim_metadata)
-        new.data_dict       = copy.deepcopy(self.data_dict)
-        new.kwargs          = copy.deepcopy(self.kwargs)
+        new = FRODO.__new__(FRODO)
+        new.format = self.format
+        new.root_dir = self.root_dir
+        new.sim_metadata = copy.deepcopy(self.sim_metadata)
+        new.data_dict = copy.deepcopy(self.data_dict)
+        new.df_state = copy.deepcopy(getattr(self, 'df_state', None))
+        new.metadata = copy.deepcopy(getattr(self, 'metadata', {}))
+        new.kwargs = copy.deepcopy(self.kwargs)
         new.update_df_state = self.update_df_state
-        new.name            = self.name + "_copy"
+        new.name = self.name + "_copy"
         new._set_subclasses()
         return new
 
@@ -431,14 +450,14 @@ class FRODO:
     @staticmethod
     def merge_datasets(
         root_dir: str,
-        name: Union[str, None],
+        name: Optional[str],
         sources: list,
         new_group_id: str,
         method: str = 'idw',
         k: int = 4,
         mesh_ref: int = 0,
         cache: bool = True,
-        get_df_metrics_attr: dict = {},
+        get_df_metrics_attr: Optional[dict] = None,
         dedup_decimals: int = 8,
     ) -> 'FRODO':
         """
@@ -595,6 +614,7 @@ class FRODO:
                     f"get_df_metrics_attr is only supported for format 'CODA' "
                     f"(got '{format_ref}')."
                 )
+        get_df_metrics_attr = dict(get_df_metrics_attr or {})
 
         # ── 1. Validate groups exist and gather each source's extracted FlCc ──
         source_labels = [f"source {i} ('{db.name}', group '{gid}')"
@@ -622,7 +642,9 @@ class FRODO:
                 f"{dict(zip(source_labels, flcc_dims))}."
             )
 
-        design_vars = dbs[mesh_ref].metadata.get('design_vars')
+        design_vars = (getattr(dbs[mesh_ref], 'metadata', None) or {}).get(
+            'design_vars'
+        )
         if not design_vars or len(design_vars) != flcc_dims[0]:
             raise ValueError(
                 "metadata['design_vars'] of the mesh_ref source "
@@ -630,7 +652,7 @@ class FRODO:
                 f"the number of FlCc columns ({flcc_dims[0]})."
             )
         for i, db in enumerate(dbs):
-            dv_i = db.metadata.get('design_vars')
+            dv_i = (getattr(db, 'metadata', None) or {}).get('design_vars')
             if dv_i is not None and list(dv_i) != list(design_vars):
                 raise ValueError(
                     f"{source_labels[i]} declares design_vars={dv_i}, which "
@@ -766,13 +788,14 @@ class FRODO:
             )
 
         # ── 9. Build the new FRODO instance ──────────────────────────────────
-        db_new              = FRODO.__new__(FRODO)
-        db_new.format       = format_ref
-        db_new.root_dir     = root_dir
-        db_new.name         = name.replace(" ", "_") if name is not None else "FRODO_Merged"
+        db_new = FRODO.__new__(FRODO)
+        db_new.format = format_ref
+        db_new.root_dir = root_dir
+        db_new.name = name.replace(" ", "_") if name is not None else "FRODO_Merged"
         db_new.sim_metadata = {}
-        db_new.kwargs       = {}
-        db_new.df_state     = df_state_new
+        db_new.kwargs = {}
+        db_new.df_state = df_state_new
+        db_new.update_df_state = False
 
         for d in [root_dir,
                   os.path.join(root_dir, 'metadata'),
@@ -783,7 +806,9 @@ class FRODO:
             for mk, mv in db.sim_metadata.items():
                 db_new.sim_metadata.setdefault(mk, mv)
 
-        db_new.metadata = copy.deepcopy(dbs[mesh_ref].metadata)
+        db_new.metadata = copy.deepcopy(
+            getattr(dbs[mesh_ref], 'metadata', None) or {}
+        )
         db_new.metadata.pop('df_cases', None)
         db_new.metadata['df_cases'] = df_cases_new
         df_cases_new.to_csv(

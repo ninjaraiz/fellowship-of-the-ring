@@ -16,8 +16,9 @@ The class operates on the three-bucket ``data_dict`` layout produced by
     }
 """
 
-import os
-from typing import Union
+import logging
+import warnings
+from typing import Optional, TYPE_CHECKING, Union
 
 import numpy as np
 import pandas as pd
@@ -27,9 +28,10 @@ import h5py
 from ..sam import SAM
 from .base import BaseSets
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..frodo import FRODO
+
+log = logging.getLogger(__name__)
 
 
 class NUMPYFILESets(BaseSets):
@@ -72,7 +74,8 @@ class NUMPYFILESets(BaseSets):
         print(result['tensor'].shape)   # (n_points * n_cases, n_cols)
     """
 
-    def __init__(self, db: 'FRODO'):
+    def __init__(self, db: 'FRODO') -> None:
+        """Attach to the parent FRODO database (see BaseSets)."""
         super().__init__(db)
 
     # =========================================================================
@@ -197,16 +200,20 @@ class NUMPYFILESets(BaseSets):
         tensor_ptos = dd['inputs']['ptos']
 
         # ── Parametric variables (all inputs except 'ptos') ───────────────
+        # Shape (n_cases, n_params); with no params the matrix is
+        # (n_cases, 0), sized from the outputs' case axis so Gardener
+        # still sees the right number of cases.
         param_arrays = [
             dd['inputs'][k]
             for k in dd['inputs']
             if k != 'ptos'
         ]
-        tensor_flcc = (
-            np.column_stack(param_arrays)
-            if param_arrays
-            else np.empty((tensor_ptos.shape[0], 0))
-        )
+        if param_arrays:
+            tensor_flcc = np.column_stack(param_arrays)
+        else:
+            first_out = np.asarray(next(iter(dd['outputs'].values())))
+            n_cases = first_out.shape[1] if first_out.ndim >= 2 else 0
+            tensor_flcc = np.empty((n_cases, 0))
 
         # ── Auxiliary and output arrays ───────────────────────────────────
         tensors_aux = list(dd.get('aux', {}).values())
@@ -242,18 +249,24 @@ class NUMPYFILESets(BaseSets):
         for section in ('aux', 'outputs'):
             columns.extend(dd.get(section, {}).keys())
 
-        try:
+        n_tensor_cols = result['tensor'].shape[1]
+        if len(columns) != n_tensor_cols:
+            warnings.warn(
+                f"Column names ({len(columns)}) do not match tensor "
+                f"width ({n_tensor_cols}); storing an unnamed DataFrame.",
+                UserWarning,
+            )
+            self.db.df_data = pd.DataFrame(result['tensor'].numpy())
+        else:
             self.db.df_data = pd.DataFrame(
                 data=result['tensor'].numpy(), columns=columns
             )
-        except Exception:
-            self.db.df_data = pd.DataFrame(result['tensor'].numpy())
 
         if verbose:
-            print(f"Tensor shape : {result['tensor'].shape}")
-            print(f"Columns      : {columns}")
-            print("\nJset loaded into db.jset")
-            print("DataFrame loaded into db.df_data\n")
+            log.info("Tensor shape : %s", result['tensor'].shape)
+            log.info("Columns      : %s", columns)
+            log.info("\nJset loaded into db.jset")
+            log.info("DataFrame loaded into db.df_data\n")
 
         return result
 
@@ -265,7 +278,7 @@ class NUMPYFILESets(BaseSets):
         self,
         array_name: str,
         array: np.ndarray,
-        notes: str = None,
+        notes: Optional[str] = None,
     ) -> None:
         """
         Store an auxiliary spatial array in ``data_dict['aux']``.

@@ -97,6 +97,7 @@ solver artefacts); timestamped ``*_<iter>.hsol`` snapshots are ignored.
 import os
 import re
 import json
+import logging
 import warnings
 from typing import Union
 
@@ -105,6 +106,8 @@ import pandas as pd
 
 from ..sam import SAM
 from .base import BaseReader
+
+log = logging.getLogger(__name__)
 
 
 class Horses3DReader(BaseReader):
@@ -177,10 +180,10 @@ class Horses3DReader(BaseReader):
     #: Separators tried when inferring design_vars from case-folder names.
     _FOLDER_NAME_SEPARATORS = ['_', '-']
 
-    def __init__(self, root_dir: str, strict: bool = True, **kwargs):
+    def __init__(self, root_dir: str, strict: bool = True, **kwargs) -> None:
         super().__init__(root_dir, **kwargs)
         self.output_dir = os.path.join(self.root_dir, "outputs")
-        print(f'\n NEW HORSES3D SIMULATION WILL BE LOADED FROM {root_dir}')
+        log.info('NEW HORSES3D SIMULATION WILL BE LOADED FROM %s', root_dir)
 
         if not os.path.isdir(self.output_dir):
             raise FileNotFoundError(
@@ -793,10 +796,17 @@ class Horses3DReader(BaseReader):
         )
 
         n_sims = len(self.sim_metadata)
-        print(
-            f"{n_sims} simulation(s) found."
-            if n_sims != 1 else "1 simulation found."
+        log.info(
+            "%s simulation(s) found.",
+            n_sims,
         )
+
+    @staticmethod
+    def _resolve_p_request(sols: dict, p: Union[int, str]) -> int:
+        """Resolve one ``p`` against a case's solutions (``'max'`` wins)."""
+        if isinstance(p, str) and p.lower() == 'max':
+            return max(sols)
+        return int(p)
 
     @staticmethod
     def _group_key(mesh_file: Union[str, None], g: Union[int, None]) -> str:
@@ -878,6 +888,12 @@ class Horses3DReader(BaseReader):
         FileNotFoundError
             If a declared ``MESH/*.h5`` file is missing on disk.
 
+        Notes
+        -----
+        ``data_dict['FlCc']`` / ``['case_order']`` mirror the *first*
+        mesh group only (backward compatibility); with several meshes,
+        read each ``data_dict['CADGroup_...']`` group instead.
+
         Examples
         --------
         ::
@@ -906,7 +922,7 @@ class Horses3DReader(BaseReader):
                 raise ValueError(
                     f"Case '{case_name}' (idx={case_idx}) has no solutions."
                 )
-            p_use = max(sols) if p == 'max' else int(p)
+            p_use = self._resolve_p_request(sols, p)
             if p_use not in sols:
                 raise KeyError(
                     f"p={p_use} not available for case '{case_name}'. "
@@ -918,7 +934,6 @@ class Horses3DReader(BaseReader):
             partitions.setdefault((mesh_file, g), []).append(case_idx)
 
         self._active_cases_idx['inputs'] = list(resolved_idx)
-        self._active_inputs_p = p if isinstance(p, str) else int(p)
 
         for (mesh_file, g), idx_list in partitions.items():
             if mesh_file is None:
@@ -973,10 +988,10 @@ class Horses3DReader(BaseReader):
                     ) from exc
                 case_order.append(case_name)
                 if verbose:
-                    print(
-                        f"[Horses3DReader] extract_inputs — case "
-                        f"'{case_name}' (idx={case_idx}), "
-                        f"p={p_used[case_idx]}: mesh={mesh_file}"
+                    log.debug(
+                        "[Horses3DReader] extract_inputs — case "
+                        "'%s' (idx=%s), p=%s: mesh=%s",
+                        case_name, case_idx, p_used[case_idx], mesh_file,
                     )
 
             idx_sort = np.tile(order[None, None, :], (1, ncases, 1)).astype(
@@ -1095,7 +1110,7 @@ class Horses3DReader(BaseReader):
         for case_idx in resolved_idx:
             case_name = self._case_name_from_idx(case_idx)
             sols = self.sim_metadata[case_name]['solutions']
-            p_use = max(sols) if p == 'max' else int(p)
+            p_use = self._resolve_p_request(sols, p)
             if p_use not in sols:
                 raise KeyError(
                     f"p={p_use} not available for case '{case_name}'. "
@@ -1164,11 +1179,12 @@ class Horses3DReader(BaseReader):
                         )
                     )
                 if verbose:
-                    print(
-                        f"[Horses3DReader] extract_outputs — case "
-                        f"'{case_name}' (idx={case_idx}), p={p_common}: "
-                        f"solution={sol_file} "
-                        f"({header['size_bytes']} bytes, header+lazy)"
+                    log.debug(
+                        "[Horses3DReader] extract_outputs — case "
+                        "'%s' (idx=%s), p=%s: solution=%s "
+                        "(%s bytes, header+lazy)",
+                        case_name, case_idx, p_common, sol_file,
+                        header['size_bytes'],
                     )
 
         self._active_cases_idx['outputs'] = list(resolved_idx)

@@ -99,24 +99,34 @@ def _install_stub_modules():
             self.db = db
 
     readers_mod = mk('FotR.characters.readers')
-    readers_mod.READER_REGISTRY = getattr(readers_mod, 'READER_REGISTRY', {})
+    readers_mod.__path__ = [os.path.join(root, 'characters', 'readers')]
+    # Forced (not setdefault): another test module may have imported the
+    # real registries first, but these tests need the trivial ones — the
+    # merged instance is rebuilt via _set_subclasses with empty kwargs,
+    # which real readers (e.g. NUMPYReader requiring 'file') reject.
+    readers_mod.READER_REGISTRY = dict(
+        (fmt, _TrivialReader) for fmt in ('CODA', 'NUMPY')
+    )
     readers_mod.BaseReader = getattr(readers_mod, 'BaseReader', object)
-    for fmt in ('CODA', 'NUMPY'):
-        readers_mod.READER_REGISTRY.setdefault(fmt, _TrivialReader)
 
     sets_mod = mk('FotR.characters.sets')
-    sets_mod.SETS_REGISTRY = getattr(sets_mod, 'SETS_REGISTRY', {})
+    sets_mod.__path__ = [os.path.join(root, 'characters', 'sets')]
+    sets_mod.SETS_REGISTRY = dict(
+        (fmt, _TrivialSets) for fmt in ('CODA', 'NUMPY')
+    )
     sets_mod.BaseSets = getattr(sets_mod, 'BaseSets', object)
-    for fmt in ('CODA', 'NUMPY'):
-        sets_mod.SETS_REGISTRY.setdefault(fmt, _TrivialSets)
 
     residuals_mod = mk('FotR.characters.residuals')
-    residuals_mod.RESIDUALS_REGISTRY = getattr(residuals_mod, 'RESIDUALS_REGISTRY', {})
-    residuals_mod.BaseResiduals = getattr(residuals_mod, 'BaseResiduals', object)
-    for fmt in ('CODA', 'NUMPY'):
-        residuals_mod.RESIDUALS_REGISTRY.setdefault(fmt, _TrivialResiduals)
+    residuals_mod.__path__ = [os.path.join(root, 'characters', 'residuals')]
+    residuals_mod.RESIDUALS_REGISTRY = dict(
+        (fmt, _TrivialResiduals) for fmt in ('CODA', 'NUMPY')
+    )
+    residuals_mod.BaseResiduals = getattr(
+        residuals_mod, 'BaseResiduals', object
+    )
 
     stats_mod = mk('FotR.characters.stats')
+    stats_mod.__path__ = [os.path.join(root, 'characters', 'stats')]
     stats_mod.STATS_REGISTRY = getattr(stats_mod, 'STATS_REGISTRY', {})
     stats_mod.BaseStats = getattr(stats_mod, 'BaseStats', object)
 
@@ -124,9 +134,10 @@ def _install_stub_modules():
 def _load_frodo():
     _install_stub_modules()
     dotted = 'FotR.characters.frodo'
-    if dotted in sys.modules:
-        return sys.modules[dotted].FRODO
-
+    # Always (re)load the stub-wired FRODO: another test module may have
+    # imported the real one first, and these tests need the trivial
+    # registries above (the merged instance is rebuilt via
+    # _set_subclasses with empty kwargs, which real readers reject).
     root = os.path.join(os.path.dirname(__file__), '..')
     spec = importlib.util.spec_from_file_location(
         dotted, os.path.join(root, 'characters', 'frodo.py')
@@ -625,6 +636,46 @@ def test_merge_incompatible_flcc_columns_raises(tmp_path):
             sources=[(db_a, '3'), (db_b, '3')], new_group_id='3_merged',
             mesh_ref=0,
         )
+
+
+def test_merge_mismatched_design_var_names_raises(tmp_path):
+    """Same column count but different meaning per column is an error."""
+    db_a = FakeFRODO('NUMPY', 'db_a', ['AoA', 'Mach'],
+                      {'CADGroup_3': _make_group(np.array([[0.0, 0.7]]))},
+                      df_state=_make_df_state(np.array([[0.0, 0.7]]), ['AoA', 'Mach']))
+    db_b = FakeFRODO('NUMPY', 'db_b', ['AoA', 'Beta'],
+                      {'CADGroup_3': _make_group(np.array([[2.0, 0.7]]))},
+                      df_state=_make_df_state(np.array([[2.0, 0.7]]), ['AoA', 'Beta']))
+
+    with pytest.raises(ValueError, match='differs from the mesh_ref'):
+        FRODO.merge_datasets(
+            root_dir=str(tmp_path / 'merged'), name='merged',
+            sources=[(db_a, '3'), (db_b, '3')], new_group_id='3_merged',
+            mesh_ref=0,
+        )
+
+
+def test_merge_preserves_design_vars_from_mesh_ref(tmp_path):
+    design_vars = ['AoA', 'Mach']
+    flcc_a = np.array([[0.0, 0.7]])
+    flcc_b = np.array([[2.0, 0.7]])
+    db_a = FakeFRODO(
+        'NUMPY', 'db_a', design_vars,
+        {'CADGroup_3': _make_group(flcc_a)},
+        df_state=_make_df_state(flcc_a, design_vars),
+    )
+    db_b = FakeFRODO(
+        'NUMPY', 'db_b', design_vars,
+        {'CADGroup_3': _make_group(flcc_b)},
+        df_state=_make_df_state(flcc_b, design_vars),
+    )
+
+    merged = FRODO.merge_datasets(
+        root_dir=str(tmp_path / 'merged'), name='merged',
+        sources=[(db_a, '3'), (db_b, '3')], new_group_id='3_merged',
+        mesh_ref=0,
+    )
+    assert merged.metadata['design_vars'] == design_vars
 
 
 # =========================================================================

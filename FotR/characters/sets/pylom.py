@@ -22,22 +22,23 @@ All methods operate on the three-bucket layout produced by
     }
 """
 
-import os
+import logging
 import warnings
-from typing import Union, TYPE_CHECKING
+from typing import Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 import torch
 import h5py
 
-import pyLOM as SMEAGOL
-
 from ..sam import SAM
 from .base import BaseSets
 
 if TYPE_CHECKING:
+    import pyLOM as SMEAGOL
     from ..frodo import FRODO
+
+log = logging.getLogger(__name__)
 
 
 class PYLOMSets(BaseSets):
@@ -70,7 +71,8 @@ class PYLOMSets(BaseSets):
         db.sets.summary()                           → print data overview
     """
 
-    def __init__(self, db: 'FRODO'):
+    def __init__(self, db: 'FRODO') -> None:
+        """Attach to the parent FRODO database (see BaseSets)."""
         super().__init__(db)
 
     # =========================================================================
@@ -215,6 +217,8 @@ class PYLOMSets(BaseSets):
         tensor_ptos = torch.from_numpy(np.asarray(dd["inputs"][ptos_key]))
 
         # ── Parametric variable matrix ────────────────────────────────────
+        # Shape (n_cases, n_params); with no params the matrix is
+        # (n_cases, 0), sized from the outputs' case axis.
         flcc_arrays = [
             torch.from_numpy(
                 np.asarray(dd["inputs"][k]).reshape(-1, 1)
@@ -223,11 +227,12 @@ class PYLOMSets(BaseSets):
             )
             for k in input_keys if k != ptos_key
         ]
-        tensor_flcc = (
-            torch.cat(flcc_arrays, dim=1)
-            if flcc_arrays
-            else torch.empty(0)
-        )
+        if flcc_arrays:
+            tensor_flcc = torch.cat(flcc_arrays, dim=1)
+        else:
+            first_out = np.asarray(next(iter(dd["outputs"].values())))
+            n_cases = first_out.shape[1] if first_out.ndim >= 2 else 0
+            tensor_flcc = torch.empty((n_cases, 0))
 
         # ── Auxiliary and output tensors ──────────────────────────────────
         tensors_aux = [
@@ -248,7 +253,7 @@ class PYLOMSets(BaseSets):
         if save_path:
             self._save_result(result, save_path)
             if verbose:
-                print(f"[PYLOMSets] jset saved → {save_path}")
+                log.info("[PYLOMSets] jset saved → %s", save_path)
 
         self.db.dict_tensors = result
 
@@ -267,17 +272,25 @@ class PYLOMSets(BaseSets):
         for section in ("aux", "outputs"):
             columns.extend(dd.get(section, {}).keys())
 
-        try:
+        n_tensor_cols = result["tensor"].shape[1]
+        if len(columns) != n_tensor_cols:
+            warnings.warn(
+                f"Column names ({len(columns)}) do not match tensor "
+                f"width ({n_tensor_cols}); storing an unnamed DataFrame.",
+                UserWarning,
+            )
+            self.db.df_data = pd.DataFrame(result["tensor"].numpy())
+        else:
             self.db.df_data = pd.DataFrame(
                 data=result["tensor"].numpy(), columns=columns
             )
-        except Exception:
-            self.db.df_data = pd.DataFrame(result["tensor"].numpy())
 
         if verbose:
-            print(f"[PYLOMSets] Tensor shape : {result['tensor'].shape}")
-            print(f"[PYLOMSets] Columns      : {columns}")
-            print("[PYLOMSets] Result stored in db.dict_tensors and db.df_data")
+            log.info("[PYLOMSets] Tensor shape : %s", result["tensor"].shape)
+            log.info("[PYLOMSets] Columns      : %s", columns)
+            log.info(
+                "[PYLOMSets] Result stored in db.dict_tensors and db.df_data"
+            )
 
         return result
 
@@ -355,8 +368,8 @@ class PYLOMSets(BaseSets):
     def get_field(
         self,
         name: str,
-        idim: int = None,
-        section: Union[int, slice, None] = None,
+        idim: Optional[int] = None,
+        section: Union[int, slice, list, tuple, np.ndarray, None] = None,
     ) -> np.ndarray:
         """
         Return an output field with optional component and case selection.
@@ -532,12 +545,14 @@ class PYLOMSets(BaseSets):
         )
 
         # ── Parametric variables ──────────────────────────────────────────
+        # idim counts only stored variables, so it stays dense (0, 1, …)
+        # after skipping the coordinate aliases.
         var_dict: dict = {}
-        for i, (alias, arr) in enumerate(inputs.items()):
+        for alias, arr in inputs.items():
             if alias in ("ptos", "xyz"):
                 continue
             var_dict[alias] = {
-                "idim":  i,
+                "idim":  len(var_dict),
                 "value": np.asarray(arr).ravel(),
             }
 
@@ -589,7 +604,7 @@ class PYLOMSets(BaseSets):
         self,
         array_name: str,
         array: np.ndarray,
-        notes: str = None,
+        notes: Optional[str] = None,
     ) -> None:
         """
         Store an auxiliary spatial array in ``data_dict['aux']``.
@@ -643,12 +658,13 @@ class PYLOMSets(BaseSets):
     # Overview
     # =========================================================================
 
-    def summary(self) -> None:
+    def summary(self) -> str:
         """
-        Print a compact tabular overview of ``data_dict`` contents.
+        Return (and print) a compact tabular overview of ``data_dict``.
 
         For each of the three buckets (``inputs``, ``outputs``, ``aux``),
-        lists every array with its shape and dtype.
+        lists every array with its shape and dtype. Returning the string
+        keeps the :meth:`BaseSets` contract (and ``repr``) working.
 
         Examples
         --------
@@ -669,15 +685,18 @@ class PYLOMSets(BaseSets):
             ─────────────────────────────────────────────────────────
         """
         dd = self.db.data_dict
-        print("── PYLOMSets summary ────────────────────────────────────")
+        lines = ["── PYLOMSets summary ────────────────────────────────────"]
         for section in ("inputs", "outputs", "aux"):
-            print(f"  [{section}]")
+            lines.append(f"  [{section}]")
             for k, v in dd.get(section, {}).items():
                 arr = np.asarray(v)
-                print(
+                lines.append(
                     f"    {k:<30s}  shape={arr.shape}  dtype={arr.dtype}"
                 )
-        print("─────────────────────────────────────────────────────────")
+        lines.append("─────────────────────────────────────────────────────────")
+        text = "\n".join(lines)
+        print(text)
+        return text
 
     # =========================================================================
     # Private helpers

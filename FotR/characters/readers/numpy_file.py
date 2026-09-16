@@ -35,15 +35,18 @@ unified ``data_dict`` that mirrors the CODA layout as closely as possible:
     }
 """
 
+import logging
 import os
 import warnings
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
 
 from ..sam import SAM
 from .base import BaseReader
+
+log = logging.getLogger(__name__)
 
 
 class NUMPYFILEReader(BaseReader):
@@ -139,6 +142,7 @@ class NUMPYFILEReader(BaseReader):
 
         self.data_dict   = {"inputs": {}, "outputs": {}, "aux": {}}
         self.order_ptos: np.ndarray = None
+        self.size_inputs: int = 0
 
     # =========================================================================
     # BaseReader interface
@@ -193,7 +197,7 @@ class NUMPYFILEReader(BaseReader):
                     for k, v in content.items()
                 },
             }
-            print(f"Parsed '{f}'  —  keys: {list(content.keys())}")
+            log.info("Parsed '%s' — keys: %s", f, list(content.keys()))
 
         self.df_state = pd.DataFrame()
 
@@ -204,7 +208,7 @@ class NUMPYFILEReader(BaseReader):
         method_to_sort: Literal[
             'centroid', 'kdtree', 'concave_hull', 'lexsort'
         ] = 'centroid',
-        common: Union[list, None] = None,
+        common: Optional[list] = None,
         **kwargs,
     ) -> None:
         """
@@ -358,12 +362,18 @@ class NUMPYFILEReader(BaseReader):
 
         sorted_ptos, self.order_ptos = sort_dispatch[method_to_sort]()
         self.data_dict["inputs"]["ptos"] = sorted_ptos
+        n_points = sorted_ptos.shape[0]
 
         # ── Load and sort auxiliary arrays ────────────────────────────────
+        # Only arrays whose first axis holds points are reordered; anything
+        # else (e.g. a per-case parameter) is copied as-is.
         for alias, key_path in keys_aux.items():
             file_key, key = self._split_key_path(key_path)
             arr = np.asarray(self.npy_dict[file_key][key])
-            self.data_dict["aux"][alias] = arr[self.order_ptos]
+            if arr.shape and arr.shape[0] == n_points:
+                self.data_dict["aux"][alias] = arr[self.order_ptos]
+            else:
+                self.data_dict["aux"][alias] = arr
 
         # ── Store metadata for reference ──────────────────────────────────
         self.sim_metadata["keys_inputs"] = keys_inputs
@@ -380,7 +390,9 @@ class NUMPYFILEReader(BaseReader):
         The method auto-detects which axis corresponds to ``n_points`` by
         comparing both axes of each loaded array against the shape of the
         already-loaded ``'ptos'`` array, and applies ``self.order_ptos`` to
-        reorder the points consistently with ``extract_inputs``.
+        reorder the points consistently with ``extract_inputs``. When
+        ``n_points`` equals the case count the first matching axis wins;
+        use unambiguous layouts to avoid that degeneracy.
 
         Parameters
         ----------
@@ -475,6 +487,8 @@ class NUMPYFILEReader(BaseReader):
         KeyError
             If ``file_key`` is not in ``self.npy_dict`` or ``key`` is not in
             the corresponding dict.
+        ValueError
+            If ``key_path`` has no ``'/'`` separator.
 
         Examples
         --------
@@ -484,6 +498,11 @@ class NUMPYFILEReader(BaseReader):
             # file_key → 'db_random.npy'
             # key      → 'Alpha'
         """
+        if '/' not in key_path:
+            raise ValueError(
+                f"key_path '{key_path}' must have the form "
+                "'<filename>/<key>'."
+            )
         file_key, key = key_path.split('/', 1)
         if file_key not in self.npy_dict:
             raise KeyError(

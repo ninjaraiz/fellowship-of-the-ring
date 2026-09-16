@@ -9,10 +9,6 @@ are stubbed out with ``types.ModuleType`` placeholders before import, so
 this suite runs without those packages installed — mirroring the
 isolation approach already used by the other reader test modules in this
 project.
-
-Place this file at: ``FotR/tests/readers/test_horses3d.py``
-(adjust the two lines under "package import setup" below to match your
-actual test discovery / import path if different).
 """
 
 import importlib.util
@@ -582,7 +578,10 @@ def test_incompatible_mesh_between_controls_raises_strict(tmp_path):
         reader.parse_simulation_dirs()
 
 
-def test_duplicate_p_declaration_raises_strict(tmp_path):
+def test_single_control_yields_single_solution(tmp_path):
+    # A duplicate p via filename is unreachable on a real filesystem
+    # (the second file would overwrite the first), so this test pins the
+    # attainable behaviour: one control file -> exactly one solution.
     root = str(tmp_path)
     outputs = os.path.join(root, "outputs")
     os.makedirs(outputs)
@@ -590,15 +589,6 @@ def test_duplicate_p_declaration_raises_strict(tmp_path):
     os.makedirs(case)
     mesh = _make_mesh(case)
     _write_control(case, p=2, mesh_name=mesh)
-    # Second control also names itself p2 (duplicate filename would
-    # actually just overwrite; simulate duplicate declaration via a
-    # differently-named file that still matches p=2 in content/filename
-    # by writing directly with a distinguishable filename collision
-    # scenario is not reachable with unique filenames, so this test
-    # instead verifies the guard rejects a second control claiming the
-    # same p through the filename pattern itself is naturally unique per
-    # OS file system; duplicate detection is exercised at the dict level
-    # in test_duplicate_p_declaration_direct below.
     reader = Horses3DReader(root_dir=root, strict=True)
     reader.parse_simulation_dirs()
     assert list(reader.sim_metadata["case_1"]["solutions"].keys()) == [2]

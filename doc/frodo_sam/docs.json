@@ -43,7 +43,7 @@
               "signature": "__init__(root_dir, format, initial_parse, **kwargs)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Create the database and wire the format sub-objects.",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -51,7 +51,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -79,7 +79,7 @@
               "signature": "_parse()",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Parse simulation folders into sim_metadata/df_state.",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -87,7 +87,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -115,7 +115,7 @@
               "signature": "extract_inputs(*args, **kwargs)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Delegate to ``reader.extract_inputs`` and re-sync (see reader).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -123,7 +123,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -133,7 +133,7 @@
               "signature": "extract_outputs(*args, **kwargs)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Delegate to ``reader.extract_outputs`` and re-sync (see reader).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -141,7 +141,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -857,7 +857,7 @@
               "signature": "__init__(name, path, p, case, n_points, flow_equations)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Identify one lazy HORSES3D field (no data is read).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -865,7 +865,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -1907,6 +1907,24 @@
               }
             },
             {
+              "id": "Horses3DReader._resolve_p_request",
+              "class": "Horses3DReader",
+              "name": "_resolve_p_request",
+              "signature": "_resolve_p_request(sols, p)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Resolve one ``p`` against a case's solutions (``'max'`` wins).",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
               "id": "Horses3DReader._group_key",
               "class": "Horses3DReader",
               "name": "_group_key",
@@ -2779,7 +2797,7 @@
               "signature": "__init__(db)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Attach to the parent FRODO database (see BaseSets).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -2787,7 +2805,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -3053,7 +3071,7 @@
               "signature": "__init__(db)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Attach to the parent FRODO database (see BaseSets).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -3061,7 +3079,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -3147,7 +3165,7 @@
               "signature": "__init__(db)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Attach to the parent FRODO database (see BaseSets).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -3155,7 +3173,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -3309,7 +3327,7 @@
               "signature": "summary()",
               "kind": "method",
               "doc": {
-                "summary": "Print a compact tabular overview of ``data_dict`` contents.",
+                "summary": "Return (and print) a compact tabular overview of ``data_dict``.",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -3443,7 +3461,7 @@
               "signature": "__init__(db)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Attach to the parent FRODO database (see BaseStats).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -3451,7 +3469,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -3695,7 +3713,7 @@
               "signature": "_plot_diff_histogram_2D(df_point, label, stage_a, stage_b, diff_mode, figsize, save_dir, **kwargs_plot)",
               "kind": "staticmethod",
               "doc": {
-                "summary": "",
+                "summary": "Draw a 2-D histogram of the difference vs the coord bin.",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -3703,7 +3721,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -3711,9 +3729,9 @@
               "class": "CODAStats",
               "name": "_plot_heatmap",
               "signature": "_plot_heatmap()",
-              "kind": "method",
+              "kind": "staticmethod",
               "doc": {
-                "summary": "",
+                "summary": "Placeholder for a future difference heatmap (not implemented).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -3721,7 +3739,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             }
           ]
@@ -3799,6 +3817,78 @@
                 },
                 "has_doc": true
               }
+            },
+            {
+              "id": "BaseResiduals._save_final_residuals",
+              "class": "BaseResiduals",
+              "name": "_save_final_residuals",
+              "signature": "_save_final_residuals(df_final, load_in_metadata, filename)",
+              "kind": "method",
+              "doc": {
+                "summary": "Warn-and-return-empty when there is no data, else persist to CSV.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseResiduals._resolve_case_name",
+              "class": "BaseResiduals",
+              "name": "_resolve_case_name",
+              "signature": "_resolve_case_name(case_idx, case_name)",
+              "kind": "method",
+              "doc": {
+                "summary": "Resolve a case folder name from either selector.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseResiduals._resolve_p",
+              "class": "BaseResiduals",
+              "name": "_resolve_p",
+              "signature": "_resolve_p(solutions, p)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Resolve one polynomial order from a case's solutions dict.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseResiduals._cycled_colors",
+              "class": "BaseResiduals",
+              "name": "_cycled_colors",
+              "signature": "_cycled_colors(n)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "``tab10`` colors cycled so no curve is silently dropped.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
             }
           ]
         }
@@ -3829,7 +3919,7 @@
               "signature": "__init__(db)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Attach to the parent FRODO database (see BaseResiduals).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -3837,7 +3927,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {
@@ -4049,7 +4139,7 @@
               "signature": "__init__(db)",
               "kind": "method",
               "doc": {
-                "summary": "",
+                "summary": "Attach to the parent FRODO database (see BaseResiduals).",
                 "sections": {
                   "Parameters": false,
                   "Returns": false,
@@ -4057,7 +4147,7 @@
                   "Examples": false,
                   "Attributes": false
                 },
-                "has_doc": false
+                "has_doc": true
               }
             },
             {

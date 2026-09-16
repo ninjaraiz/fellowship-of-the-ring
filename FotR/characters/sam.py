@@ -1,9 +1,10 @@
-import os, re
+import os
+import re
 
 import numpy as np
 import torch
 import pandas as pd
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 from collections.abc import Iterable
 
 import h5py
@@ -15,17 +16,14 @@ import matplotlib.colors as mcolors
 
 import matplotlib.ticker as mticker
 from scipy.spatial import Delaunay
-from scipy.spatial import cKDTree
 
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 
-from tqdm.auto import tqdm
-
 from ..EarendilsLight import EarendilsLight
 from dataclasses import dataclass, field
 
-class SAM():
+class SAM:
     """
     SAM – Simulations & Analytics Module
     ─────────────────────────────────────
@@ -180,10 +178,8 @@ class SAM():
 
             tensor_flcc = tensor_flcc[idx_selected, :]
             ncases = tensor_flcc.shape[0]
-            tensors_out = [
-                out[:, idx_selected, :] if out.dim() >= 2 else out
-                for out in tensors_out
-            ]
+            # All outputs are 3-D here (1-D/4-D+ rejected above).
+            tensors_out = [out[:, idx_selected, :] for out in tensors_out]
             new_aux = []
             for aux in tensors_aux:
                 if aux.dim() == 1:
@@ -1705,10 +1701,10 @@ class SAM():
                     r"[-\d\.]+" if "{" in p and "}" in p else re.escape(p)
                     for p in parts
                 ]
-                return re.compile(rf"^{'_'.join(regex_parts)}$")
+                return re.compile(f"^{'_'.join(regex_parts)}$")
         
         @staticmethod
-        def read_cfd_times(case_path: str, verbose: bool = True) -> dict:
+        def read_cfd_times(case_path: str, verbose: bool = True) -> Optional[dict]:
             """
             Extract wall-clock timing information from a CODA ``-out.txt``
             file.
@@ -1734,7 +1730,9 @@ class SAM():
                 info = SAM.Backpack.read_cfd_times('/data/sim/aoa_3.0_mach_0.75')
                 print(info['stage_total_hours'])
             """
-            files = SAM.Backpack.find_files(case_path, "-out.txt", verbose=False)
+            files = SAM.Backpack.pattern_pocket.find_files(
+                case_path, endswith="-out.txt", verbose=False
+            )
             if not files:
                 if verbose:
                     print(f"WARNING: No -out.txt file in {case_path}.")
@@ -1997,8 +1995,6 @@ class SAM():
                 m = SAM.Backpack.read_horses_mesh_h5('MESH/my_esphere_v2g2_mesh.h5')
                 print(m['Coord'].shape, m['attrs']['Ngeo'])
             """
-            import h5py
-
             if not os.path.isfile(path):
                 raise FileNotFoundError(
                     f"HORSES3D mesh file not found: {path}"
@@ -2122,8 +2118,9 @@ class SAM():
 
             def __init__(
                 self, name: str, path: str, p: int, case: str,
-                n_points: int, flow_equations=None,
-            ):
+                n_points: int, flow_equations: Optional[str] = None,
+            ) -> None:
+                """Identify one lazy HORSES3D field (no data is read)."""
                 self.name = name
                 self.path = path
                 self.p = int(p)

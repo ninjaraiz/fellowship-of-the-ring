@@ -39,8 +39,12 @@ Then register it in ``residuals/__init__.py``::
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Union
 
+import os
+import warnings
+
+import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
@@ -59,7 +63,7 @@ class BaseResiduals(ABC):
         Reference to the parent FRODO instance.
     """
 
-    def __init__(self, db: 'FRODO'):
+    def __init__(self, db: 'FRODO') -> None:
         """
         Parameters
         ----------
@@ -73,7 +77,7 @@ class BaseResiduals(ABC):
     @abstractmethod
     def get_all_final_residuals(
         self,
-        stage='all',
+        stage: Union[list, tuple, str] = 'all',
         verbose: bool = False,
         only_finished: bool = True,
         load_in_metadata: bool = True,
@@ -111,3 +115,73 @@ class BaseResiduals(ABC):
 
     def __repr__(self) -> str:
         return self.summary()
+
+    # ── Shared helpers (same behaviour in every format) ───────────────────
+
+    def _save_final_residuals(
+        self,
+        df_final: pd.DataFrame,
+        load_in_metadata: bool = True,
+        filename: str = 'all_final_residuals.csv',
+    ) -> pd.DataFrame:
+        """Warn-and-return-empty when there is no data, else persist to CSV.
+
+        Shared tail of every ``get_all_final_residuals`` implementation.
+        """
+        if df_final is None or df_final.empty:
+            warnings.warn(
+                "No residual data found. Returning empty DataFrame.",
+                UserWarning,
+            )
+            return pd.DataFrame()
+        if load_in_metadata:
+            os.makedirs(
+                os.path.join(self.db.root_dir, 'metadata'), exist_ok=True
+            )
+            df_final.to_csv(
+                os.path.join(self.db.root_dir, 'metadata', filename),
+                index=False,
+            )
+        return df_final
+
+    def _resolve_case_name(
+        self,
+        case_idx: Optional[int] = None,
+        case_name: Optional[str] = None,
+    ) -> str:
+        """Resolve a case folder name from either selector.
+
+        ``case_name`` takes precedence; otherwise the reader maps
+        ``case_idx`` (``case_per_idx`` in CODA, ``_case_name_from_idx``
+        in HORSES3D).
+        """
+        if case_name is not None:
+            return case_name
+        if case_idx is None:
+            raise ValueError("Provide either case_name or case_idx.")
+        reader = self.db.reader
+        if hasattr(reader, 'case_per_idx'):
+            return reader.case_per_idx(case_idx)
+        return reader._case_name_from_idx(case_idx)
+
+    @staticmethod
+    def _resolve_p(solutions: dict, p: Union[int, str]) -> int:
+        """Resolve one polynomial order from a case's solutions dict.
+
+        ``'max'`` picks the highest available ``p``; anything else must
+        name an existing entry.
+        """
+        p_use = max(solutions) if p == 'max' else int(p)
+        if p_use not in solutions:
+            raise KeyError(
+                f"p={p_use} not available. Available: {sorted(solutions)}."
+            )
+        return p_use
+
+    @staticmethod
+    def _cycled_colors(n: int):
+        """``tab10`` colors cycled so no curve is silently dropped."""
+        import matplotlib.pyplot as plt
+
+        colors = plt.get_cmap('tab10').colors
+        return [colors[i % len(colors)] for i in range(n)]

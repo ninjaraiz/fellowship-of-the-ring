@@ -83,13 +83,16 @@ per-group case space: see :meth:`NUMPYReader.define_subset`.
 
 import os
 import json
+import logging
 import warnings
-from typing import Literal, Union
+from typing import Union
 
 import numpy as np
 import pandas as pd
 
 from .base import BaseReader
+
+log = logging.getLogger(__name__)
 
 
 class NUMPYReader(BaseReader):
@@ -352,9 +355,9 @@ class NUMPYReader(BaseReader):
                     row['case_idx'] = case_idx
                     state_rows.append(row)
 
-        print(
-            f"{len(self.sim_metadata)} CADGroup(s) found across "
-            f"{len(self.npy_dict)} file(s)."
+        log.info(
+            "%s CADGroup(s) found across %s file(s).",
+            len(self.sim_metadata), len(self.npy_dict),
         )
 
         if state_rows:
@@ -775,8 +778,6 @@ class NUMPYReader(BaseReader):
         if isinstance(id_groups, (str, int)):
             id_groups = [id_groups]
 
-        self._active_cases_idx = getattr(self, '_active_cases_idx', {})
-
         for group_id in id_groups:
             key, gd = self._resolve_group(group_id)
 
@@ -786,10 +787,11 @@ class NUMPYReader(BaseReader):
             )
 
             if verbose:
-                print(
-                    f"[NUMPYReader] extract_inputs — group '{key}': "
-                    f"{len(local_cases_idx)}/{n_cases_total} case(s)."
-                    + (f" (subset='{subset}')" if subset is not None else "")
+                log.debug(
+                    "[NUMPYReader] extract_inputs — group '%s': "
+                    "%s/%s case(s).%s",
+                    key, len(local_cases_idx), n_cases_total,
+                    f" (subset='{subset}')" if subset is not None else "",
                 )
 
             flcc = np.asarray(gd['FlCc'])
@@ -797,13 +799,26 @@ class NUMPYReader(BaseReader):
 
             idx_sort = gd.get('idx_sort')
             if idx_sort is not None:
-                idx_sort = np.asarray(idx_sort)[:, local_cases_idx, :]
+                idx_sort = np.asarray(idx_sort)
+                if idx_sort.ndim != 3:
+                    raise ValueError(
+                        f"'idx_sort' of group '{key}' must be "
+                        f"(n_stages, n_cases, n_points), got {idx_sort.shape}."
+                    )
+                idx_sort = idx_sort[:, local_cases_idx, :]
 
             idx_sort_nodes = gd.get('idx_sort_nodes')
             if idx_sort_nodes is not None:
-                idx_sort_nodes = np.asarray(idx_sort_nodes)[:, local_cases_idx, :]
+                idx_sort_nodes = np.asarray(idx_sort_nodes)
+                if idx_sort_nodes.ndim != 3:
+                    raise ValueError(
+                        f"'idx_sort_nodes' of group '{key}' must be "
+                        f"(n_stages, n_cases, n_points), got "
+                        f"{idx_sort_nodes.shape}."
+                    )
+                idx_sort_nodes = idx_sort_nodes[:, local_cases_idx, :]
 
-            def _copy(name):
+            def _copy(name: str):
                 val = gd.get(name)
                 return np.asarray(val).copy() if val is not None else None
 
@@ -945,17 +960,21 @@ class NUMPYReader(BaseReader):
 
             copied = []
             n_cases_total = np.asarray(gd["FlCc"]).shape[0]
-            n_points = None
-            if "Coord" in self.data_dict.get(key, {}):
-                n_points = np.asarray(
-                    self.data_dict[key]["Coord"]
-                ).shape[0]
+            if "Coord" not in self.data_dict.get(key, {}):
+                raise RuntimeError(
+                    f"No Coord found for '{key}'. "
+                    "Run extract_inputs() for this group first."
+                )
+            n_points = np.asarray(self.data_dict[key]["Coord"]).shape[0]
             for var_name, arr in stage_vars.items():
                 if var_name_excluded and var_name in var_name_excluded:
                     continue
 
                 arr = np.asarray(arr)
                 if arr.ndim == 2:
+                    # NOTE: a square (n, n) array is read as
+                    # (n_points, n_cases); use a non-square layout or
+                    # distinct n_points/n_cases to disambiguate.
                     if arr.shape == (n_points, n_cases_total):
                         out = arr[:, local_cases_idx]
                     elif arr.shape == (n_cases_total, n_points):
@@ -984,21 +1003,20 @@ class NUMPYReader(BaseReader):
                 copied.append(var_name)
 
             if verbose:
-                print(
-                    f"[NUMPYReader] extract_outputs — group '{key}', "
-                    f"stage '{stage}': {copied}"
+                log.debug(
+                    "[NUMPYReader] extract_outputs — group '%s', "
+                    "stage '%s': %s",
+                    key, stage, copied,
                 )
 
             # ── Auxiliary arrays ('Aux'), when present in the source ────────
-            # Bugfix: this used to be silently ignored entirely — 'Aux' was
-            # never read anywhere in this reader, even though the raw
-            # on-disk dict can (and, when produced by
+            # 'Aux' was historically ignored entirely by this reader, even
+            # though the raw on-disk dict can (and, when produced by
             # CODASets.save_to_npy(), does) carry one. See the docstring
             # above ("Populates") for the exact slicing contract, which
             # mirrors CODASets.save_to_npy()'s own Aux-writing convention.
             aux_dict = gd.get('Aux')
             if aux_dict:
-                n_cases_total = np.asarray(gd['FlCc']).shape[0]
                 self.data_dict[key].setdefault('Aux', {})
                 copied_aux = []
                 for aux_name, aux_data in aux_dict.items():
@@ -1012,9 +1030,10 @@ class NUMPYReader(BaseReader):
                     copied_aux.append(aux_name)
 
                 if verbose:
-                    print(
-                        f"[NUMPYReader] extract_outputs — group '{key}': "
-                        f"Aux: {copied_aux}"
+                    log.debug(
+                        "[NUMPYReader] extract_outputs — group '%s': "
+                        "Aux: %s",
+                        key, copied_aux,
                     )
 
     # =========================================================================

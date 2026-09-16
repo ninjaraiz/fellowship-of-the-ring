@@ -32,7 +32,7 @@ How to implement a new reader
 
     class MyFormatReader(BaseReader):
 
-        def __init__(self, root_dir: str, **kwargs):
+    def __init__(self, root_dir: str, **kwargs) -> None:
             super().__init__(root_dir, **kwargs)
             # format-specific initialisation
             self.my_option = kwargs.get('my_option', 'default')
@@ -69,6 +69,7 @@ to keep their own local variant.
 """
 
 from abc import ABC, abstractmethod
+from typing import Union
 
 import pandas as pd
 
@@ -157,7 +158,10 @@ class BaseReader(ABC):
     # ── Shared case-selection helper ──────────────────────────────────────────
 
     @staticmethod
-    def _normalise_cases_idx(cases_idx, df_cases: pd.DataFrame) -> list:
+    def _normalise_cases_idx(
+        cases_idx: Union[str, int, range, list, tuple],
+        df_cases: pd.DataFrame,
+    ) -> list:
         """
         Normalise a ``cases_idx`` argument to a sorted-by-input list of
         valid integer case indices, positional against ``df_cases``.
@@ -222,6 +226,13 @@ class BaseReader(ABC):
                 "cases_idx must be 'all', int, list[int], tuple[int] or range."
             )
 
+        if any(
+            isinstance(i, bool) or not isinstance(i, int)
+            for i in cases_idx
+        ):
+            raise ValueError(
+                "cases_idx must contain integer positions only."
+            )
         if any(i >= len(df_cases) or i < 0 for i in cases_idx):
             raise IndexError("cases_idx contains out-of-range values.")
 

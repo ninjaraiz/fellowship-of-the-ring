@@ -27,8 +27,9 @@ as populated by ``Horses3DReader.parse_simulation_dirs``.
 
 import os
 import re
+import logging
 import warnings
-from typing import Union, TYPE_CHECKING
+from typing import Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -40,6 +41,8 @@ from .base import BaseResiduals
 
 if TYPE_CHECKING:
     from ..frodo import FRODO
+
+log = logging.getLogger(__name__)
 
 
 class Horses3DResiduals(BaseResiduals):
@@ -67,7 +70,8 @@ class Horses3DResiduals(BaseResiduals):
         db.residuals.plot_all_final_residuals(p='max')
     """
 
-    def __init__(self, db: 'FRODO'):
+    def __init__(self, db: 'FRODO') -> None:
+        """Attach to the parent FRODO database (see BaseResiduals)."""
         super().__init__(db)
 
     # =========================================================================
@@ -142,19 +146,20 @@ class Horses3DResiduals(BaseResiduals):
         rows: list = []
         for case_idx in resolved_idx:
             case_name = reader._case_name_from_idx(case_idx)
-            sols      = reader.sim_metadata[case_name]['solutions']
+            sols = reader.sim_metadata[case_name]['solutions']
 
             if not sols:
                 if verbose:
-                    print(f"Skipping '{case_name}': no solutions found.")
+                    log.debug("Skipping '%s': no solutions found.", case_name)
                 continue
 
-            p_use = max(sols) if p == 'max' else int(p)
-            if p_use not in sols:
+            try:
+                p_use = self._resolve_p(sols, p)
+            except KeyError:
                 if verbose:
-                    print(
-                        f"Skipping '{case_name}': p={p_use} not available "
-                        f"(has {sorted(sols)})."
+                    log.debug(
+                        "Skipping '%s': p=%s not available (has %s).",
+                        case_name, p, sorted(sols),
                     )
                 continue
 
@@ -164,9 +169,9 @@ class Horses3DResiduals(BaseResiduals):
             if residuals_file is None:
                 if only_finished:
                     if verbose:
-                        print(
-                            f"Skipping '{case_name}' (p={p_use}): no "
-                            ".residuals file found."
+                        log.debug(
+                            "Skipping '%s' (p=%s): no .residuals file found.",
+                            case_name, p_use,
                         )
                     continue
                 df_last = pd.DataFrame()
@@ -179,9 +184,9 @@ class Horses3DResiduals(BaseResiduals):
                     df_last = df_hist.tail(1).reset_index(drop=True)
                 except Exception as exc:
                     if verbose:
-                        print(
-                            f"Could not read residuals for '{case_name}' "
-                            f"(p={p_use}): {exc}"
+                        log.debug(
+                            "Could not read residuals for '%s' (p=%s): %s",
+                            case_name, p_use, exc,
                         )
                     if only_finished:
                         continue
@@ -190,30 +195,27 @@ class Horses3DResiduals(BaseResiduals):
             row = {'case': case_name, 'case_idx': case_idx, 'p': p_use}
             row.update(reader.sim_metadata[case_name].get('design_vars', {}))
             if not df_last.empty:
-                row.update(df_last.iloc[0].to_dict())
+                for k, v in df_last.iloc[0].to_dict().items():
+                    if k in row:
+                        warnings.warn(
+                            f"Residual column '{k}' collides with case "
+                            f"identity; keeping the identity value.",
+                            UserWarning,
+                        )
+                        continue
+                    row[k] = v
             rows.append(row)
 
         if not rows:
-            warnings.warn(
-                "No residual data found. Returning empty DataFrame.",
-                UserWarning,
+            return self._save_final_residuals(
+                pd.DataFrame(), load_in_metadata=False
             )
-            return pd.DataFrame()
 
         df_final = pd.DataFrame.from_records(rows)
 
-        if load_in_metadata:
-            os.makedirs(
-                os.path.join(self.db.root_dir, 'metadata'), exist_ok=True
-            )
-            df_final.to_csv(
-                os.path.join(
-                    self.db.root_dir, 'metadata', 'all_final_residuals.csv'
-                ),
-                index=False,
-            )
-
-        return df_final
+        return self._save_final_residuals(
+            df_final, load_in_metadata=load_in_metadata
+        )
 
     # =========================================================================
     # Case-level residual extraction
@@ -278,21 +280,21 @@ class Horses3DResiduals(BaseResiduals):
         """
         reader = self.db.reader
 
-        if case_name is None:
-            if case_idx is None:
-                raise ValueError("Provide either case_name or case_idx.")
-            case_name = reader._case_name_from_idx(case_idx)
+        case_name = self._resolve_case_name(
+            case_idx=case_idx, case_name=case_name
+        )
 
         sols = reader.sim_metadata[case_name]['solutions']
         if not sols:
             raise KeyError(f"Case '{case_name}' has no solutions.")
 
-        p_use = max(sols) if p == 'max' else int(p)
-        if p_use not in sols:
+        try:
+            p_use = self._resolve_p(sols, p)
+        except KeyError as exc:
             raise KeyError(
-                f"p={p_use} not available for case '{case_name}'. "
+                f"p={p} not available for case '{case_name}'. "
                 f"Available: {sorted(sols)}."
-            )
+            ) from exc
 
         residuals_file = sols[p_use].get('residuals_file')
         if residuals_file is None:
@@ -308,8 +310,8 @@ class Horses3DResiduals(BaseResiduals):
         df['total_iterations'] = np.arange(len(df))
 
         if verbose:
-            print(f"[Horses3DResiduals] Read '{full_path}'")
-            print(f"[Horses3DResiduals] Columns: {list(df.columns)}")
+            log.debug("[Horses3DResiduals] Read '%s'", full_path)
+            log.debug("[Horses3DResiduals] Columns: %s", list(df.columns))
 
         return df
 
@@ -409,11 +411,11 @@ class Horses3DResiduals(BaseResiduals):
 
     def plot_residuals_from_case(
         self,
-        case_idx: Union[int, None] = None,
-        case_name: Union[str, None] = None,
+        case_idx: Optional[int] = None,
+        case_name: Optional[str] = None,
         p: Union[int, str] = 'max',
-        columns: Union[list, tuple, None] = None,
-        save_dir: Union[str, None] = None,
+        columns: Optional[Union[list, tuple]] = None,
+        save_dir: Optional[str] = None,
         verbose: bool = False,
         **kwargs,
     ) -> None:
@@ -449,11 +451,9 @@ class Horses3DResiduals(BaseResiduals):
 
             db.residuals.plot_residuals_from_case(case_idx=0, p='max')
         """
-        reader = self.db.reader
-        if case_name is None:
-            if case_idx is None:
-                raise ValueError("Provide either case_name or case_idx.")
-            case_name = reader._case_name_from_idx(case_idx)
+        case_name = self._resolve_case_name(
+            case_idx=case_idx, case_name=case_name
+        )
 
         df_res = self.get_df_residuals_from_case(
             case_name=case_name, p=p, verbose=verbose,
@@ -468,7 +468,7 @@ class Horses3DResiduals(BaseResiduals):
             columns = [c for c in df_res.columns if c not in excluded]
 
         _, ax = plt.subplots(figsize=kwargs.get('figsize', (8, 6)))
-        colors = plt.get_cmap('tab10').colors[:len(columns)]
+        colors = self._cycled_colors(len(columns))
         for ycol, color in zip(columns, colors):
             df_res.plot(
                 x='total_iterations', y=ycol, s=3,
@@ -500,7 +500,7 @@ class Horses3DResiduals(BaseResiduals):
                 save_dir, f"{case_name}_p{p_used}_residuals.png"
             )
             plt.savefig(path, bbox_inches='tight')
-            print(f"Figure saved to {path}")
+            log.info("Figure saved to %s", path)
         else:
             plt.show()
 
@@ -571,7 +571,7 @@ class Horses3DResiduals(BaseResiduals):
             p=p, only_finished=only_finished, load_in_metadata=False,
         )
         if df_finals.empty:
-            print("No data to plot.")
+            warnings.warn("No data to plot.", UserWarning)
             return
 
         design_vars = self.db.reader.metadata.get('design_vars') or []
@@ -592,6 +592,10 @@ class Horses3DResiduals(BaseResiduals):
                 c for c in df_finals.columns
                 if c not in identity_cols and c not in timing_cols
             ]
+
+        if not residual_columns:
+            warnings.warn("No residual columns to plot.", UserWarning)
+            return
 
         dvf = [v for v in design_vars if df_finals[v].nunique() > 1]
         if len(dvf) < 1:
@@ -719,7 +723,7 @@ class Horses3DResiduals(BaseResiduals):
             )
             print(df.columns.tolist())
         """
-        with open(path, 'r') as fh:
+        with open(path, 'r', encoding='utf-8', errors='replace') as fh:
             lines = fh.readlines()
 
         header_idx = None
@@ -763,12 +767,19 @@ class Horses3DResiduals(BaseResiduals):
         if columns is None:
             columns = [f"col_{i}" for i in range(n_data_cols)]
 
-        rows = [
-            [float(tok) for tok in ln.split()]
-            for ln in data_lines
-        ]
+        rows = []
+        for ln in data_lines:
+            try:
+                rows.append([float(tok) for tok in ln.split()])
+            except ValueError as exc:
+                raise ValueError(
+                    f"Non-numeric token in '{path}': {exc}"
+                ) from exc
         df = pd.DataFrame(rows, columns=columns)
         if 'Iteration' in df.columns:
-            df['Iteration'] = df['Iteration'].astype(np.int64)
+            try:
+                df['Iteration'] = df['Iteration'].astype(np.int64)
+            except (ValueError, TypeError):
+                pass
 
         return df

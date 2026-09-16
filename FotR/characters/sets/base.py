@@ -44,7 +44,9 @@ Then register it in ``sets/__init__.py``::
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Union
+from typing import Optional, TYPE_CHECKING
+
+import numpy as np
 
 if TYPE_CHECKING:
     # Imported only for type checkers; avoids circular import at runtime.
@@ -106,8 +108,8 @@ class BaseSets(ABC):
     def add_aux(
         self,
         array_name: str,
-        array,
-        notes: str = None,
+        array: np.ndarray,
+        notes: Optional[str] = None,
     ) -> None:
         """
         Store an auxiliary array in ``db.data_dict['aux']`` and record its
@@ -127,8 +129,6 @@ class BaseSets(ABC):
         notes : str or None
             Human-readable description.
         """
-        import numpy as np
-
         db = self.db
         db.data_dict.setdefault("aux", {})
         db.sim_metadata.setdefault("info_aux", []).append(notes)

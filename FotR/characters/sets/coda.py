@@ -16,13 +16,15 @@ whose reader is CODAReader:
 
 import os
 import copy
+import logging
 import warnings
-from typing import Literal, Union, TYPE_CHECKING
+from typing import Literal, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 import torch
 import h5py
+from scipy.spatial import cKDTree
 
 import pyLOM as SMEAGOL
 
@@ -31,6 +33,8 @@ from .base import BaseSets
 
 if TYPE_CHECKING:
     from ..frodo import FRODO
+
+log = logging.getLogger(__name__)
 
 
 class CODASets(BaseSets):
@@ -72,10 +76,14 @@ class CODASets(BaseSets):
         Parent FRODO instance.
     """
 
-    def __init__(self, db: 'FRODO'):
+    def __init__(self, db: 'FRODO') -> None:
+        """Attach to the parent FRODO database (see BaseSets)."""
         super().__init__(db)
-    
-    def remove_data(self, id_group: str, stage:str = None, verbose:bool = False) -> None:
+
+    def remove_data(
+        self, id_group: str, stage: Optional[str] = None,
+        verbose: bool = False,
+    ) -> None:
         """
         Remove a CADGroup or a specific stage from the data_dict.
         
@@ -94,14 +102,17 @@ class CODASets(BaseSets):
         if stage is None:
             # Remove entire CADGroup
             if verbose:
-                print(f"Removing entire CADGroup '{id_group}' from data_dict.")
+                log.info("Removing entire CADGroup '%s' from data_dict.", id_group)
             del self.db.data_dict[key_group]
         else:
             # Remove only the specified stage from Vars
             if 'Vars' in self.db.data_dict[key_group]:
                 if stage in self.db.data_dict[key_group]['Vars']:
                     if verbose:
-                        print(f"Removing stage '{stage}' from CADGroup '{id_group}'.")
+                        log.info(
+                            "Removing stage '%s' from CADGroup '%s'.",
+                            stage, id_group,
+                        )
                     del self.db.data_dict[key_group]['Vars'][stage]
                 else:
                     raise KeyError(f"Stage '{stage}' not found in CADGroup '{id_group}'.")
@@ -222,7 +233,7 @@ class CODASets(BaseSets):
         for i, (name, arr) in enumerate(dd['Vars'][stage].items()):
             if i in sol_num:
                 if verbose:
-                    print(f'  Including variable: {name}')
+                    log.info('  Including variable: %s', name)
                 if arr.ndim == 2:
                     tensors_out.append(arr[:, idx_flcc])
                     var_names_selected.append(name)
@@ -243,7 +254,7 @@ class CODASets(BaseSets):
         if save_path:
             self._save_result(result, save_path)
             if verbose:
-                print(f"Jset saved to {save_path}\n")
+                log.info("Jset saved to %s\n", save_path)
 
         self.db.jset = result
 
@@ -262,8 +273,8 @@ class CODASets(BaseSets):
             data=result['tensor'].numpy(), columns=columns
         )
         if verbose:
-            print("\nJset loaded into db.jset")
-            print("DataFrame loaded into db.df_data\n")
+            log.info("\nJset loaded into db.jset")
+            log.info("DataFrame loaded into db.df_data\n")
 
         return result
 
@@ -273,7 +284,7 @@ class CODASets(BaseSets):
 
     def create_pylom_mesh(
         self,
-        id_groups: Union[int, tuple],
+        id_groups: Union[int, str, tuple, list],
     ) -> list:
         """
         Create pyLOM ``Mesh`` objects from stored CADGroup geometry data.
@@ -284,7 +295,7 @@ class CODASets(BaseSets):
 
         Parameters
         ----------
-        id_groups : int, str or tuple
+        id_groups : int, str, tuple or list
             CADGroup IDs to convert. A tuple of ints merges those groups.
             Examples: ``3`` for group 3; ``(1, 2)`` for merged groups 1 and 2.
 
@@ -299,33 +310,24 @@ class CODASets(BaseSets):
 
             meshes = db.sets.create_pylom_mesh(id_groups=(3,))
             mesh   = meshes[0]
-            print(mesh)
 
         Multiple groups::
 
             meshes = db.sets.create_pylom_mesh(id_groups=((1, 2), 3))
         """
-        # id_groups debe ser una lista de string
-        # if isinstance(id_groups, (int, tuple)):
-        #     id_groups = [id_groups]
-
-        if isinstance(id_groups, int):
-            id_groups = [str(id_groups)]
-        elif isinstance(id_groups, tuple):
-            id_groups = [str(i) for i in id_groups]
-        elif isinstance(id_groups, str):
+        if isinstance(id_groups, (int, str)):
             id_groups = [id_groups]
-        elif isinstance(id_groups, list):
-            id_groups = [str(i) for i in id_groups]
+        elif isinstance(id_groups, (tuple, list)):
+            id_groups = list(id_groups)
         else:
             raise TypeError(
                 "id_groups must be an int, str, tuple, or list of ints/strs."
             )
-            
+
         mesh_list = []
-        for id in id_groups:
+        for gid in id_groups:
             key_suffix = (
-                "_".join(map(str, id)) if isinstance(id, tuple) else str(id)
+                "_".join(map(str, gid)) if isinstance(gid, tuple) else str(gid)
             )
             key   = f"CADGroup_{key_suffix}"
             xyz   = self.db.data_dict[key]["Coord"]
@@ -347,7 +349,7 @@ class CODASets(BaseSets):
                 ptable,
             )
             mesh_list.append(mesh)
-            print(mesh)
+            log.info(mesh)
 
         return mesh_list
 
@@ -447,25 +449,22 @@ class CODASets(BaseSets):
         if nan_policy not in ('fill', 'raise'):
             raise ValueError("nan_policy must be 'fill' or 'raise'.")
 
-        # if isinstance(id_groups, int):
-        #     id_groups = [id_groups]
-        
-        if isinstance(id_groups, int):
-            id_groups = [str(id_groups)]
-        elif isinstance(id_groups, tuple):
-            id_groups = [str(i) for i in id_groups]
-        elif isinstance(id_groups, str):
+        if isinstance(id_groups, (int, str)):
             id_groups = [id_groups]
-        elif isinstance(id_groups, list):
-            id_groups = [str(i) for i in id_groups]
+        elif isinstance(id_groups, (tuple, list)):
+            id_groups = list(id_groups)
         else:
             raise TypeError(
                 "id_groups must be an int, str, tuple, or list of ints/strs."
             )
 
         d_list = []
-        for id in id_groups:
-            key     = f"CADGroup_{id}"
+        for gid in id_groups:
+            key_suffix = (
+                "_".join(map(str, gid))
+                if isinstance(gid, tuple) else str(gid)
+            )
+            key     = f"CADGroup_{key_suffix}"
             xyz     = self.db.data_dict[key]["Coord"]
             conec   = self.db.data_dict[key]["Conec"]
             npoints = xyz.shape[0]
@@ -485,10 +484,10 @@ class CODASets(BaseSets):
                 idx_to_print = [idx_to_print]
 
             max_cases = self.db.data_dict[key]["FlCc"].shape[0]
-            # if any(i >= max_cases or i < 0 for i in idx_to_print):
-            #     raise IndexError(
-            #         "idx_to_print contains out-of-range indices."
-            #     )
+            if any(i >= max_cases or i < 0 for i in idx_to_print):
+                raise IndexError(
+                    "idx_to_print contains out-of-range indices."
+                )
             case_idx = np.asarray(idx_to_print, dtype=np.int64)
 
             eltype     = self.db.data_dict[key]["eltype"].copy()
@@ -585,13 +584,13 @@ class CODASets(BaseSets):
                 xyz=xyz, ptable=ptable, order=cell_order,
                 point=True, vars=param_dict, **field_dict,
             )
-            print('DONE', flush=True)
+            log.info('DONE')
 
             if save_path:
                 os.makedirs(save_path, exist_ok=True)
                 out = os.path.join(save_path, f"{key}_stage_{stage}.h5")
                 d.save(out)
-                print(f"Dataset saved to {out}")
+                log.info("Dataset saved to %s", out)
 
             d_list.append(d)
 
@@ -740,9 +739,18 @@ class CODASets(BaseSets):
 
         for s in data[key_group]['Vars']:
             for var in data[key_group]['Vars'][s]:
-                self.db.data_dict[key_group]['Vars'][s][var] = (
-                    data[key_group]['Vars'][s][var][idx_new]
-                )
+                arr = data[key_group]['Vars'][s][var]
+                if arr.ndim == 2:
+                    # (n_points, n_cases): reorder the point axis.
+                    arr = arr[idx_new]
+                elif arr.ndim == 3:
+                    # (n_dim, n_points, n_cases): reorder axis 1.
+                    arr = arr[:, idx_new, :]
+                else:
+                    raise ValueError(
+                        f"Variable '{var}' has unsupported ndim {arr.ndim}."
+                    )
+                self.db.data_dict[key_group]['Vars'][s][var] = arr
 
     # =========================================================================
     # Spatial cropping
@@ -813,13 +821,15 @@ class CODASets(BaseSets):
             raise ValueError(
                 "Provide either bbox or radius_center, not both."
             )
+        n_dim = coord.shape[1]
         if bbox is not None:
-            (xmin, xmax), (ymin, ymax), (zmin, zmax) = bbox
-            mask = (
-                (coord[:, 0] >= xmin) & (coord[:, 0] <= xmax) &
-                (coord[:, 1] >= ymin) & (coord[:, 1] <= ymax) &
-                (coord[:, 2] >= zmin) & (coord[:, 2] <= zmax)
-            )
+            if len(bbox) != n_dim:
+                raise ValueError(
+                    f"bbox has {len(bbox)} axes but Coord has {n_dim}."
+                )
+            mask = np.ones(coord.shape[0], dtype=bool)
+            for d, (lo, hi) in enumerate(bbox):
+                mask &= (coord[:, d] >= lo) & (coord[:, d] <= hi)
         elif radius_center is not None:
             radius, center = radius_center
             mask = np.linalg.norm(coord - np.asarray(center), axis=1) <= radius
@@ -858,9 +868,13 @@ class CODASets(BaseSets):
                     new_group['Vars'][stage][var] = arr[idx_cells]
                 elif arr.ndim == 3:
                     new_group['Vars'][stage][var] = (
-                        arr[:, idx_cells]
-                        if arr.shape[0] == 3
+                        arr[:, idx_cells, :]
+                        if arr.shape[0] == n_dim
                         else arr[idx_cells]
+                    )
+                else:
+                    raise ValueError(
+                        f"Variable '{var}' has unsupported ndim {arr.ndim}."
                     )
 
         self.db.data_dict[key_new] = new_group
@@ -928,8 +942,6 @@ class CODASets(BaseSets):
             # Access result:
             cp_interp = db.data_dict['CADGroup_3']['Vars']['0']['Pressure_interp']
         """
-        from scipy.spatial import cKDTree
-
         vol  = self.db.data_dict[f'CADGroup_{vol_group}']
         surf = self.db.data_dict[f'CADGroup_{surf_group}']
 
@@ -1063,7 +1075,6 @@ class CODASets(BaseSets):
 
         # ── Build KDTree once for IDW ────────────────────────────────────────
         if method == "idw":
-            from scipy.spatial import cKDTree
             tree = cKDTree(coord_src)
         else:
             tree = None
@@ -1404,11 +1415,12 @@ class CODASets(BaseSets):
             elif var_data.ndim == 3 and var_data.shape[1] == npoints:
                 group_out['Vars'][stage_str][var_name] = var_data[:, :, case_idx]
             elif verbose:
-                print(
-                    f"[CODASets.save_to_npy] Skipping variable '{var_name}': "
-                    f"shape {var_data.shape} does not match the expected "
+                log.info(
+                    "[CODASets.save_to_npy] Skipping variable '%s': "
+                    "shape %s does not match the expected "
                     "(n_points, n_cases) / (n_dim, n_points, n_cases) layout "
-                    f"for npoints={npoints}."
+                    "for npoints=%s.",
+                    var_name, var_data.shape, npoints,
                 )
 
         # ── Aux: nested under 'Aux' (not spliced into the top level), and
@@ -1428,9 +1440,9 @@ class CODASets(BaseSets):
                 else:
                     group_out['Aux'][aux_name] = aux_arr
                 if verbose:
-                    print(
-                        f"[CODASets.save_to_npy] Aux '{aux_name}': "
-                        f"stored shape {group_out['Aux'][aux_name].shape}"
+                    log.info(
+                        "[CODASets.save_to_npy] Aux '%s': stored shape %s",
+                        aux_name, group_out['Aux'][aux_name].shape,
                     )
 
         out = {group_key: group_out}
@@ -1441,7 +1453,7 @@ class CODASets(BaseSets):
 
         if verbose:
             label = 'all cases' if all_cases else f'cases {case_idx}'
-            print(f"\nSaved {label} to {filepath}")
+            log.info("\nSaved %s to %s", label, filepath)
 
     @staticmethod
     def _normalise_cases_idx(
@@ -1587,7 +1599,7 @@ class CODASets(BaseSets):
         with h5py.File(filepath, "w", libver="latest") as f:
             for group_key, gd in self.db.data_dict.items():
                 if verbose:
-                    print(f"\nSaving group '{group_key}'")
+                    log.info("\nSaving group '%s'", group_key)
                 grp = f.create_group(group_key)
 
                 grp.create_dataset("Coord",     data=gd["Coord"])
@@ -1599,7 +1611,7 @@ class CODASets(BaseSets):
                 vg = grp.create_group("Vars")
                 for stage, stage_vars in gd["Vars"].items():
                     if verbose:
-                        print(f"  Stage {stage}")
+                        log.info("  Stage %s", stage)
                     sg         = vg.create_group(str(stage))
                     scalars_g  = sg.create_group("Scalars")
                     vectors_g  = sg.create_group("Vectors")
@@ -1621,12 +1633,12 @@ class CODASets(BaseSets):
                         )
                         _compressed(target, vname, to_save)
                         if verbose:
-                            print(f"    {vname}: {to_save.shape}")
+                            log.info("    %s: %s", vname, to_save.shape)
 
             f.swmr_mode = True
 
         if verbose:
-            print("\nFile saved with GZIP compression, chunking and SWMR.")
+            log.info("\nFile saved with GZIP compression, chunking and SWMR.")
 
     # =========================================================================
     # Private helpers

@@ -57,17 +57,22 @@ Typical workflow
 """
 
 import os
+import logging
 import warnings
 from itertools import combinations
-from typing import Literal, Union, TYPE_CHECKING
+from typing import Literal, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, SymLogNorm
 import seaborn as sns
+from scipy import stats as scipy_stats
+from scipy.stats import skew, kurtosis
 
 from .base import BaseStats
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..frodo import FRODO
@@ -95,7 +100,8 @@ class CODAStats(BaseStats):
         db.stats.stage_difference_stats(id_group='3', stages=(0, 1))
     """
 
-    def __init__(self, db: 'FRODO'):
+    def __init__(self, db: 'FRODO') -> None:
+        """Attach to the parent FRODO database (see BaseStats)."""
         super().__init__(db)
 
     # =========================================================================
@@ -275,8 +281,10 @@ class CODAStats(BaseStats):
         self.db.stats_results[f'{key_group}_stage_{stage}'] = result
 
         if verbose:
-            print(f"[CODAStats] Variables analysed: {list(fields.keys())}")
-            print(f"[CODAStats] Table shape: {table.shape}")
+            log.info(
+                "[CODAStats] Variables analysed: %s", list(fields.keys())
+            )
+            log.info("[CODAStats] Table shape: %s", table.shape)
 
         return result
 
@@ -474,7 +482,6 @@ class CODAStats(BaseStats):
 
         test_fn = None
         if paired_test is not None:
-            from scipy import stats as scipy_stats
             test_fn_map = {
                 'ttest':    scipy_stats.ttest_rel,
                 'wilcoxon': scipy_stats.wilcoxon,
@@ -515,7 +522,7 @@ class CODAStats(BaseStats):
                 continue
 
             if verbose:
-                print(f"[CODAStats] {pair_key}: variables = {var_list}")
+                log.info("[CODAStats] %s: variables = %s", pair_key, var_list)
 
             fields_a = self._expand_vector_fields(vars_a, var_list, vector_handling)
             fields_b = self._expand_vector_fields(vars_b, var_list, vector_handling)
@@ -554,9 +561,10 @@ class CODAStats(BaseStats):
                             record['test_stat']   = np.nan
                             record['test_pvalue'] = np.nan
                             if verbose:
-                                print(
-                                    f"[CODAStats] {pair_key}/{label}/case "
-                                    f"{case_i}: paired test failed ({exc})."
+                                log.info(
+                                    "[CODAStats] %s/%s/case %s: paired test "
+                                    "failed (%s).",
+                                    pair_key, label, case_i, exc,
                                 )
                     per_case_records.append(record)
 
@@ -607,7 +615,7 @@ class CODAStats(BaseStats):
             'max_diff', 'min_diff', 'max_abs_diff', 'L_2_diff', 'L_inf_diff', 'mean_diff', 'std_diff'
         ] = 'L_2_diff',
         plots: Union[dict, None] = None,
-        kwargs_plots: dict = {},
+        kwargs_plots: Optional[dict] = None,
         annotate_case_idx: bool = True,
         figsize: tuple = (9, 5),
         save_dir: Union[str, None] = None,
@@ -686,16 +694,17 @@ class CODAStats(BaseStats):
             (and ``y``, if two are given) axes. ``None`` (default) uses
             the first two entries of ``db.metadata['design_vars']`` (or
             just the first one if only a single design variable exists).
-        case_metric : 'max_diff', 'min_diff', 'max_abs_diff', 'mean_diff' or 'std_diff'
+        case_metric : 'max_diff', 'min_diff', 'max_abs_diff', 'L_2_diff',
+            'L_inf_diff', 'mean_diff' or 'std_diff'
             Per-case aggregate of the point-wise difference used to
             colour (or, with a single ``flcc_vars`` entry, to use as the
-            ``y``-axis of) the scatter plot. Default ``'max_abs_diff'``.
+            ``y``-axis of) the scatter plot. Default ``'L_2_diff'``.
         plots : dict or None
             Which figures to draw. Missing keys fall back to the
             defaults below, so a partial dict only overrides what is
             given::
 
-                {'boxplot': False, 'scatter': False, 'histogram': True, 'violinplot': False}
+                {'boxplot': False, 'scatter': False, 'histogram': False, 'violinplot': False, 'histogram2D': False}
 
         annotate_case_idx : bool
             If True, annotate each scatter point with its case index
@@ -792,8 +801,6 @@ class CODAStats(BaseStats):
                 flcc_vars=['Mach', 'AoA'], case_metric='mean_diff',
             )
         """
-        from scipy.stats import skew, kurtosis
-        
         key_group = f'CADGroup_{id_group}'
         if key_group not in self.db.data_dict:
             raise KeyError(f"'{key_group}' not found in data_dict.")
@@ -802,6 +809,8 @@ class CODAStats(BaseStats):
         if len(stages) < 2:
             raise ValueError("At least two stages are required.")
 
+        if kwargs_plots is None:
+            kwargs_plots = {}
         plot_flags = {'boxplot': False, 'scatter': False, 'histogram': False, 'violinplot': False, 'histogram2D': False}
 
         for plot_type in plot_flags.keys():
@@ -867,7 +876,9 @@ class CODAStats(BaseStats):
             fields_b = self._expand_vector_fields(vars_b, [variable], vector_handling)
 
             if verbose:
-                print(f"[CODAStats] {pair_key}: labels = {list(fields_a)}")
+                log.info(
+                    "[CODAStats] %s: labels = %s", pair_key, list(fields_a)
+                )
 
             by_point_frames = []
             by_case_frames  = []
@@ -1001,8 +1012,6 @@ class CODAStats(BaseStats):
                 df_case = pd.DataFrame.from_records(case_records)
                 by_case_frames.append(df_case)
 
-                if save_dir:
-                    os.makedirs(save_dir, exist_ok=True)
                 # ── Plots ──────────────────────────────────────────────────────
                 if plot_flags.get('boxplot'):
                     self._plot_diff_boxplot(
@@ -1067,6 +1076,12 @@ class CODAStats(BaseStats):
                         **kwargs_plots['histogram2D']
                     )
             # Concatenar dataframes con tipos de datos personalizados por columnas (int, float y str)
+            if not by_point_frames:
+                warnings.warn(
+                    f"No data for pair '{pair_key}'; skipping.",
+                    UserWarning,
+                )
+                continue
             results[pair_key] = {
                 'by_point': pd.concat(
                     by_point_frames,
@@ -1126,24 +1141,9 @@ class CODAStats(BaseStats):
             
             if save_dir:
                 np.savez_compressed(
-                    os.path.join(save_dir, f"dict_results_db_{self.db.name}_{pair_key}.npy"), results[pair_key]
+                    os.path.join(save_dir, f"dict_results_db_{self.db.name}_{pair_key}.npz"),
+                    **{k: v.to_numpy() for k, v in results[pair_key].items()},
                 )
-            # results[pair_key] = {
-            #     'by_point': pd.concat(
-            #         by_point_frames,
-            #         ignore_index=True,
-            #     ).astype("float32"),
-
-            #     'by_case': pd.concat(
-            #         by_case_frames,
-            #         ignore_index=True,
-            #     ).astype("float32"),
-
-            #     'by_bin_stats': pd.concat(
-            #         by_bin_stats_frames,
-            #         ignore_index=True,
-            #     ).astype("float32"),
-            # }
 
         self.db.stage_diff_variable_results = results
 
@@ -1714,7 +1714,7 @@ class CODAStats(BaseStats):
             color_norm = LogNorm()
         elif norm == "symlog":
             color_norm = SymLogNorm(
-                linthresh=kwargs_plot.pop("linthresh", 1e-3)
+                linthresh=linthresh
             )
         else:
             raise ValueError(f"Unknown norm '{norm}'.")
@@ -1774,19 +1774,21 @@ class CODAStats(BaseStats):
         # ============================================================
 
         else:
-            
-            from sklearn.decomposition import PCA
-            from sklearn.preprocessing import StandardScaler
-            
-            
-            X = df_case[flcc_vars_use].to_numpy()
 
-            scale_before_pca = kwargs_plot.pop("scale_before_pca", True)
+            try:
+                from sklearn.decomposition import PCA
+                from sklearn.preprocessing import StandardScaler
+            except ImportError as exc:
+                raise ImportError(
+                    "PCA scatter requires scikit-learn: "
+                    f"{exc}"
+                ) from exc
+
+
+            X = df_case[flcc_vars_use].to_numpy()
 
             if scale_before_pca:
                 X = StandardScaler().fit_transform(X)
-
-            pca_dim = kwargs_plot.pop("pca_dim", 2)
 
             if pca_dim not in (2, 3):
                 raise ValueError("'pca_dim' must be 2 or 3.")
@@ -1855,36 +1857,6 @@ class CODAStats(BaseStats):
 
                 xs = Xred[:, 0]
                 ys = Xred[:, 1]
-                
-        # if len(flcc_vars_use) >= 2:
-        #     x_var, y_var = flcc_vars_use[:2]
-        #     norm = kwargs_plot.pop("norm", "linear")
-
-        #     if norm == "linear":
-        #         color_norm = None
-
-        #     elif norm == "log":
-        #         color_norm = LogNorm()
-
-        #     elif norm == "symlog":
-        #         color_norm = SymLogNorm(
-        #             linthresh=kwargs_plot.pop("linthresh",1e-3)
-        #         )
-        #     sc = ax.scatter(
-        #         df_case[x_var], df_case[y_var], c=df_case[case_metric],
-        #         cmap='viridis', s=80, edgecolor='k', norm=color_norm
-        #     )
-        #     fig.colorbar(sc, ax=ax, label=case_metric)
-        #     ax.set_xlabel(x_var)
-        #     ax.set_ylabel(y_var)
-        #     xs, ys = df_case[x_var].values, df_case[y_var].values
-            
-        # else: # (cambiar para usar PCA)
-        #     x_var = flcc_vars_use[0]
-        #     ax.scatter(df_case[x_var], df_case[case_metric], s=80, edgecolor='k')
-        #     ax.set_xlabel(x_var)
-        #     ax.set_ylabel(case_metric)
-        #     xs, ys = df_case[x_var].values, df_case[case_metric].values
 
         if annotate_case_idx:
             for x, y, ci in zip(xs, ys, df_case['case_idx']):
@@ -2055,6 +2027,7 @@ class CODAStats(BaseStats):
         save_dir,
         **kwargs_plot,
     ):
+        """Draw a 2-D histogram of the difference vs the coord bin."""
 
         fig, ax = plt.subplots(figsize=figsize)
 
@@ -2082,5 +2055,9 @@ class CODAStats(BaseStats):
         else:
             plt.show()
     
-    def _plot_heatmap():
-        pass
+    @staticmethod
+    def _plot_heatmap() -> None:
+        """Placeholder for a future difference heatmap (not implemented)."""
+        raise NotImplementedError(
+            "CODAStats._plot_heatmap is not implemented yet."
+        )

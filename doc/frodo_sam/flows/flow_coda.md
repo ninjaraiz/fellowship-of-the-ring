@@ -4,9 +4,7 @@ ES: parseo de la base Cylinder_PINNS (formato CODA, dos stages).
 EN: parsing the Cylinder_PINNS base (CODA format, two stages).
 
 ```
-NEW CODA SIMULATION WILL BE LOADED FROM /home/airbus/CETACEO_cp_interp/DATA/Cylinder_PINNS
-31 simulations found.
-Parse took: 0.0424 s
+
 casos: 31  design_vars: ['M']
 ```
 
