@@ -257,6 +257,508 @@
       ]
     },
     {
+      "file": "FotR/characters/gandalf.py",
+      "classes": [
+        {
+          "id": "GANDALF",
+          "file": "FotR/characters/gandalf.py",
+          "doc": {
+            "summary": "GANDALF: Great Algorithm to N — case definition and SLURM launching.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "GANDALF.some_light",
+              "class": "GANDALF",
+              "name": "some_light",
+              "signature": "some_light(name)",
+              "kind": "classmethod",
+              "doc": {
+                "summary": "Shortcut to Earendil's Light help system.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "GANDALF.__init__",
+              "class": "GANDALF",
+              "name": "__init__",
+              "signature": "__init__(root_dir, eq_type, num_stages, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Create the facade over the selected ring (default ``'coda'``).",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/rings/base.py",
+      "classes": [
+        {
+          "id": "BaseRing",
+          "file": "FotR/characters/rings/base.py",
+          "doc": {
+            "summary": "Shared case-generation logic for all rings.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "BaseRing.some_light",
+              "class": "BaseRing",
+              "name": "some_light",
+              "signature": "some_light(name)",
+              "kind": "classmethod",
+              "doc": {
+                "summary": "Shortcut to Earendil's Light help system.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.__init__",
+              "class": "BaseRing",
+              "name": "__init__",
+              "signature": "__init__(root_dir, eq_type, num_stages, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Initializes the CFD case manager.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.define_geom_file",
+              "class": "BaseRing",
+              "name": "define_geom_file",
+              "signature": "define_geom_file(geom_file_path, cols_idx, normalize, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Define the geometry file (airfoil coordinates) with pandas library.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.define_cases",
+              "class": "BaseRing",
+              "name": "define_cases",
+              "signature": "define_cases(method, bounds, n_samples, peak_ranges, range_sigma, external_dataframe, seed)",
+              "kind": "method",
+              "doc": {
+                "summary": "Define the tensor of CFD cases (e.g., AoA, Mach).",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.add_param",
+              "class": "BaseRing",
+              "name": "add_param",
+              "signature": "add_param(name, data)",
+              "kind": "method",
+              "doc": {
+                "summary": "Add a new parameter to the cases DataFrame. The data must be provided as a external numpy array. For calculated data, use compute_param().",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.compute_param",
+              "class": "BaseRing",
+              "name": "compute_param",
+              "signature": "compute_param(name, formula, externals)",
+              "kind": "method",
+              "doc": {
+                "summary": "Compute a new parameter based on a formula and add it to the cases DataFrame.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": true,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._eval_formula",
+              "class": "BaseRing",
+              "name": "_eval_formula",
+              "signature": "_eval_formula(formula, env, allowed_funcs)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Evaluate an arithmetic expression without ``eval``.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._expand_nodelist",
+              "class": "BaseRing",
+              "name": "_expand_nodelist",
+              "signature": "_expand_nodelist(spec)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Expand a Slurm nodelist spec into plain node names.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._job_name",
+              "class": "BaseRing",
+              "name": "_job_name",
+              "signature": "_job_name(caso)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Derive a short Slurm ``%NAME`` from a case folder name.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._write_cases_metadata",
+              "class": "BaseRing",
+              "name": "_write_cases_metadata",
+              "signature": "_write_cases_metadata(df_cases, extra)",
+              "kind": "method",
+              "doc": {
+                "summary": "Persist folder_fmt/design_vars/df_cases for FRODO readers.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.assign_jobs",
+              "class": "BaseRing",
+              "name": "assign_jobs",
+              "signature": "assign_jobs(file_sh, nodes, cpus_per_job, submit)",
+              "kind": "method",
+              "doc": {
+                "summary": "Assign cases to available nodes in a balanced way.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.submit_cases",
+              "class": "BaseRing",
+              "name": "submit_cases",
+              "signature": "submit_cases()",
+              "kind": "method",
+              "doc": {
+                "summary": "Submit all case jobs using their respective shell scripts.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.recover_pending_jobs",
+              "class": "BaseRing",
+              "name": "recover_pending_jobs",
+              "signature": "recover_pending_jobs(broken_node, replacement_node, file_sh, dry_run)",
+              "kind": "method",
+              "doc": {
+                "summary": "Reassign pending Slurm jobs that are constrained to a failed node.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack._warp_variable",
+              "class": "BaseRing.Backpack",
+              "name": "_warp_variable",
+              "signature": "_warp_variable(u, bounds, peak_range, range_sigma)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Apply a non-linear warp to u in [0,1] to concentrate points",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.squeue_terminal",
+              "class": "BaseRing.Backpack",
+              "name": "squeue_terminal",
+              "signature": "squeue_terminal(opt)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Show the Slurm queue in the terminal with the given options.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.sinfocpu_terminal",
+              "class": "BaseRing.Backpack",
+              "name": "sinfocpu_terminal",
+              "signature": "sinfocpu_terminal()",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Query Slurm node CPU states (``sinfo -N -o '%n %C'``).",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.normalize_airfoil",
+              "class": "BaseRing.Backpack",
+              "name": "normalize_airfoil",
+              "signature": "normalize_airfoil(coords)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Normalise an Nx2 airfoil to chord 1 with the leading edge at x = 0.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.isa_atmosphere",
+              "class": "BaseRing.Backpack",
+              "name": "isa_atmosphere",
+              "signature": "isa_atmosphere(h)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Calculate the static pressure, temperature and density according to ISA model.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": true,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.Sutherland_law",
+              "class": "BaseRing.Backpack",
+              "name": "Sutherland_law",
+              "signature": "Sutherland_law(mu0, T, Treference)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Sutherland viscosity law with reference values.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/rings/coda.py",
+      "classes": [
+        {
+          "id": "CODARing",
+          "file": "FotR/characters/rings/coda.py",
+          "doc": {
+            "summary": "CODA case generator with one shared mesh.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODARing.generate_folders",
+              "class": "CODARing",
+              "name": "generate_folders",
+              "signature": "generate_folders(base_files, mesh_path, script_dir, folder_fmt, overwrite, update_base_files, data_to_update)",
+              "kind": "method",
+              "doc": {
+                "summary": "Generate subfolders for each defined CFD case.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/rings/coda_single.py",
+      "classes": [
+        {
+          "id": "CODASingleRing",
+          "file": "FotR/characters/rings/coda_single.py",
+          "doc": {
+            "summary": "CODA case generator with a per-case mesh.",
+            "sections": {
+              "Parameters": true,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": false
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODASingleRing.generate_folders",
+              "class": "CODASingleRing",
+              "name": "generate_folders",
+              "signature": "generate_folders(base_files, mesh_paths, script_dir, folder_fmt, overwrite, update_base_files, data_to_update)",
+              "kind": "method",
+              "doc": {
+                "summary": "Generate subfolders for each defined CFD case, one mesh per case.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "file": "FotR/characters/sam.py",
       "classes": [
         {
