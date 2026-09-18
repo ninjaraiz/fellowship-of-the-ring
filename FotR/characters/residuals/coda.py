@@ -158,9 +158,19 @@ class CODAResiduals(BaseResiduals):
                     )
                 continue
 
-            df_one = self.get_df_residuals_from_case(
-                case_name=folder, stage=stage
-            )
+            try:
+                df_one = self.get_df_residuals_from_case(
+                    case_name=folder, stage=stage
+                )
+            except (FileNotFoundError, ValueError) as exc:
+                # Pending case: monitor files not on disk (or unreadable).
+                # Behaves like "no residual data" below instead of aborting
+                # the whole aggregation.
+                if verbose:
+                    log.debug(
+                        "No readable residual data for '%s': %s", folder, exc
+                    )
+                df_one = None
 
             if df_one is None or df_one.empty:
                 if verbose:
@@ -1023,21 +1033,22 @@ class CODAResiduals(BaseResiduals):
                 UserWarning,
             )
             return
-
+        
         if len(dvf) == 1:
             for i, col in enumerate(columns):
                 x = df_finals[dvf[0]]
                 y = df_finals[col]
                 sc_nc = axes[i].scatter(
                     x[~converged_mask], y[~converged_mask],
-                    c=y[~converged_mask], cmap=cmap_name, norm=norm,
+                    c=df_finals.loc[~converged_mask, "total_iterations"], cmap=cmap_name, norm=norm,
                     s=60, edgecolor='k', label='Non-converged',
                 )
                 axes[i].scatter(
                     x[converged_mask], y[converged_mask],
-                    c=y[converged_mask], cmap=cmap_name, norm=norm,
+                    c=df_finals.loc[converged_mask, "total_iterations"], cmap=cmap_name, norm=norm,
                     s=60, marker='*', linewidth=1.5, label='Converged',
                 )
+                axes[i].set_yscale('log')
                 if activate_idx:
                     for p, yy in zip(df_finals[dvf[0]].values, y.values):
                         matches = np.where(
@@ -1050,9 +1061,7 @@ class CODAResiduals(BaseResiduals):
                                 xytext=(0, 7), ha='center', fontsize=8,
                             )
                 axes[i].set(title=col, xlabel=dvf[0], ylabel=col)
-                fig.colorbar(sc_nc, ax=axes[i]).ax.set_title(
-                    f'"Total iterations" {stage}'
-                )
+                fig.colorbar(sc_nc, ax=axes[i]).ax.set_title(f'"Total iterations" {stage}')
 
             handles, labels = axes[0].get_legend_handles_labels()
             fig.legend(handles, labels, loc='lower center',

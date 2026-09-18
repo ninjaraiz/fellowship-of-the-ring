@@ -25,6 +25,9 @@ RESIDUALS_REGISTRY: dict = {
 try:
     from .coda import CODAResiduals
     RESIDUALS_REGISTRY['CODA'] = CODAResiduals
+    # CODA_SINGLE reuses the CODA residuals: monitor files and metadata
+    # layout are identical, only the mesh differs per case.
+    RESIDUALS_REGISTRY['CODA_SINGLE'] = CODAResiduals
 except ModuleNotFoundError:
     pass
 

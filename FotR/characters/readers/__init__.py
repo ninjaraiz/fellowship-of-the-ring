@@ -64,4 +64,10 @@ try:
 except ModuleNotFoundError:
     pass
 
+try:
+    from .coda_single import CODASingleReader
+    READER_REGISTRY['CODA_SINGLE'] = CODASingleReader
+except ModuleNotFoundError:
+    pass
+
 __all__ = ['BaseReader', 'READER_REGISTRY']

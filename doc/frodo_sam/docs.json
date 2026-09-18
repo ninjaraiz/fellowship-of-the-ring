@@ -2319,6 +2319,118 @@
       ]
     },
     {
+      "file": "FotR/characters/readers/coda_single.py",
+      "classes": [
+        {
+          "id": "CODASingleReader",
+          "file": "FotR/characters/readers/coda_single.py",
+          "doc": {
+            "summary": "Reader for CODA_SINGLE-format FRODO databases.",
+            "sections": {
+              "Parameters": false,
+              "Returns": false,
+              "Raises": false,
+              "Examples": false,
+              "Attributes": true
+            },
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODASingleReader.parse_simulation_dirs",
+              "class": "CODASingleReader",
+              "name": "parse_simulation_dirs",
+              "signature": "parse_simulation_dirs()",
+              "kind": "method",
+              "doc": {
+                "summary": "Walk ``outputs/``, join every folder to its ``df_cases`` row by",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASingleReader._scan_case_stages",
+              "class": "CODASingleReader",
+              "name": "_scan_case_stages",
+              "signature": "_scan_case_stages(full_path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Catalogue ``output_<stage>_*`` files of one case folder.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASingleReader._find_case_mesh",
+              "class": "CODASingleReader",
+              "name": "_find_case_mesh",
+              "signature": "_find_case_mesh(full_path)",
+              "kind": "staticmethod",
+              "doc": {
+                "summary": "Fallback mesh lookup: first ``*.msh`` file in the folder.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASingleReader.extract_inputs",
+              "class": "CODASingleReader",
+              "name": "extract_inputs",
+              "signature": "extract_inputs(id_groups, vtu_type, method_to_sort, cases_idx, subset, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract mesh and metadata for one or multiple CADGroup IDs.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODASingleReader.extract_outputs",
+              "class": "CODASingleReader",
+              "name": "extract_outputs",
+              "signature": "extract_outputs(stage, id_groups, vtu_type, cases_idx, subset, var_name_excluded, verbose)",
+              "kind": "method",
+              "doc": {
+                "summary": "Extract cell-based output variables, one geometry per case.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "file": "FotR/characters/readers/horses3d.py",
       "classes": [
         {

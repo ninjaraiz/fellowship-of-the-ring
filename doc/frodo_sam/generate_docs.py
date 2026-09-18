@@ -24,6 +24,7 @@ TARGETS = [
     ("FotR/characters/sam.py", ["SAM"]),
     ("FotR/characters/readers/base.py", None),
     ("FotR/characters/readers/coda.py", None),
+    ("FotR/characters/readers/coda_single.py", None),
     ("FotR/characters/readers/horses3d.py", None),
     ("FotR/characters/readers/numpy.py", None),
     ("FotR/characters/readers/numpy_file.py", None),
