@@ -81,6 +81,55 @@ def test_plot_all_final_residuals_1d_saves_figure(tmp_path):
     assert os.path.isfile(os.path.join(out, "residuals_all_cases.png"))
 
 
+def test_plot_all_final_residuals_1d_single_axes(tmp_path):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    db = _FakeDB(str(tmp_path), ["M_0.3000", "M_0.5000"], [0.3, 0.5])
+    res = CODAResiduals(db)
+    res.plot_all_final_residuals(
+        save_dir=str(tmp_path / "plots"), mode="norm", stage=[0],
+        only_finished=True,
+    )
+    fig = plt.gcf()
+    assert len(fig.axes) == 1
+    ax = fig.axes[0]
+    assert ax.get_yscale() == "log"
+    assert ax.get_xlabel() == "M"
+    labels = [
+        t.get_text()
+        for legend in fig.legends
+        for t in legend.get_texts()
+    ]
+    assert any("converged" in label for label in labels)
+    assert any("lim" in label or "1e-" in label for label in labels)
+    plt.close("all")
+
+
+def test_plot_all_final_residuals_1d_one_plot_per_stage(tmp_path):
+    db = _FakeDB(str(tmp_path), ["M_0.3000", "M_0.5000"], [0.3, 0.5])
+    res = CODAResiduals(db)
+    out = str(tmp_path / "plots")
+    # Fake a mixed-stage table: same cases at two stages.
+    df = res.get_all_final_residuals(
+        stage=[0], load_in_metadata=False
+    )
+    df_mixed = pd.concat(
+        [df.assign(stage=0), df.assign(stage=1)], ignore_index=True
+    )
+    real = res.get_all_final_residuals
+    res.get_all_final_residuals = lambda **k: df_mixed
+    try:
+        res.plot_all_final_residuals(save_dir=out, mode="norm")
+    finally:
+        res.get_all_final_residuals = real
+    assert os.path.isfile(os.path.join(out, "residuals_all_cases_stage0.png"))
+    assert os.path.isfile(os.path.join(out, "residuals_all_cases_stage1.png"))
+    assert not os.path.isfile(os.path.join(out, "residuals_all_cases.png"))
+
+
 def test_plot_all_final_residuals_no_columns_warns(tmp_path):
     db = _FakeDB(str(tmp_path), ["M_0.3000", "M_0.5000"], [0.3, 0.5])
     res = CODAResiduals(db)

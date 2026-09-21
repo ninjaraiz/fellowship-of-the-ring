@@ -4707,6 +4707,24 @@
               }
             },
             {
+              "id": "CODAResiduals._plot_final_residuals_1d",
+              "class": "CODAResiduals",
+              "name": "_plot_final_residuals_1d",
+              "signature": "_plot_final_residuals_1d(df_finals, columns, dvf, converged_mask, stage, mode, lim_converged, activate_idx, save_dir, filename_suffix, **kwargs)",
+              "kind": "method",
+              "doc": {
+                "summary": "Single-axes semilogy view of final residuals vs one design var.",
+                "sections": {
+                  "Parameters": false,
+                  "Returns": false,
+                  "Raises": false,
+                  "Examples": false,
+                  "Attributes": false
+                },
+                "has_doc": true
+              }
+            },
+            {
               "id": "CODAResiduals._plot_convergence",
               "class": "CODAResiduals",
               "name": "_plot_convergence",

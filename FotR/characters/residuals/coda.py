@@ -954,6 +954,14 @@ class CODAResiduals(BaseResiduals):
         Converged cases (all plotted residuals below ``lim_converged``) are
         shown with star markers; non-converged cases with circles.
 
+        With a single varying design variable the plot collapses to one
+        semilogy axes per stage: cases sorted along the variable, one
+        curve per residual column, converged points as ``*`` and a
+        dashed ``lim_converged`` line.  Each stage is drawn in its own
+        figure (``residuals_all_cases_stage<s>.png``) so stages are
+        never mixed; a single stage keeps the plain
+        ``residuals_all_cases.png`` name.
+
         Parameters
         ----------
         save_dir : str or None
@@ -1010,17 +1018,12 @@ class CODAResiduals(BaseResiduals):
                 UserWarning,
             )
             return
-        nrows = int(np.ceil(len(columns) / ncols))
-        fig, axes = plt.subplots(
-            nrows, ncols,
-            figsize=(7 * ncols, 5 * nrows),
-            constrained_layout=True,
-        )
-        axes = np.atleast_1d(axes).flatten()
 
-        converged_mask = (df_finals[columns].lt(lim_converged)).all(axis=1)
-        norm           = mcolors.LogNorm(vmin=lim_converged, vmax=1e0)
-        cmap_name      = kwargs.get('cmap', 'summer')
+        converged_mask = (
+            df_finals[columns].lt(lim_converged)
+        ).all(axis=1).to_numpy()
+        norm = mcolors.LogNorm(vmin=lim_converged, vmax=1e0)
+        cmap_name = kwargs.get('cmap', 'summer')
 
         dvf = [
             v for v in self.db.metadata['design_vars']
@@ -1033,39 +1036,49 @@ class CODAResiduals(BaseResiduals):
                 UserWarning,
             )
             return
-        
-        if len(dvf) == 1:
-            for i, col in enumerate(columns):
-                x = df_finals[dvf[0]]
-                y = df_finals[col]
-                sc_nc = axes[i].scatter(
-                    x[~converged_mask], y[~converged_mask],
-                    c=df_finals.loc[~converged_mask, "total_iterations"], cmap=cmap_name, norm=norm,
-                    s=60, edgecolor='k', label='Non-converged',
-                )
-                axes[i].scatter(
-                    x[converged_mask], y[converged_mask],
-                    c=df_finals.loc[converged_mask, "total_iterations"], cmap=cmap_name, norm=norm,
-                    s=60, marker='*', linewidth=1.5, label='Converged',
-                )
-                axes[i].set_yscale('log')
-                if activate_idx:
-                    for p, yy in zip(df_finals[dvf[0]].values, y.values):
-                        matches = np.where(
-                            self.db.df_state.iloc[:, 0] == p
-                        )[0]
-                        if matches.size > 0:
-                            axes[i].annotate(
-                                f"{matches[0]}", (p, yy),
-                                textcoords="offset points",
-                                xytext=(0, 7), ha='center', fontsize=8,
-                            )
-                axes[i].set(title=col, xlabel=dvf[0], ylabel=col)
-                fig.colorbar(sc_nc, ax=axes[i]).ax.set_title(f'"Total iterations" {stage}')
 
-            handles, labels = axes[0].get_legend_handles_labels()
-            fig.legend(handles, labels, loc='lower center',
-                       frameon=False, ncols=2)
+        if len(dvf) == 1:
+            if 'stage' in df_finals.columns:
+                stages_present = sorted(df_finals['stage'].unique().tolist())
+            else:
+                stages_present = ['all']
+            for stage_here in stages_present:
+                if stage_here == 'all':
+                    df_stage = df_finals
+                    mask_stage = np.ones(len(df_finals), dtype=bool)
+                    suffix = ''
+                else:
+                    mask_stage = (
+                        df_finals['stage'].to_numpy() == stage_here
+                    )
+                    df_stage = df_finals.loc[mask_stage]
+                    suffix = (
+                        '' if len(stages_present) == 1
+                        else f'_stage{stage_here}'
+                    )
+                self._plot_final_residuals_1d(
+                    df_finals=df_stage,
+                    columns=columns,
+                    dvf=dvf,
+                    converged_mask=np.asarray(converged_mask)[mask_stage],
+                    stage=stage_here,
+                    mode=mode,
+                    lim_converged=lim_converged,
+                    activate_idx=activate_idx,
+                    save_dir=save_dir,
+                    filename_suffix=suffix,
+                    **kwargs,
+                )
+            return
+
+        nrows = int(np.ceil(len(columns) / ncols))
+        fig, axes = plt.subplots(
+            nrows, ncols,
+            figsize=(7 * ncols, 5 * nrows),
+            constrained_layout=True,
+        )
+        axes = np.atleast_1d(axes).flatten()
+
         if len(dvf) == 2:
             for i, col in enumerate(columns):
                 x, y, c = (df_finals[dvf[0]], df_finals[dvf[1]],
@@ -1234,6 +1247,104 @@ class CODAResiduals(BaseResiduals):
     # =========================================================================
     # Private helpers
     # =========================================================================
+
+    def _plot_final_residuals_1d(
+        self,
+        df_finals: pd.DataFrame,
+        columns: list,
+        dvf: list,
+        converged_mask,
+        stage,
+        mode: str,
+        lim_converged: float,
+        activate_idx: bool,
+        save_dir,
+        filename_suffix: str = '',
+        **kwargs,
+    ) -> None:
+        """Single-axes semilogy view of final residuals vs one design var.
+
+        Cases are sorted by the varying design variable; each residual
+        column is one curve, converged points wear ``*`` (the rest
+        ``o``), and a dashed line marks ``lim_converged``.  ``NaN``
+        values (e.g. pending cases) are masked per curve instead of
+        breaking it.  Case-index annotations are skipped above 40 rows
+        to keep the plot readable.
+        """
+        order = np.argsort(df_finals[dvf[0]].values)
+        x_all = df_finals[dvf[0]].values[order]
+        conv_all = np.asarray(converged_mask)[order]
+
+        fig, ax = plt.subplots(
+            figsize=kwargs.get('figsize', (10, 6)),
+            constrained_layout=True,
+        )
+        colors = self._cycled_colors(len(columns))
+        for col, color in zip(columns, colors):
+            y_all = df_finals[col].values[order].astype(float)
+            finite = np.isfinite(y_all)
+            if not finite.any():
+                continue
+            label = col.replace(f"Residual_{mode}", "")
+            xf, yf, cf = x_all[finite], y_all[finite], conv_all[finite]
+            if len(xf) > 1:
+                ax.semilogy(xf, yf, '-', color=color, linewidth=1.5)
+            ax.semilogy(
+                xf[cf], yf[cf], '*', color=color, markersize=10,
+                markeredgecolor='k', markeredgewidth=0.5,
+                label=f'{label} (converged)',
+            )
+            ax.semilogy(
+                xf[~cf], yf[~cf], 'o', color=color, markersize=6,
+                markeredgecolor='k',
+                label=f'{label} (non-converged)',
+            )
+
+        ax.axhline(
+            lim_converged, color='k', linestyle='--', linewidth=1.0,
+            label=f'converged < {lim_converged:.0e}',
+        )
+        ax.set(
+            title=f'Final residuals vs {dvf[0]} (stage {stage})',
+            xlabel=dvf[0],
+            ylabel=f"Residual ({mode})",
+        )
+        ax.grid(True, which='both', linestyle='--', alpha=0.4)
+
+        if activate_idx:
+            if len(df_finals) <= 40:
+                state_first = self.db.df_state.iloc[:, 0].values
+                for p in x_all:
+                    matches = np.where(state_first == p)[0]
+                    if matches.size > 0:
+                        ax.annotate(
+                            f"{matches[0]}", (p, ax.get_ylim()[1]),
+                            textcoords="offset points",
+                            xytext=(0, 4), ha='center', fontsize=8,
+                        )
+            else:
+                log.info(
+                    "Skipping case annotations (%s rows).",
+                    len(df_finals),
+                )
+
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            fig.legend(
+                handles, labels, loc='lower center',
+                frameon=False, ncols=min(4, len(handles)),
+            )
+
+        if save_dir:
+            os.makedirs(save_dir, exist_ok=True)
+            fig.savefig(
+                os.path.join(
+                    save_dir, f"residuals_all_cases{filename_suffix}.png"
+                ),
+                dpi=150, bbox_inches='tight',
+            )
+        else:
+            plt.show()
 
     def _plot_convergence(
         self,

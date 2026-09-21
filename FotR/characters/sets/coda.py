@@ -17,9 +17,11 @@ whose reader is CODAReader:
 import os
 import copy
 import logging
+import re
 import warnings
 from typing import Literal, Optional, Union, TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -1150,6 +1152,220 @@ class CODASets(BaseSets):
                         dst_stack[:, col:col + shape]
                     )
                     col += shape
+
+    # =========================================================================
+    # Visualisation
+    # =========================================================================
+
+    def plot_wall_integrals(
+        self,
+        cases_idx: Union[list, tuple],
+        var_metrics: Union[str, list, tuple] = 'all',
+        stage: Union[int, list, tuple, str] = 'all',
+        x_axis: Literal['Iteration', 'Time'] = 'Iteration',
+        stride: int = 1,
+        band: bool = False,
+        save_dir: Union[str, None] = None,
+        figsize: tuple = (10, 6),
+        cmap: str = 'tab10',
+    ) -> None:
+        """
+        Plot aerodynamic wall-integral monitors vs iteration or time.
+
+        Reads ``*_monitors_wall_boundary_integrals.dat`` files (e.g.
+        ``CoefDrag``, ``CoefLift``, ``CoefMomentY``) with
+        ``SAM.Backpack.get_df_from_csv`` — the same reading used by
+        ``CODAResiduals.integrals_convergence_criteria`` — and draws one
+        figure per variable, one curve per requested case.
+
+        Cases are always explicit: ``cases_idx`` must be a non-empty
+        list/tuple of global ``df_cases`` positions (no ``'all'``), so
+        each figure stays readable.  Case selection is resolved through
+        ``CODAReader._resolve_cases_idx``, the same central mechanism
+        used everywhere else.
+
+        Parameters
+        ----------
+        cases_idx : list[int] or tuple[int]
+            Global case positions to plot. Required, must be non-empty.
+        var_metrics : str, list[str] or 'all'
+            Integral variables to plot. ``'all'`` (default) plots every
+            numeric column except ``Iteration``/``Time``/``total_iter``.
+        stage : int, list[int] or 'all'
+            Stages whose monitor files are read. Default ``'all'``.
+            Curves are labelled ``<folder> (stage <s>)``.
+        x_axis : 'Iteration' or 'Time'
+            Horizontal axis. Default ``'Iteration'``.
+        stride : int
+            Plot every ``stride``-th row (long monitor files). Must be
+            ``>= 1``. Default 1.
+        band : bool
+            If True, overlay the mean ± std across the plotted cases
+            (interpolated onto the shortest x axis). Default False.
+        save_dir : str or None
+            If provided, saves each figure as ``<var>.png``. Default
+            None (show).
+        figsize : tuple
+            Figure size. Default ``(10, 6)``.
+        cmap : str
+            Matplotlib colormap for the per-case curves. Default
+            ``'tab10'``.
+
+        Raises
+        ------
+        ValueError
+            If ``cases_idx`` is not a non-empty list/tuple, if ``stride``
+            is ``< 1``, or if ``x_axis`` is unknown.
+        UserWarning
+            If a case has no integral files, or a requested variable is
+            missing in a case (that case is skipped for that variable).
+
+        Examples
+        --------
+        ::
+
+            db.sets.plot_wall_integrals(
+                cases_idx=[0, 1, 2],
+                var_metrics=['CoefLift', 'CoefDrag'],
+                save_dir='/output/plots/',
+            )
+        """
+        if not isinstance(cases_idx, (list, tuple)) or not cases_idx:
+            raise ValueError(
+                "cases_idx must be a non-empty list or tuple of global "
+                "case positions (no 'all': plot cases explicitly)."
+            )
+        if not isinstance(stride, int) or stride < 1:
+            raise ValueError(f"stride must be an int >= 1, got {stride!r}.")
+        if x_axis not in ('Iteration', 'Time'):
+            raise ValueError(
+                f"x_axis must be 'Iteration' or 'Time', got {x_axis!r}."
+            )
+
+        positions = self.db.reader._resolve_cases_idx(
+            list(cases_idx), None
+        )
+        df_cases = self.db.metadata.get('df_cases', pd.DataFrame())
+        folders = df_cases.loc[positions, 'folder'].tolist()
+
+        if isinstance(var_metrics, str) and var_metrics != 'all':
+            var_metrics = [var_metrics]
+        stages = (
+            list(range(self.db.metadata['num_stages']))
+            if stage == 'all'
+            else [int(stage)] if isinstance(stage, int)
+            else [int(s) for s in stage]
+        )
+
+        series: dict = {}
+        for folder in folders:
+            case_path = os.path.join(self.db.root_dir, 'outputs', folder)
+            files = SAM.Backpack.pattern_pocket.find_files(
+                path=case_path,
+                endswith='_wall_boundary_integrals.dat',
+                verbose=False,
+            )
+            for fname in files:
+                match = re.search(r"output_(\d+)__", fname)
+                if not match:
+                    continue
+                stage_no = int(match.group(1))
+                if stage_no not in stages:
+                    continue
+                df = SAM.Backpack.get_df_from_csv(files_list=[
+                    os.path.join(case_path, fname)
+                ])
+                if df.empty:
+                    continue
+                key = (folder, stage_no)
+                series.setdefault(key, df)
+
+        if not series:
+            warnings.warn(
+                "No wall-integral data found for the requested cases.",
+                UserWarning,
+            )
+            return
+
+        first = next(iter(series.values()))
+        if var_metrics == 'all':
+            var_list = [
+                c for c in first.columns
+                if c not in ('Iteration', 'Time', 'total_iter')
+                and pd.api.types.is_numeric_dtype(first[c])
+            ]
+        else:
+            var_list = list(var_metrics)
+        if not var_list:
+            warnings.warn("No variables to plot.", UserWarning)
+            return
+
+        cmap_obj = plt.get_cmap(cmap)
+        for var in var_list:
+            fig, ax = plt.subplots(figsize=figsize)
+            curves = []
+            for i, ((folder, stage_no), df) in enumerate(series.items()):
+                if var not in df.columns:
+                    warnings.warn(
+                        f"Variable '{var}' missing in '{folder}' "
+                        f"(stage {stage_no}); skipping that case.",
+                        UserWarning,
+                    )
+                    continue
+                sub = df.iloc[::stride]
+                x = sub[x_axis].values
+                y = sub[var].values
+                color = cmap_obj(i % cmap_obj.N)
+                ax.plot(
+                    x, y, color=color, linewidth=1.2,
+                    label=f'{folder} (stage {stage_no})',
+                )
+                curves.append((x, y))
+
+            if band and len(curves) > 1:
+                # Common x grid: shortest curve; longer ones interpolated.
+                # Needs strictly increasing x on every curve.
+                if not all(
+                    np.all(np.diff(x) > 0) for x, _ in curves
+                ):
+                    warnings.warn(
+                        f"band=True needs strictly increasing {x_axis}; "
+                        f"skipping the band for '{var}'.",
+                        UserWarning,
+                    )
+                else:
+                    n_short = min(len(x) for x, _ in curves)
+                    x_ref = curves[0][0][:n_short]
+                    stack = np.column_stack([
+                        y[:n_short] if len(x) == n_short
+                        else np.interp(x_ref, x, y)
+                        for x, y in curves
+                    ])
+                    mean = stack.mean(axis=1)
+                    std = stack.std(axis=1)
+                    ax.plot(x_ref, mean, color='k', linewidth=2.0,
+                            label='mean')
+                    ax.fill_between(x_ref, mean - std, mean + std,
+                                    color='k', alpha=0.15, label='± std')
+
+            ax.set(
+                title=f'{var} vs {x_axis}',
+                xlabel=x_axis,
+                ylabel=var,
+            )
+            ax.grid(True, linestyle='--', alpha=0.4)
+            ax.legend(loc='best', fontsize='small')
+            fig.tight_layout()
+
+            if save_dir:
+                os.makedirs(save_dir, exist_ok=True)
+                fig.savefig(
+                    os.path.join(save_dir, f"{var}.png"),
+                    dpi=150, bbox_inches='tight',
+                )
+                plt.close(fig)
+            else:
+                plt.show()
 
     # =========================================================================
     # I/O helpers
