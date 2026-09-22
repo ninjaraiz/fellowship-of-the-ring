@@ -137,10 +137,15 @@ class CODAReader(BaseReader):
                 'num_stages':  cm.get('num_stages', None),
             }
 
+            # kind='stable' matters when design_vars[0] is constant across
+            # cases — routine in CODA_SINGLE, where a mesh-refinement study
+            # varies only the mesh factor. With the default quicksort the
+            # tie-breaking reorders rows above ~80 cases, which would make
+            # case_idx stop matching the order written in df_cases.csv.
             df_cases = (
-                pd.DataFrame.from_dict(cm.get('df_cases', {}))
+                self._df_cases_from_dict(cm.get('df_cases', {}))
                 .sort_values(by=self.metadata['design_vars'][0],
-                             ignore_index=True, axis=0)
+                             ignore_index=True, axis=0, kind='stable')
                 .reset_index(drop=True)
             )
             if "case_idx" not in df_cases.columns:
@@ -157,6 +162,96 @@ class CODAReader(BaseReader):
             self._infer_metadata_from_folders()
 
         self._sync_subsets_column()
+
+    # ── df_cases construction ────────────────────────────────────────────────
+
+    def _df_cases_from_dict(self, raw: dict) -> pd.DataFrame:
+        """
+        Build ``df_cases`` from the JSON's column dict, tolerating ragged
+        bookkeeping columns.
+
+        ``cases_metadata.json`` stores ``df_cases`` column-wise
+        (``orient='list'``). Adding a case to an existing study can leave a
+        bookkeeping column such as ``'exist'`` one entry short, and
+        ``pd.DataFrame.from_dict`` then dies with ``ValueError: All arrays
+        must be of the same length`` — an opaque message, raised from deep
+        inside pandas and not caught by the JSON-loading guard around it.
+
+        The distinction that matters is what the column is *for*:
+
+        * **identity** columns (the design variables, ``'folder'``,
+          ``'case_idx'``) define which case is which. If one of those is
+          ragged the table cannot be trusted, so this raises with a message
+          naming the offenders.
+        * every other column is bookkeeping. A ragged one is dropped, with
+          a warning, instead of blocking the whole dataset.
+
+        Parameters
+        ----------
+        raw : dict
+            ``{column: list_of_values}`` as read from the JSON.
+
+        Returns
+        -------
+        pd.DataFrame
+            Empty when *raw* is empty or not a dict.
+
+        Raises
+        ------
+        ValueError
+            If an identity column is shorter than the longest column.
+
+        Examples
+        --------
+        ::
+
+            df = reader._df_cases_from_dict({
+                'mesh':   [0.8, 1.0, 2.0],
+                'folder': ['f0.8', 'f1', 'f2'],
+                'exist':  [False, False],      # dropped, with a warning
+            })
+        """
+        if not isinstance(raw, dict) or not raw:
+            return pd.DataFrame()
+
+        lengths = {
+            col: len(values) for col, values in raw.items()
+            if isinstance(values, (list, tuple))
+        }
+        if not lengths or len(set(lengths.values())) == 1:
+            return pd.DataFrame.from_dict(raw)
+
+        n_ref = max(lengths.values())
+        identity = [
+            col for col in
+            list(self.metadata.get('design_vars') or []) + ['folder', 'case_idx']
+            if col in lengths
+        ]
+        ragged_identity = {
+            col: lengths[col] for col in identity if lengths[col] != n_ref
+        }
+        if ragged_identity:
+            raise ValueError(
+                "df_cases in cases_metadata.json is inconsistent: the "
+                f"case-identity column(s) {ragged_identity} do not have "
+                f"{n_ref} entries like the rest. Regenerate the metadata "
+                "with the ring before reading this dataset."
+            )
+
+        dropped = {
+            col: length for col, length in lengths.items() if length != n_ref
+        }
+        warnings.warn(
+            f"df_cases in cases_metadata.json has ragged column(s) "
+            f"{dropped} against {n_ref} cases; dropping them. Case "
+            "identity (design vars, 'folder', 'case_idx') is unaffected, "
+            "but the metadata is stale — regenerate it with the ring.",
+            UserWarning,
+        )
+        return pd.DataFrame.from_dict({
+            col: values for col, values in raw.items()
+            if lengths.get(col, n_ref) == n_ref
+        })
 
     # ── Metadata inference fallback ───────────────────────────────────────────
 
@@ -180,7 +275,7 @@ class CODAReader(BaseReader):
                     nfiles_list.append(len(
                         SAM.Backpack.pattern_pocket.find_files(
                             os.path.join(self.output_dir, folder),
-                            file_end='.h5', not_contains='ci',
+                            endswith='.h5', not_contains='ci',
                         )
                     ))
 
@@ -1215,6 +1310,19 @@ class CODAReader(BaseReader):
         )
         pct = mask_fin.sum() / len(mask_fin) * 100
         title=f"Status of cases - Finished cases {pct:.2f}%"
+
+        # Point labels must be the case_idx the rest of the API speaks
+        # (case_per_idx, plot_residuals_from_case, get_df_metrics), not the
+        # row position: the two differ whenever df_state is not ordered
+        # like df_cases.
+        if 'case_idx' in df_state.columns:
+            labels = [
+                '' if pd.isna(c) else str(int(c))
+                for c in df_state['case_idx'].tolist()
+            ]
+        else:
+            labels = [str(i) for i in range(len(df_state))]
+
         if len(dvf) == 1:
             fig, ax = plt.subplots(1, 1, figsize=figsize)
             y_dummy = np.zeros(len(df_state))
@@ -1226,9 +1334,9 @@ class CODAReader(BaseReader):
             ax.set(xlabel=dvf[0], title=title)
             ax.grid(axis='x')
             for i, x in enumerate(df_state[dvf[0]].values):
-                offset = (0, 10) if df_state['stage'][i] != 0 else (0, -12)
+                offset = (0, 10) if df_state['stage'].iloc[i] != 0 else (0, -12)
                 ax.annotate(
-                    f"{i}", (x, 0), textcoords="offset points",
+                    labels[i], (x, 0), textcoords="offset points",
                     xytext=offset, ha='center', fontsize=8,
                 )
             ax.legend(handles=legend_handles, loc='lower center',
@@ -1246,9 +1354,9 @@ class CODAReader(BaseReader):
             for i, (x, y) in enumerate(
                 zip(df_state[dvf[0]].values, df_state[dvf[1]].values)
             ):
-                offset = (0, 10) if df_state['stage'][i] != 0 else (0, -12)
+                offset = (0, 10) if df_state['stage'].iloc[i] != 0 else (0, -12)
                 ax.annotate(
-                    f"{i}", (x, y), textcoords="offset points",
+                    labels[i], (x, y), textcoords="offset points",
                     xytext=offset, ha='center', fontsize=8,
                 )
             ax.legend(handles=legend_handles, loc='lower center',
@@ -1306,7 +1414,7 @@ class CODAReader(BaseReader):
         )
 
         files = SAM.Backpack.pattern_pocket.find_files(
-            case_path, file_end = "_wall_boundary_integrals.dat"
+            case_path, endswith="_wall_boundary_integrals.dat"
         )
         if not files:
             raise ValueError(

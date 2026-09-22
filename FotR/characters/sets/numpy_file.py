@@ -22,8 +22,6 @@ from typing import Optional, TYPE_CHECKING, Union
 
 import numpy as np
 import pandas as pd
-import torch
-import h5py
 
 from ..sam import SAM
 from .base import BaseSets
@@ -333,48 +331,3 @@ class NUMPYFILESets(BaseSets):
     # Private helpers
     # =========================================================================
 
-    @staticmethod
-    def _save_result(result: dict, save_path: str) -> None:
-        """
-        Persist a ``SAM.Gardener`` result dict to disk.
-
-        Supports three formats selected by the file extension:
-
-        * ``.h5``  — GZIP-compressed HDF5 via h5py.
-        * ``.pt``  — PyTorch binary format via ``torch.save``.
-        * ``.npy`` — NumPy pickle format via ``np.save``.
-
-        Parameters
-        ----------
-        result : dict
-            Dict with keys ``'tensor'``, ``'scaled'``, ``'mins'``, ``'maxs'``
-            as ``torch.Tensor`` objects.
-        save_path : str
-            Destination path including extension.
-
-        Raises
-        ------
-        NameError
-            If the file extension is not ``.h5``, ``.pt`` or ``.npy``.
-
-        Examples
-        --------
-        ::
-
-            NUMPYFILESets._save_result(result, '/output/jset.h5')
-        """
-        if save_path.endswith('.h5'):
-            with h5py.File(save_path, "w") as hf:
-                hf.create_dataset("tensor", data=result['tensor'].numpy())
-                hf.create_dataset("scaled", data=result['scaled'].numpy())
-                hf.create_dataset("mins",   data=result['mins'].numpy())
-                hf.create_dataset("maxs",   data=result['maxs'].numpy())
-        elif save_path.endswith('.pt'):
-            torch.save(result, save_path)
-        elif save_path.endswith('.npy'):
-            np.save(save_path, result, allow_pickle=True)
-        else:
-            raise NameError(
-                "save_path extension not supported. "
-                "Use '.h5', '.pt' or '.npy'."
-            )

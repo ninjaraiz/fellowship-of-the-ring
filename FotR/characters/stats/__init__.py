@@ -26,4 +26,10 @@ try:
 except ModuleNotFoundError:
     pass
 
+try:
+    from .coda_single import CODASingleStats
+    STATS_REGISTRY['CODA_SINGLE'] = CODASingleStats
+except ModuleNotFoundError:
+    pass
+
 __all__ = ['BaseStats', 'STATS_REGISTRY']

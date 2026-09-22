@@ -683,6 +683,16 @@ class FRODO:
                 continue
 
             new_id = f"{gid}_merge_tmp_{id(db)}"
+            if getattr(db, 'sets', None) is None:
+                raise NotImplementedError(
+                    f"{source_labels[i]}: merging needs mesh homogenisation "
+                    f"via sets.interpolate_msh2msh, but format "
+                    f"'{db.format}' has no Sets class registered "
+                    f"(db.sets is None). Formats that store one mesh per "
+                    f"case (e.g. CODA_SINGLE) need their own merge "
+                    f"strategy; merge_datasets assumes every source can be "
+                    f"interpolated onto a single reference mesh."
+                )
             db.sets.interpolate_msh2msh(
                 id_group_src=gid, new_group_id=new_id,
                 new_mesh=ref_group, method=method, k=k,

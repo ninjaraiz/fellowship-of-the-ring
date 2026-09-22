@@ -4,25 +4,21 @@
 > localizados, cobertura de tests) → [`doc/frodo_sam/ANALISIS.md`](frodo_sam/ANALISIS.md).
 > No relean el repo entero ni el historial anterior.
 
-## 1. Estado — `develop` @ `663e3d1`, **con trabajo sin commitear**
+## 1. Estado — `develop` @ `50c0813`, **con trabajo sin commitear**
 
-Suite: **162 passed** (el `156` del handoff anterior estaba obsoleto).
+Suite: **207 passed** (el `156` de un handoff anterior estaba obsoleto).
 
 ```bash
 /home/m.jaraiz/miniconda/envs/envkan_nvidia/bin/python -m pytest FotR/tests/ -q
 ```
 
-Pendiente de commit en el árbol de trabajo:
+Sin commitear: los arreglos de CODA_SINGLE (14 bugs) y el `sets`/`stats` propios del
+formato. `git status --short` lo lista; el detalle está en los dos documentos citados
+en §4.
 
-| fichero | qué es |
-|---|---|
-| `FotR/characters/residuals/coda.py` | refactor de `plot_all_final_residuals`: rama 1-D extraída a `_plot_final_residuals_1d`, una figura por stage |
-| `FotR/characters/sets/coda.py` | `plot_wall_integrals` nuevo (+216 líneas) |
-| `FotR/tests/test_coda_residuals_plot.py` | tests de la rama 1-D |
-| `FotR/tests/test_coda_wall_integrals.py` | **sin trackear** — 4 tests de `plot_wall_integrals` |
-| `doc/frodo_sam/docs.json` | regenerado |
-| `examples/TIFON_database_CODA/coda_single_GCI.ipynb` | — |
-| `doc/HANDOFF.md`, `doc/frodo_sam/ANALISIS.md` | **sin trackear** |
+Último commit (`50c0813`): refactor de `plot_all_final_residuals` (rama 1-D extraída a
+`_plot_final_residuals_1d`, una figura por stage), `CODASets.plot_wall_integrals` nuevo,
+sus dos ficheros de tests, `docs.json` regenerado y esta documentación.
 
 Trabajo previo ya commiteado: limpieza conservadora de `frodo.py`/`sam.py`/los cuatro
 subpaquetes (`print`→`logging`, type hints, guards, bugs de plot 1-D, `crop`, orientación
@@ -73,8 +69,8 @@ Heredadas del handoff anterior, **no verificables desde aquí**:
 | `FRODO` | `FotR/characters/frodo.py` | coordinador: monta el cuarteto desde los registries, delega por `__getattr__`, y `merge_datasets` |
 | `SAM` | `FotR/characters/sam.py` | namespace estático: `Gardener`, `HDF5reader`, `Backpack`, `Weapons`, `DifferentialOperators`, `DictVisualizer` |
 | readers | `characters/readers/` | CODA · CODA_SINGLE · NUMPY · NUMPYFILE · PYLOM · HORSES3D |
-| sets | `characters/sets/` | CODA (lo usa también NUMPY) · NUMPYFILE · PYLOM |
-| stats | `characters/stats/` | solo CODA (lo usa también NUMPY) |
+| sets | `characters/sets/` | CODA (lo usa también NUMPY) · **CODA_SINGLE** · NUMPYFILE · PYLOM |
+| stats | `characters/stats/` | CODA (lo usa también NUMPY) · **CODA_SINGLE** |
 | residuals | `characters/residuals/` | CODA (lo reusa CODA_SINGLE) · HORSES3D |
 | generadores | `characters/rings/` + `gandalf.py` | DoE, SLURM, `cases_metadata.json` |
 | plots | `characters/legolas.py` | **único consumidor externo de FRODO** |
@@ -85,8 +81,11 @@ Lo que hace perder tiempo nada más empezar (detalle en el ANÁLISIS):
 
 * `db.<lo-que-sea>` puede venir de `sets`, `reader`, `residuals` o `stats`, en ese orden,
   y **la misma llamada tiene firma distinta según el formato** → ANÁLISIS §1 y §7.
-* `db.sets` / `db.stats` son `None` en CODA_SINGLE y HORSES3D; `db.residuals` es `None`
-  en NUMPY, PYLOM y NUMPYFILE → matriz completa en ANÁLISIS §2.
+* `db.sets` / `db.stats` son `None` en HORSES3D; `db.residuals` es `None` en NUMPY,
+  PYLOM y NUMPYFILE → matriz completa en ANÁLISIS §2. Ojo además a B12: **sin pyLOM
+  instalado, CODA y NUMPY también pierden su Sets en silencio**, porque
+  `sets/coda.py` importa pyLOM en la cabecera y el registry se traga el
+  `ModuleNotFoundError`.
 * Hay **dos espacios de índices de caso** (global sobre `df_cases` vs local sobre el
   `FlCc` ya extraído) y los subsets solo viven en el global → ANÁLISIS §3.4.
 * **SAM no tiene ni un test.** De FRODO solo se testea `merge_datasets`.
@@ -94,21 +93,31 @@ Lo que hace perder tiempo nada más empezar (detalle en el ANÁLISIS):
 * Dos examples están rotos: `basic.ipynb` llama `add_to_data_dict(key_location=...)`
   (es `array_name`) y tres notebooks de `examples/gandalf/` llaman `GANDALF.Backpack.*`
   → ANÁLISIS §5.5.
-* **Sin arreglar, documentados**: dos bugs [ALTO] en `readers/coda.py` —
-  `find_files(file_end=...)` (deja muerto el fallback sin `cases_metadata.json` y
-  `plot_integrals_from_case`) y un caso que falla en `extract_inputs` y queda como caso
-  válido con `FlCc` a ceros → ANÁLISIS §4.
+* Los dos [ALTO] de `readers/coda.py` que listaba el ANÁLISIS §4
+  (`find_files(file_end=...)` y el caso fallido que quedaba con `FlCc` a ceros) **ya
+  están arreglados**; el §4 del ANÁLISIS describe el defecto original, no el estado.
+* **CODA_SINGLE está completo**: 14 bugs auditados y arreglados (salvo B12, de
+  entorno) más `CODASingleSets`/`CODASingleStats` propios. Catálogo en
+  [`doc/frodo_sam/BUGS_CODA_SINGLE.md`](frodo_sam/BUGS_CODA_SINGLE.md); diseño de
+  sets en [`doc/frodo_sam/DISENO_SETS_CODA_SINGLE.md`](frodo_sam/DISENO_SETS_CODA_SINGLE.md).
+  Lo que **no** se tocó: la misma conectividad errónea sigue en la ruta de CODA
+  (`readers/coda.py:797`) y LEGOLAS sigue sin soportar este formato (despacha por
+  `format == "CODA"` exacto); ninguna de las dos entraba en el encargo.
 
 ## 5. Siguiente paso previsto
 
-`sets`/`stats` propios de CODA_SINGLE (`create_jset` con `npts` por caso, `compute_stats`
-sobre listas) y helper de orden GCI/Richardson. El reader ya deja listos `case_order`,
-`mesh_files`, `idx_sort` por caso y `active_cases_idx`; lo que hay que diseñar es el
-ensamblado con `npts` variable, porque `SAM.Gardener.create_final_tensor` asume un
-`tensor_ptos` único compartido y **no sirve tal cual** → ANÁLISIS §8.
+CODA_SINGLE está cerrado (lector, sets, stats). Lo que queda pendiente y ya está
+identificado:
 
-Antes conviene decidir qué hacer con los dos [ALTO] del §4: el de `extract_inputs`
-afecta a la fiabilidad de cualquier dataset construido con CODA.
+* **LEGOLAS** — es lo último del repo según el plan del usuario. Hoy despacha por
+  `format == "CODA"` exacto (`legolas.py:98,192,214`), así que CODA_SINGLE cae en la
+  rama NUMPYFILE y muere con «No coordinates found for plotting». Ampliar el despacho
+  no basta: `Coord` es una lista y `_get_coda_variable` hace `arr.ndim`.
+* **La conectividad de CODA** (`readers/coda.py:797`) sigue con el defecto que se
+  arregló en la ruta CODA_SINGLE. El arreglo está disponible en
+  `SAM.Backpack.cell_connectivity_in_order`.
+* **B12**: declarar pyLOM como dependencia, o dejar de importarlo en la cabecera de
+  `sets/coda.py`.
 
 ## 6. Arranque mínimo
 

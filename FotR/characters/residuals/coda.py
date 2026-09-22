@@ -585,11 +585,28 @@ class CODAResiduals(BaseResiduals):
 
             df_post    = df_post.merge(df_finals, on=[v.lower() for v in design_vars], how="left")
 
-        # Fill integral metric columns
-        for irow in range(len(db.df_state)):
-            if allowed_case_idx is not None and irow not in allowed_case_idx:
+        # Fill integral metric columns.
+        #
+        # A row position of df_post is NOT a case_idx: df_post derives from
+        # df_state, whose row order need not follow df_cases (CODA_SINGLE
+        # discovers folders in lexicographic order, so 'f10' lands before
+        # 'f2'). Using the position to resolve the case via case_per_idx()
+        # while writing at that same position silently attributed each
+        # case's metrics to a different row. The case identity is taken
+        # from the row's own 'case_idx' whenever it is available.
+        if 'case_idx' in df_post.columns:
+            row_case_idx = df_post['case_idx'].tolist()
+        else:
+            row_case_idx = list(range(len(df_post)))
+
+        for pos, case_idx in enumerate(row_case_idx):
+            if pd.isna(case_idx):
                 continue
-            case_name   = db.reader.case_per_idx(irow)
+            case_idx = int(case_idx)
+            if allowed_case_idx is not None and case_idx not in allowed_case_idx:
+                continue
+            row_label   = df_post.index[pos]
+            case_name   = db.reader.case_per_idx(case_idx)
             output_path = os.path.join(db.root_dir, 'outputs', case_name)
 
             if not os.path.exists(output_path):
@@ -615,8 +632,12 @@ class CODAResiduals(BaseResiduals):
 
                 df_tail = df_int[var_metrics].tail(iter_var)
                 for v in var_metrics:
-                    df_post.loc[irow, f"{v}_mean_stage{stage}"] = df_tail[v].mean()
-                    df_post.loc[irow, f"{v}_var_stage{stage}"]  = df_tail[v].var()
+                    df_post.at[row_label, f"{v}_mean_stage{stage}"] = (
+                        df_tail[v].mean()
+                    )
+                    df_post.at[row_label, f"{v}_var_stage{stage}"] = (
+                        df_tail[v].var()
+                    )
 
         if allowed_case_idx is not None:
             # 'case_idx' is carried through from df_cases via the merges
@@ -1279,7 +1300,14 @@ class CODAResiduals(BaseResiduals):
             figsize=kwargs.get('figsize', (10, 6)),
             constrained_layout=True,
         )
+        # Colour encodes the residual, marker encodes the convergence
+        # state. Labelling both marker artists per column listed every
+        # residual twice ("<name> (converged)" and "<name>
+        # (non-converged)"), which is what made the legend duplicate.
         colors = self._cycled_colors(len(columns))
+        var_handles = []
+        any_converged = any_non_converged = False
+
         for col, color in zip(columns, colors):
             y_all = df_finals[col].values[order].astype(float)
             finite = np.isfinite(y_all)
@@ -1292,12 +1320,17 @@ class CODAResiduals(BaseResiduals):
             ax.semilogy(
                 xf[cf], yf[cf], '*', color=color, markersize=10,
                 markeredgecolor='k', markeredgewidth=0.5,
-                label=f'{label} (converged)',
             )
             ax.semilogy(
                 xf[~cf], yf[~cf], 'o', color=color, markersize=6,
                 markeredgecolor='k',
-                label=f'{label} (non-converged)',
+            )
+            any_converged = any_converged or bool(cf.any())
+            any_non_converged = any_non_converged or bool((~cf).any())
+            # A proxy, so the residual still gets its legend entry even
+            # when it has a single point and therefore no line.
+            var_handles.append(
+                plt.Line2D([], [], color=color, linewidth=1.5, label=label)
             )
 
         ax.axhline(
@@ -1328,11 +1361,28 @@ class CODAResiduals(BaseResiduals):
                     len(df_finals),
                 )
 
-        handles, labels = ax.get_legend_handles_labels()
+        # One entry per residual (colour) + one per state actually
+        # present (marker) + the threshold line.
+        state_handles = []
+        if any_converged:
+            state_handles.append(plt.Line2D(
+                [], [], color='0.3', marker='*', linestyle='none',
+                markersize=10, markeredgecolor='k', markeredgewidth=0.5,
+                label='converged',
+            ))
+        if any_non_converged:
+            state_handles.append(plt.Line2D(
+                [], [], color='0.3', marker='o', linestyle='none',
+                markersize=6, markeredgecolor='k', label='not converged',
+            ))
+        threshold_handles, _ = ax.get_legend_handles_labels()
+
+        handles = var_handles + state_handles + threshold_handles
         if handles:
             fig.legend(
-                handles, labels, loc='lower center',
-                frameon=False, ncols=min(4, len(handles)),
+                handles, [h.get_label() for h in handles],
+                loc='lower center', frameon=False,
+                ncols=min(4, len(handles)),
             )
 
         if save_dir:

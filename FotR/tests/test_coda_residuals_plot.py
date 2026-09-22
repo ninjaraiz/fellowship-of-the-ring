@@ -108,6 +108,43 @@ def test_plot_all_final_residuals_1d_single_axes(tmp_path):
     plt.close("all")
 
 
+def test_plot_all_final_residuals_1d_legend_has_no_duplicates(tmp_path):
+    """Each residual appears once; the marker carries the state.
+
+    Labelling both the ``*`` and the ``o`` artists of every column listed
+    each residual twice ("<name> (converged)" / "<name> (non-converged)"),
+    so a run with five residuals produced an eleven-entry legend that was
+    mostly repetition.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    db = _FakeDB(str(tmp_path), ["M_0.3000", "M_0.5000"], [0.3, 0.5])
+    res = CODAResiduals(db)
+    plt.close("all")
+    res.plot_all_final_residuals(
+        save_dir=str(tmp_path / "plots"), mode="norm", stage=[0],
+        only_finished=True,
+    )
+    fig = plt.gcf()
+    labels = [
+        t.get_text()
+        for legend in fig.legends
+        for t in legend.get_texts()
+    ]
+    assert labels, "the legend should not be empty"
+    assert len(labels) == len(set(labels)), f"duplicated entries: {labels}"
+    # No entry pairs a residual name with its state any more.
+    assert not any("(converged)" in label for label in labels)
+    assert not any("(non-converged)" in label for label in labels)
+    # The state is its own, neutral entry — and only the states actually
+    # present are listed, so this fixture (nothing converged) shows one.
+    assert {"converged", "not converged"} & set(labels)
+    plt.close("all")
+
+
 def test_plot_all_final_residuals_1d_one_plot_per_stage(tmp_path):
     db = _FakeDB(str(tmp_path), ["M_0.3000", "M_0.5000"], [0.3, 0.5])
     res = CODAResiduals(db)

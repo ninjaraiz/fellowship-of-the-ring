@@ -1776,6 +1776,103 @@ class SAM:
             }
 
         @staticmethod
+        def eval_formula(formula: str, env: dict, allowed_funcs: dict):
+            """Evaluate an arithmetic expression without ``eval``.
+
+            Allowed: names from ``env`` (columns/externals/``pi``/``np``),
+            numeric constants, ``+ - * / ** %``, unary ``-``, and calls to
+            ``allowed_funcs`` or ``np.<attr>``. Anything else raises
+            ``ValueError``.
+            """
+            import ast
+
+            allowed_binops = (
+                ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
+            )
+            _NP_WHITELIST = {
+                "sin", "cos", "tan", "arcsin", "arccos", "arctan",
+                "exp", "log", "log10", "sqrt", "power", "abs",
+                "minimum", "maximum", "clip",
+            }
+
+            def _to_value(node):
+                if isinstance(node, ast.Expression):
+                    return _to_value(node.body)
+                if isinstance(node, ast.Constant):
+                    if isinstance(node.value, (int, float, np.number)):
+                        return node.value
+                    raise ValueError(f"Constants of type {type(node.value)} are not allowed.")
+                if isinstance(node, ast.Name):
+                    if node.id not in env:
+                        raise ValueError(
+                            f"Unknown name '{node.id}' in formula. "
+                            f"Available: {sorted(env)}."
+                        )
+                    return env[node.id]
+                if isinstance(node, ast.BinOp):
+                    if not isinstance(node.op, allowed_binops):
+                        raise ValueError(
+                            f"Operator {type(node.op).__name__} is not allowed."
+                        )
+                    return _binop(node.op, _to_value(node.left), _to_value(node.right))
+                if isinstance(node, ast.UnaryOp):
+                    if not isinstance(node.op, (ast.UAdd, ast.USub)):
+                        raise ValueError(
+                            f"Operator {type(node.op).__name__} is not allowed."
+                        )
+                    val = _to_value(node.operand)
+                    return +val if isinstance(node.op, ast.UAdd) else -val
+                if isinstance(node, ast.Call):
+                    func = _resolve_callable(node.func)
+                    args = [_to_value(a) for a in node.args]
+                    if node.keywords:
+                        raise ValueError("Keyword arguments are not allowed.")
+                    return func(*args)
+                raise ValueError(f"Expression '{ast.dump(node)}' is not allowed.")
+
+            def _binop(op, left, right):
+                if isinstance(op, ast.Add):
+                    return left + right
+                if isinstance(op, ast.Sub):
+                    return left - right
+                if isinstance(op, ast.Mult):
+                    return left * right
+                if isinstance(op, ast.Div):
+                    return left / right
+                if isinstance(op, ast.Pow):
+                    return left ** right
+                return left % right
+
+            def _resolve_callable(func):
+                if isinstance(func, ast.Name):
+                    if func.id not in allowed_funcs:
+                        raise ValueError(
+                            f"Function '{func.id}' is not allowed. "
+                            f"Available: {sorted(allowed_funcs)}."
+                        )
+                    return allowed_funcs[func.id]
+                if isinstance(func, ast.Attribute):
+                    if (
+                        isinstance(func.value, ast.Name)
+                        and func.value.id == "np"
+                        and func.attr in _NP_WHITELIST
+                    ):
+                        return getattr(np, func.attr)
+                    raise ValueError(
+                        f"Function '{ast.dump(func)}' is not allowed."
+                    )
+                raise ValueError(f"Function '{ast.dump(func)}' is not allowed.")
+
+            full_env = dict(env)
+            full_env.setdefault("pi", np.pi)
+            full_env.setdefault("np", np)
+            try:
+                tree = ast.parse(formula, mode="eval")
+            except SyntaxError as e:
+                raise ValueError(f"Invalid formula syntax: {e}") from e
+            return _to_value(tree)
+
+        @staticmethod
         def same_columns(
             array: np.ndarray,
             atol: float = 1e-6,
@@ -1841,6 +1938,16 @@ class SAM:
             ::
 
                 conec = SAM.Backpack.get_unified_connectivity(mesh)
+
+            Warnings
+            --------
+            ``mesh.cells_dict`` **groups cells by element type**, so the
+            rows of the returned array follow that grouping and *not* the
+            mesh's original cell order.  Indexing the result with a mask
+            built in original cell order (e.g. from ``cell_data``) selects
+            the wrong rows on any mixed-type mesh.  Use
+            :meth:`cell_connectivity_in_order` when row order must match
+            the mesh's own cell order.
             """
             cell_dict = mesh.cells_dict
             max_nodes = max(arr.shape[1] for arr in cell_dict.values())
@@ -1852,6 +1959,68 @@ class SAM:
                 connectivity[start:start + n, :cells.shape[1]] = cells
                 start += n
             return connectivity
+
+        @staticmethod
+        def cell_connectivity_in_order(mesh: pv.UnstructuredGrid) -> np.ndarray:
+            """
+            Padded connectivity of *mesh*, in the mesh's **own cell order**.
+
+            Unlike :meth:`get_unified_connectivity` — which walks
+            ``cells_dict`` and therefore groups cells by element type —
+            this reads the raw VTK offset/connectivity arrays, so row ``i``
+            of the result always describes cell ``i`` of *mesh*.  That is
+            what makes it safe to combine with a boolean mask taken from
+            ``mesh.cell_data`` (e.g. ``CADGroupID``).
+
+            Node indices refer to ``mesh.points``.  When *mesh* is the
+            result of ``extract_cells``, they therefore refer to the
+            extracted subset, already renumbered by PyVista.
+
+            Cells with fewer nodes than the maximum are padded with ``-1``.
+
+            Parameters
+            ----------
+            mesh : pv.UnstructuredGrid
+
+            Returns
+            -------
+            np.ndarray, shape (n_cells, max_nodes_per_cell), dtype int64
+                Empty meshes yield shape ``(0, 0)``.
+
+            Examples
+            --------
+            ::
+
+                celdas = mesh.extract_cells(mask)
+                conec  = SAM.Backpack.cell_connectivity_in_order(celdas)
+                # conec[i] are the node ids of celdas' cell i, into
+                # celdas.points
+            """
+            n_cells = int(mesh.n_cells)
+            if n_cells == 0:
+                return np.zeros((0, 0), dtype=np.int64)
+
+            offsets = np.asarray(mesh.offset, dtype=np.int64)
+            conn = np.asarray(mesh.cell_connectivity, dtype=np.int64)
+
+            sizes = np.diff(offsets)
+            if sizes.shape[0] != n_cells:
+                raise ValueError(
+                    f"Unexpected VTK offset array: {sizes.shape[0]} cell "
+                    f"sizes for {n_cells} cells."
+                )
+
+            max_nodes = int(sizes.max())
+            out = np.full((n_cells, max_nodes), -1, dtype=np.int64)
+
+            # Vectorised scatter: build the column index of every entry of
+            # the flat connectivity array, then place them in one go.
+            col = np.arange(conn.shape[0], dtype=np.int64) - np.repeat(
+                offsets[:-1], sizes
+            )
+            row = np.repeat(np.arange(n_cells, dtype=np.int64), sizes)
+            out[row, col] = conn
+            return out
 
         @staticmethod
         def ensure_cell_data(mesh: pv.UnstructuredGrid) -> pv.UnstructuredGrid:

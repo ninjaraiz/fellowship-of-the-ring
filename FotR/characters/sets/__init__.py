@@ -29,6 +29,15 @@ try:
 except ModuleNotFoundError:
     pass
 
+# CODA_SINGLE keeps its own Sets: one mesh per case is a different data
+# contract, and CODASets imports pyLOM at module level (so it disappears
+# from the registry when pyLOM is absent). This one must not.
+try:
+    from .coda_single import CODASingleSets
+    SETS_REGISTRY['CODA_SINGLE'] = CODASingleSets
+except ModuleNotFoundError:
+    pass
+
 try:
     from .numpy_file import NUMPYFILESets
     SETS_REGISTRY['NUMPYFILE'] = NUMPYFILESets

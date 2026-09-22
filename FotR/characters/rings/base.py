@@ -341,98 +341,16 @@ class BaseRing:
     def _eval_formula(formula: str, env: dict, allowed_funcs: dict):
         """Evaluate an arithmetic expression without ``eval``.
 
-        Allowed: names from ``env`` (columns/externals/``pi``/``np``),
-        numeric constants, ``+ - * / ** %``, unary ``-``, and calls to
-        ``allowed_funcs`` or ``np.<attr>``. Anything else raises
-        ``ValueError``.
+        Thin delegate to :func:`SAM.Backpack.eval_formula`, where the
+        implementation now lives so that other subpackages (notably
+        ``sets``) can reuse it without importing ``rings``.
+
+        The import is local so that ``rings`` does not pull SAM's heavy
+        dependency stack (torch, pyvista, sklearn) at module import time.
         """
-        import ast
+        from ..sam import SAM
 
-        allowed_binops = (
-            ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
-        )
-        _NP_WHITELIST = {
-            "sin", "cos", "tan", "arcsin", "arccos", "arctan",
-            "exp", "log", "log10", "sqrt", "power", "abs",
-            "minimum", "maximum", "clip",
-        }
-
-        def _to_value(node):
-            if isinstance(node, ast.Expression):
-                return _to_value(node.body)
-            if isinstance(node, ast.Constant):
-                if isinstance(node.value, (int, float, np.number)):
-                    return node.value
-                raise ValueError(f"Constants of type {type(node.value)} are not allowed.")
-            if isinstance(node, ast.Name):
-                if node.id not in env:
-                    raise ValueError(
-                        f"Unknown name '{node.id}' in formula. "
-                        f"Available: {sorted(env)}."
-                    )
-                return env[node.id]
-            if isinstance(node, ast.BinOp):
-                if not isinstance(node.op, allowed_binops):
-                    raise ValueError(
-                        f"Operator {type(node.op).__name__} is not allowed."
-                    )
-                return _binop(node.op, _to_value(node.left), _to_value(node.right))
-            if isinstance(node, ast.UnaryOp):
-                if not isinstance(node.op, (ast.UAdd, ast.USub)):
-                    raise ValueError(
-                        f"Operator {type(node.op).__name__} is not allowed."
-                    )
-                val = _to_value(node.operand)
-                return +val if isinstance(node.op, ast.UAdd) else -val
-            if isinstance(node, ast.Call):
-                func = _resolve_callable(node.func)
-                args = [_to_value(a) for a in node.args]
-                if node.keywords:
-                    raise ValueError("Keyword arguments are not allowed.")
-                return func(*args)
-            raise ValueError(f"Expression '{ast.dump(node)}' is not allowed.")
-
-        def _binop(op, left, right):
-            if isinstance(op, ast.Add):
-                return left + right
-            if isinstance(op, ast.Sub):
-                return left - right
-            if isinstance(op, ast.Mult):
-                return left * right
-            if isinstance(op, ast.Div):
-                return left / right
-            if isinstance(op, ast.Pow):
-                return left ** right
-            return left % right
-
-        def _resolve_callable(func):
-            if isinstance(func, ast.Name):
-                if func.id not in allowed_funcs:
-                    raise ValueError(
-                        f"Function '{func.id}' is not allowed. "
-                        f"Available: {sorted(allowed_funcs)}."
-                    )
-                return allowed_funcs[func.id]
-            if isinstance(func, ast.Attribute):
-                if (
-                    isinstance(func.value, ast.Name)
-                    and func.value.id == "np"
-                    and func.attr in _NP_WHITELIST
-                ):
-                    return getattr(np, func.attr)
-                raise ValueError(
-                    f"Function '{ast.dump(func)}' is not allowed."
-                )
-            raise ValueError(f"Function '{ast.dump(func)}' is not allowed.")
-
-        full_env = dict(env)
-        full_env.setdefault("pi", np.pi)
-        full_env.setdefault("np", np)
-        try:
-            tree = ast.parse(formula, mode="eval")
-        except SyntaxError as e:
-            raise ValueError(f"Invalid formula syntax: {e}") from e
-        return _to_value(tree)
+        return SAM.Backpack.eval_formula(formula, env, allowed_funcs)
 
     # ── Folder / metadata writing shared by every ring ────────────────────
 
