@@ -679,7 +679,65 @@ def test_merge_preserves_design_vars_from_mesh_ref(tmp_path):
 
 
 # =========================================================================
-# 9. Direct unit tests of the pure helper functions
+# 9. Temporary mesh-homogenisation groups are removed from the sources
+# =========================================================================
+
+def test_merge_removes_temporary_groups_from_sources(tmp_path):
+    design_vars = ['AoA', 'Mach']
+    flcc_a = np.array([[0.0, 0.7]])
+    flcc_b = np.array([[2.0, 0.7]])
+    flcc_c = np.array([[4.0, 0.7]])
+    dbs = [
+        FakeFRODO(
+            'NUMPY', f'db_{i}', design_vars,
+            {'CADGroup_3': _make_group(flcc)},
+            df_state=_make_df_state(flcc, design_vars),
+        )
+        for i, flcc in enumerate([flcc_a, flcc_b, flcc_c])
+    ]
+
+    merged = FRODO.merge_datasets(
+        root_dir=str(tmp_path / 'merged'), name='merged',
+        sources=[(db, '3') for db in dbs], new_group_id='3_merged',
+        mesh_ref=0,
+    )
+
+    for db in dbs:
+        assert list(db.data_dict) == ['CADGroup_3']
+    # The merged Vars must not depend on the removed groups
+    assert merged.data_dict['CADGroup_3_merged']['Vars']['0']['Pressure'].shape == (5, 3)
+
+
+def test_merge_removes_temporary_groups_on_error(tmp_path):
+    design_vars = ['AoA', 'Mach']
+    flcc_a = np.array([[0.0, 0.7]])
+    flcc_b = np.array([[2.0, 0.7]])
+    db_a = FakeFRODO(
+        'NUMPY', 'db_a', design_vars,
+        {'CADGroup_3': _make_group(flcc_a)},
+        df_state=_make_df_state(flcc_a, design_vars),
+    )
+    # df_state of db_b does not describe its extracted case, so the merge
+    # fails in the df_state step, after db_b has been interpolated.
+    db_b = FakeFRODO(
+        'NUMPY', 'db_b', design_vars,
+        {'CADGroup_3': _make_group(flcc_b)},
+        df_state=_make_df_state(np.array([[9.0, 0.9]]), design_vars),
+    )
+
+    with pytest.raises(RuntimeError, match='no matching row'):
+        FRODO.merge_datasets(
+            root_dir=str(tmp_path / 'merged'), name='merged',
+            sources=[(db_a, '3'), (db_b, '3')], new_group_id='3_merged',
+            mesh_ref=0,
+        )
+
+    assert list(db_a.data_dict) == ['CADGroup_3']
+    assert list(db_b.data_dict) == ['CADGroup_3']
+
+
+# =========================================================================
+# 10. Direct unit tests of the pure helper functions
 # =========================================================================
 
 def test_check_no_duplicate_cases_passes_for_disjoint_sets():

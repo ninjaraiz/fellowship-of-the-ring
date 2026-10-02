@@ -32,3 +32,73 @@ No dudes en escribirme si tienes dudas sobre la convivencia en esta comunidad (m
 
 ```bash
 pip install -e .
+```
+
+Las dependencias del núcleo (numpy, torch, pandas, scipy, matplotlib, meshio,
+pyvista, h5py) se instalan solas. `requirements.txt` añade las de visualización
+interactiva y utilidades.
+
+> **pyLOM no se instala con el paquete** y no está declarado como dependencia.
+> Si no está presente, `FotR/characters/sets/coda.py` falla al importar y los
+> formatos **CODA y NUMPY se quedan sin su clase Sets en silencio** (solo verás
+> un `UserWarning` diciendo que no hay Sets). Si trabajas con esos formatos,
+> instálalo aparte.
+
+## Formatos soportados
+
+FRODO monta cuatro piezas por formato; no todos los formatos las tienen todas.
+
+| formato | reader | sets | stats | residuals | kwarg obligatorio |
+|---|:---:|:---:|:---:|:---:|---|
+| `CODA` | ✓ | ✓ | ✓ | ✓ | — |
+| `CODA_SINGLE` | ✓ | ✓ | ✓ | ✓ | — (una malla por caso) |
+| `NUMPY` | ✓ | ✓ | ✓ | — | `file=` |
+| `NUMPYFILE` | ✓ | ✓ | — | — | `file=` (obsoleto) |
+| `PYLOM` | ✓ | ✓ | — | — | `file=` |
+| `HORSES3D` | ✓ | — | — | ✓ | — (acepta `strict=`) |
+
+## Arranque mínimo
+
+```python
+from FotR import FRODO, SAM
+
+db = FRODO(root_dir='/ruta/a/la/base', format='CODA', name='mi_base')
+
+db.extract_inputs(id_group='3')                  # malla y condiciones de vuelo
+db.extract_outputs(id_group='3', stage='all')    # variables de solución
+
+db.summary_data()        # árbol de data_dict
+print(db.df_state)       # una fila por caso
+```
+
+Casi nada de lo que llames como `db.algo(...)` vive en FRODO: se resuelve por
+delegación en `sets`, `reader`, `residuals` o `stats`, **en ese orden**. Por eso
+la misma llamada puede tener firma distinta según el formato.
+
+## Documentación
+
+| dónde | qué es |
+|---|---|
+| `doc/frodo_sam/index.html` | Visor de la documentación (ES/EN). Pestaña **FRODO** con una sub-pestaña por formato y, dentro, una por cada pieza (`reader`, `sets`, `stats`, `residuals`) con sus métodos y ejemplos; pestaña **SAM** con una sub-pestaña por área; más el explorador de `data_dict` y un buscador global |
+| `doc/frodo_sam/ANALISIS.md` | Análisis de arquitectura y deuda técnica, para quien vaya a tocar el código |
+| `doc/HANDOFF.md` | Estado del repositorio entre sesiones de trabajo |
+| `examples/` | Notebooks por formato y base de datos |
+
+El visor usa `fetch`, así que necesita servidor HTTP — con `file://` falla por
+CORS:
+
+```bash
+python3 -m http.server -d doc/frodo_sam 8000   # y abrir http://localhost:8000
+```
+
+Para regenerar la referencia de métodos tras tocar un docstring:
+
+```bash
+python3 doc/frodo_sam/generate_docs.py
+```
+
+El generador lee los cuatro registros (`readers/`, `sets/`, `stats/`,
+`residuals/__init__.py`) para construir el mapa formato → pieza, así que un
+formato nuevo aparece solo en el visor. Lo único que hay que mantener a mano es
+la lista `TARGETS` del generador, `guides.json` (narrativa ES/EN) y
+`examples.json` (ejemplos, tomados de `examples/`).

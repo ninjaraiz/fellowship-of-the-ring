@@ -50,6 +50,7 @@ from abc import ABC, abstractmethod
 from typing import Literal, Optional, TYPE_CHECKING, Union
 
 import h5py
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -237,7 +238,9 @@ class BaseSets(ABC):
         band: bool = False,
         save_dir: Union[str, None] = None,
         figsize: tuple = (10, 6),
-        cmap: str = 'tab10',
+        cmap: str = 'viridis',
+        legend_max_cases: int = 14,
+        case_key: Literal['auto', 'legend', 'colorbar'] = 'auto',
     ) -> None:
         """
         Plot aerodynamic wall-integral monitors vs iteration or time.
@@ -278,8 +281,21 @@ class BaseSets(ABC):
         figsize : tuple
             Figure size. Default ``(10, 6)``.
         cmap : str
-            Matplotlib colormap for the per-case curves. Default
-            ``'tab10'``.
+            Matplotlib colormap for the per-case curves. **Sequential**
+            by default (``'viridis'``), because the cases are ordered and
+            the colour is meant to read as that order. Line style encodes
+            the stage when more than one is plotted.
+        case_key : {'auto', 'legend', 'colorbar'}
+            How the case→colour mapping is shown. ``'legend'`` names every
+            case, which is what you want when the names carry meaning (a
+            mesh factor, a Mach number); ``'colorbar'`` only shows the
+            ordering, which scales better to many cases but loses the
+            names. ``'auto'`` (default) picks a legend up to
+            ``legend_max_cases`` and a colorbar beyond. Both are kept
+            because this format is the generic one for the solver and the
+            right answer depends on the study.
+        legend_max_cases : int
+            Threshold used by ``case_key='auto'``. Default 14.
 
         Raises
         ------
@@ -370,11 +386,41 @@ class BaseSets(ABC):
             warnings.warn("No variables to plot.", UserWarning)
             return
 
+        # Cases are ordered (here, by mesh refinement), so colour is a
+        # SEQUENTIAL encoding of that order, sampled evenly and shown as a
+        # colorbar. A qualitative map indexed with `i % N` repeated colours
+        # as soon as there were more cases than the map had entries — with
+        # 11 meshes and 'tab10', two different meshes drew the same colour.
         cmap_obj = plt.get_cmap(cmap)
+        keys = list(series)
+        order_of = {folder: pos for pos, folder in enumerate(folders)}
+        n_folders = max(len(folders), 1)
+
+        def _case_color(folder):
+            if n_folders == 1:
+                return cmap_obj(0.5)
+            # Stay inside [0.12, 0.92] so the extremes of the map remain
+            # readable against a white background.
+            frac = order_of.get(folder, 0) / (n_folders - 1)
+            return cmap_obj(0.12 + 0.80 * frac)
+
+        stage_styles = ['-', '--', ':', '-.']
+        stages_seen = sorted({stage_no for _folder, stage_no in keys})
+
+        if case_key not in ('auto', 'legend', 'colorbar'):
+            raise ValueError(
+                f"case_key must be 'auto', 'legend' or 'colorbar', "
+                f"got {case_key!r}."
+            )
+        use_legend = (
+            case_key == 'legend'
+            or (case_key == 'auto' and len(folders) <= legend_max_cases)
+        )
+
         for var in var_list:
             fig, ax = plt.subplots(figsize=figsize)
             curves = []
-            for i, ((folder, stage_no), df) in enumerate(series.items()):
+            for (folder, stage_no), df in series.items():
                 if var not in df.columns:
                     warnings.warn(
                         f"Variable '{var}' missing in '{folder}' "
@@ -385,10 +431,15 @@ class BaseSets(ABC):
                 sub = df.iloc[::stride]
                 x = sub[x_axis].values
                 y = sub[var].values
-                color = cmap_obj(i % cmap_obj.N)
                 ax.plot(
-                    x, y, color=color, linewidth=1.2,
-                    label=f'{folder} (stage {stage_no})',
+                    x, y,
+                    color=_case_color(folder),
+                    linestyle=stage_styles[
+                        stages_seen.index(stage_no) % len(stage_styles)
+                    ],
+                    linewidth=1.2,
+                    label=(f'{folder}' if use_legend and stage_no ==
+                           stages_seen[0] else None),
                 )
                 curves.append((x, y))
 
@@ -424,7 +475,41 @@ class BaseSets(ABC):
                 ylabel=var,
             )
             ax.grid(True, linestyle='--', alpha=0.4)
-            ax.legend(loc='best', fontsize='small')
+
+            if len(folders) > 1 and not use_legend:
+                norm = mcolors.Normalize(vmin=0, vmax=len(folders) - 1)
+                sub_cmap = mcolors.LinearSegmentedColormap.from_list(
+                    f'{cmap}_trimmed',
+                    cmap_obj(np.linspace(0.12, 0.92, 256)),
+                )
+                bar = fig.colorbar(
+                    plt.cm.ScalarMappable(norm=norm, cmap=sub_cmap),
+                    ax=ax, pad=0.02,
+                )
+                step = max(1, len(folders) // 10)
+                ticks = list(range(0, len(folders), step))
+                bar.set_ticks(ticks)
+                bar.set_ticklabels([folders[t] for t in ticks])
+                bar.set_label('case (in df_cases order)')
+
+            handles, labels = ax.get_legend_handles_labels()
+            if use_legend and len(folders) > 6:
+                # Many named cases: park the legend outside so it never
+                # covers the curves.
+                ax.legend(loc='center left', bbox_to_anchor=(1.01, 0.5),
+                          fontsize='x-small', frameon=False,
+                          title='case', title_fontsize='x-small')
+                handles, labels = [], []
+            if len(stages_seen) > 1:
+                handles += [
+                    plt.Line2D([], [], color='0.35',
+                               linestyle=stage_styles[i % len(stage_styles)],
+                               label=f'stage {st}')
+                    for i, st in enumerate(stages_seen)
+                ]
+                labels += [f'stage {st}' for st in stages_seen]
+            if handles:
+                ax.legend(handles, labels, loc='best', fontsize='small')
             fig.tight_layout()
 
             if save_dir:

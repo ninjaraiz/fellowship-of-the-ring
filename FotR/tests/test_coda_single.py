@@ -461,6 +461,59 @@ def test_extract_inputs_does_not_wipe_previously_read_vars(gci_running):
     assert list(db.data_dict["CADGroup_3"]["Vars"]) == ["0"]
 
 
+def test_stale_folder_column_is_recovered_from_folder_fmt(gci_running):
+    """A 'folder' column that no longer matches the directories must join.
+
+    The ring writes the column once; regenerating the study with a
+    different format spec leaves names like 'f1.0' for a directory
+    actually called 'f1'. ``folder_fmt`` plus the design variables rebuild
+    the real name, so the join stays exact — this is not fuzzy numeric
+    matching, it is the same format string the ring used.
+    """
+    def mutate(cm):
+        # 'f1' on disk, 'f1.0' in the metadata (what '{mesh}' would give
+        # instead of '{mesh:g}').
+        cm["df_cases"]["folder"] = ["f0.8", "f1.0", "f2", "f10"]
+    _rewrite_metadata(gci_running, mutate)
+
+    with pytest.warns(UserWarning, match="folder_fmt"):
+        db = FRODO(
+            root_dir=gci_running, format="CODA_SINGLE", initial_parse=True
+        )
+
+    # Every case joined, and the column was repaired in memory.
+    assert db.df_state["case_idx"].tolist() == [0, 1, 2, 3]
+    assert db.df_state["folder"].tolist() == ["f0.8", "f1", "f2", "f10"]
+    assert db.sim_metadata["f1"]["mesh"] == 1.0
+
+
+def test_unjoinable_folder_does_not_break_final_residuals(gci_running):
+    """An orphan folder must be reported, not crash the aggregation.
+
+    Its row carries no design-variable values, so it is narrower than the
+    rest and the closing ``np.vstack`` used to die with an opaque numpy
+    shape error instead of naming the folder.
+    """
+    # A directory nobody declared: it matches folder_fmt's pattern (so the
+    # residuals loop picks it up) but no df_cases row produces that name,
+    # which is exactly the orphan case.
+    os.mkdir(os.path.join(gci_running, "outputs", "f99"))
+
+    with pytest.warns(UserWarning, match="no matching row"):
+        db = FRODO(
+            root_dir=gci_running, format="CODA_SINGLE", initial_parse=True
+        )
+    assert "f99" in db.sim_metadata
+
+    with pytest.warns(UserWarning, match="df_cases"):
+        table = db.residuals.get_all_final_residuals(
+            stage=[0], only_finished=False, load_in_metadata=False,
+        )
+    # The four declared cases survive; the orphan is reported, not fatal.
+    assert len(table) == 4
+    assert "mesh" in table.columns
+
+
 def _rewrite_metadata(root, mutate):
     path = os.path.join(root, "metadata", "cases_metadata.json")
     with open(path) as fh:

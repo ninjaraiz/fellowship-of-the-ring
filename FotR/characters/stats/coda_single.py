@@ -25,6 +25,7 @@ a volume), which makes the proportionality constant cancel exactly. A
 column of explicit sizes can be given instead.
 """
 
+import itertools
 import logging
 import warnings
 from typing import Literal, Optional, Union, TYPE_CHECKING
@@ -224,6 +225,7 @@ class CODASingleStats(BaseStats):
         safety_factor: float = GCI_SAFETY_FACTOR,
         max_iter: int = 200,
         tol: float = 1e-10,
+        triplets: Literal['consecutive', 'all'] = 'consecutive',
     ) -> pd.DataFrame:
         """
         Observed order of convergence, Richardson extrapolation and GCI.
@@ -262,11 +264,19 @@ class CODASingleStats(BaseStats):
             ``Fs`` of the GCI. Default 1.25.
         max_iter, tol : int, float
             Fixed-point iteration controls for ``p``.
+        triplets : 'consecutive' or 'all'
+            Which triplets to evaluate. ``'consecutive'`` (default) takes
+            each window of three neighbouring meshes, which is what the
+            family's own spacing offers. ``'all'`` takes every
+            combination of three meshes, ``C(n, 3)`` rows — the way to
+            find a usable triplet when the family is spaced too tightly
+            for neighbours to give a refinement ratio worth trusting.
+            Both keep the fine-to-coarse ordering.
 
         Returns
         -------
         pd.DataFrame
-            One row per consecutive triplet, fine to coarse. Columns:
+            One row per triplet, fine to coarse. Columns:
             ``'fine'``, ``'medium'``, ``'coarse'`` (case names), ``'h1'``,
             ``'h2'``, ``'h3'``, ``'r21'``, ``'r32'``, ``'f1'``, ``'f2'``,
             ``'f3'``, ``'p'`` (observed order), ``'f_extrapolated'``,
@@ -295,6 +305,12 @@ class CODASingleStats(BaseStats):
             table = db.sets.reduce_cases('cp', stage=1, id_group='3')
             gci   = db.stats.richardson(table, 'cp')
             gci[['fine', 'medium', 'coarse', 'p', 'GCI_21']]
+
+        Every combination, to hunt for a triplet with enough
+        refinement in a family whose neighbours sit too close::
+
+            allt = db.stats.richardson(table, 'cp', triplets='all')
+            allt[allt['converged'] & (allt['r21'] >= 1.3)]
         """
         for col in (value_col, h_col or size_col):
             if col not in table.columns:
@@ -320,10 +336,23 @@ class CODASingleStats(BaseStats):
             )
 
         label_col = 'case' if 'case' in work.columns else work.columns[0]
+
+        if triplets == 'consecutive':
+            index_sets = [(i, i + 1, i + 2) for i in range(len(work) - 2)]
+        elif triplets == 'all':
+            # combinations over the fine-to-coarse ordering, so i<j<k
+            # already means h_i < h_j < h_k and no triplet is repeated.
+            index_sets = list(itertools.combinations(range(len(work)), 3))
+        else:
+            raise ValueError(
+                f"triplets='{triplets}' not supported. "
+                "Options: 'consecutive', 'all'."
+            )
+
         rows = []
-        for i in range(len(work) - 2):
-            h1, h2, h3 = work.loc[i:i + 2, '_h'].to_numpy()
-            f1, f2, f3 = work.loc[i:i + 2, value_col].to_numpy()
+        for i, j, k in index_sets:
+            h1, h2, h3 = work.loc[[i, j, k], '_h'].to_numpy()
+            f1, f2, f3 = work.loc[[i, j, k], value_col].to_numpy()
             r21, r32 = h2 / h1, h3 / h2
             e21, e32 = f2 - f1, f3 - f2
 
@@ -354,8 +383,8 @@ class CODASingleStats(BaseStats):
 
             rows.append({
                 'fine':              work.loc[i, label_col],
-                'medium':            work.loc[i + 1, label_col],
-                'coarse':            work.loc[i + 2, label_col],
+                'medium':            work.loc[j, label_col],
+                'coarse':            work.loc[k, label_col],
                 'h1': h1, 'h2': h2, 'h3': h3,
                 'r21': r21, 'r32': r32,
                 'f1': f1, 'f2': f2, 'f3': f3,

@@ -179,9 +179,40 @@ class BaseResiduals(ABC):
         return p_use
 
     @staticmethod
-    def _cycled_colors(n: int):
-        """``tab10`` colors cycled so no curve is silently dropped."""
-        import matplotlib.pyplot as plt
+    def _cycled_colors(n: int, cmap: str = 'turbo'):
+        """``n`` visually distinct colors, never repeating.
 
-        colors = plt.get_cmap('tab10').colors
-        return [colors[i % len(colors)] for i in range(n)]
+        Up to 10 series the qualitative ``tab10`` palette is used, which is
+        what categorical data wants. Beyond that, cycling it would hand two
+        different series the same colour, so a continuous map is sampled
+        evenly instead.
+
+        Parameters
+        ----------
+        n : int
+            Number of colors needed.
+        cmap : str
+            Continuous colormap sampled when ``n > 10``. Default
+            ``'turbo'``.
+
+        Returns
+        -------
+        list
+            RGBA tuples, ``n`` of them.
+
+        Examples
+        --------
+        ::
+
+            colors = BaseResiduals._cycled_colors(len(columns))
+        """
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        if n <= 0:
+            return []
+        qualitative = plt.get_cmap('tab10').colors
+        if n <= len(qualitative):
+            return [qualitative[i] for i in range(n)]
+        continuous = plt.get_cmap(cmap)
+        return [continuous(v) for v in np.linspace(0.05, 0.95, n)]

@@ -1,0 +1,250 @@
+{
+  "formats": {
+    "CODA": [
+      {
+        "title": {
+          "es": "Abrir la base y mirar qué hay dentro",
+          "en": "Open the database and see what is inside"
+        },
+        "source": "examples/TIFON_database_CODA/basic.ipynb",
+        "code": "from FotR import FRODO, SAM\n\ndatafolder = '/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3_transonic_1'\ndb = FRODO(root_dir=datafolder, format='CODA', initial_parse=True)\n\n# ¿Qué grupos CAD y qué variables hay disponibles antes de extraer nada?\ndb.reader.print_available_cadgroup_ids(stage=0, vtu_type='surface')\n\n# metadata lleva df_cases, design_vars, eq_type, folder_fmt y num_stages\nSAM.DictVisualizer.rich_tree(db.metadata)",
+        "note": {
+          "es": "`initial_parse=True` es el valor por defecto y hace el escaneo inicial de carpetas que rellena `sim_metadata` y `df_state`.",
+          "en": "`initial_parse=True` is the default and performs the initial folder scan that fills `sim_metadata` and `df_state`."
+        }
+      },
+      {
+        "title": {
+          "es": "Extraer superficie y solución",
+          "en": "Extract surface and solution"
+        },
+        "source": "examples/TIFON_database_CODA/basic.ipynb",
+        "code": "case_idx = [i for i in range(100) if i not in (64, 79, 87, 88, 94)]\n\ndb.extract_inputs(\n    id_groups=(3,),\n    cases_idx=case_idx,\n    vtu_type='surface',\n)\n\ndb.extract_outputs(\n    id_groups=(3,),\n    stage=0,\n    cases_idx=case_idx,\n    vtu_type='surface',\n    var_name_excluded=[\n        'BoundaryValues_CoefSkinFrictionX',\n        'BoundaryValues_CoefSkinFrictionY',\n        'BoundaryValues_CoefSkinFrictionZ',\n    ],\n)\n\ndb.summary_data()",
+        "note": {
+          "es": "`extract_inputs` siempre primero: `extract_outputs` escribe dentro del grupo CAD que aquél creó. Fíjate en `id_groups` (plural, una tupla), no `id_group`.",
+          "en": "`extract_inputs` always comes first: `extract_outputs` writes into the CAD group it created. Note `id_groups` (plural, a tuple), not `id_group`."
+        }
+      },
+      {
+        "title": {
+          "es": "Convergencia y métricas integrales",
+          "en": "Convergence and integral metrics"
+        },
+        "source": "examples/TIFON_database_CODA/df_post_analysis.ipynb",
+        "code": "# Residuales finales de todos los casos, un gráfico por stage\ndb.residuals.plot_all_final_residuals(stage=[0, 1], mode='scaled')\n\n# Tabla de coeficientes por caso, que es lo que merge_datasets usa como df_post\ndf_post = db.residuals.get_df_metrics(var_metrics=['CoefLift', 'CoefDrag'])"
+      },
+      {
+        "title": {
+          "es": "Añadir un array y exportar a .npy",
+          "en": "Add an array and export to .npy"
+        },
+        "source": "examples/CylinderPINNS_database_CODA_NUMPY/CODA2numpy2.ipynb",
+        "code": "# Meter la geometría de un grupo dentro de otro, como variable auxiliar\ndb.sets.add_to_data_dict(\n    arr=db.data_dict['CADGroup_2']['Coord'],\n    id_group='1',\n    array_name='Airfoil',\n)\n\ndb.sets.save_to_npy(\n    case_idx='all', stage=1, id_group='1',\n    filepath='./CADGroup_1_Cylinder.npy', verbose=True,\n)",
+        "note": {
+          "es": "El `.npy` resultante se vuelve a abrir con `format='NUMPY'`; es el round-trip de la pestaña NUMPY.",
+          "en": "The resulting `.npy` is reopened with `format='NUMPY'`; that is the round-trip shown in the NUMPY tab."
+        }
+      }
+    ],
+    "CODA_SINGLE": [
+      {
+        "title": {
+          "es": "Una base por condición, una malla por caso",
+          "en": "One database per condition, one mesh per case"
+        },
+        "source": "examples/TIFON_database_CODA/coda_single_GCI_en.ipynb",
+        "code": "import os, pandas as pd\nfrom FotR import FRODO\n\nGCI_DIR = '/home/m.jaraiz/Documentos/DATASETS/data_TIFON/GCI'\n\nfolders = sorted(f for f in os.listdir(GCI_DIR) if f.startswith('aoa'))\ndatabases = {\n    f: FRODO(os.path.join(GCI_DIR, f), format='CODA_SINGLE', initial_parse=True)\n    for f in folders\n}\n\nfor f, db in databases.items():\n    print(f, db.metadata['design_vars'], len(db.df_state), 'mallas')",
+        "note": {
+          "es": "Las design vars son `aoa`, `mach` y `mesh` (el factor de refinado). Dentro de cada base solo varía `mesh`.",
+          "en": "The design vars are `aoa`, `mach` and `mesh` (the refinement factor). Within each database only `mesh` varies."
+        }
+      },
+      {
+        "title": {
+          "es": "Extraer con geometría por caso",
+          "en": "Extract with per-case geometry"
+        },
+        "source": "examples/TIFON_database_CODA/coda_single_GCI_en.ipynb",
+        "code": "GROUP, STAGE = 3, 1\n\nfor db in databases.values():\n    db.extract_inputs(id_groups=(GROUP,), cases_idx='all', vtu_type='surface')\n    db.extract_outputs(stage=STAGE, id_groups=(GROUP,), cases_idx='all',\n                       vtu_type='surface',\n                       var_name_excluded=['GlobalNumber', 'CADGroupID'])\n\n# Coord, NodeCoord y Vars son LISTAS alineadas con case_order:\ng = db.data_dict[f'CADGroup_{GROUP}']\nfor i, case in enumerate(g['case_order']):\n    print(case, g['FlCc'][i, 2], g['Coord'][i].shape[0], 'celdas')",
+        "note": {
+          "es": "Aquí está la diferencia con CODA: cada caso tiene su malla y su propio `npts`, así que no hay un array `(npts, ncases)` sino una lista por caso.",
+          "en": "This is the difference from CODA: each case has its own mesh and its own `npts`, so there is no `(npts, ncases)` array but a per-case list."
+        }
+      },
+      {
+        "title": {
+          "es": "Estadísticos y convergencia de malla (GCI)",
+          "en": "Statistics and mesh convergence (GCI)"
+        },
+        "source": "examples/TIFON_database_CODA/coda_single_GCI_en.ipynb",
+        "code": "CP = 'BoundaryValues_CoefPressure'\n\n# Estadísticos por caso sobre un campo de superficie\nt = db.stats.compute_stats(\n    id_group=str(GROUP), stage=STAGE, variables=[CP],\n    reductions=('mean', 'rms', 'min', 'max', 'std'),\n)\n\n# Richardson / GCI sobre todos los tríos de mallas posibles\ngci = db.stats.richardson(\n    post_df, 'CoefDrag', h_col='mesh', triplets='all',\n)\ngci['GCI_%'] = gci['GCI_21'] * 100",
+        "note": {
+          "es": "`richardson` necesita un mínimo de tres mallas y que refinen de verdad; devuelve una fila por trío fino/medio/grueso.",
+          "en": "`richardson` needs at least three meshes that genuinely refine; it returns one row per fine/medium/coarse triplet."
+        }
+      }
+    ],
+    "NUMPY": [
+      {
+        "title": {
+          "es": "Reabrir un .npy exportado desde CODA",
+          "en": "Reopen a .npy exported from CODA"
+        },
+        "source": "examples/CylinderPINNS_database_CODA_NUMPY/CODA2numpy2.ipynb",
+        "code": "from FotR import FRODO\n\ndb = FRODO(root_dir='./', format='NUMPY',\n           file='CADGroup_1_Cylinder.npy', initial_parse=True)\n\n# Firma distinta de la de CODA: id_groups es una cadena, y stage también\ndb.extract_inputs(id_groups='1')\ndb.extract_outputs(stage='1', id_groups='1')\n\ndb.summary_data()",
+        "note": {
+          "es": "NUMPY reutiliza `CODASets` y `CODAStats` porque comparte el layout de `data_dict`, pero **el reader tiene otra firma**. No tiene residuals.",
+          "en": "NUMPY reuses `CODASets` and `CODAStats` because it shares the `data_dict` layout, but **the reader has a different signature**. It has no residuals."
+        }
+      },
+      {
+        "title": {
+          "es": "Estadísticos sobre el conjunto",
+          "en": "Statistics over the set"
+        },
+        "source": "examples/CylinderPINNS_database_CODA_NUMPY/CODA2numpy2.ipynb",
+        "code": "stats = db.stats.compute_stats(id_group='1', stage='1', per_case=False)\nprint(stats.keys())\nstats['table']"
+      }
+    ],
+    "NUMPYFILE": [
+      {
+        "title": {
+          "es": "Abrir uno o varios .npy sueltos",
+          "en": "Open one or several standalone .npy files"
+        },
+        "source": "examples/aeronef_database_NUMPYFILE/load_and_cluster.ipynb",
+        "code": "from FotR import FRODO, SAM\n\ndatafolder = '/home/airbus/CETACEO_cp_interp/DATA/GATALANI_Aero_nef'\ndb = FRODO(datafolder, format='NUMPYFILE', initial_parse=True,\n           file=['db_cyc.npy', 'db_random.npy'])\n\n# Aquí extract_inputs no recibe grupos CAD, sino un mapa de claves.\n# 'ptos' es obligatorio: guarda la geometría.\ndb.extract_inputs(\n    keys_inputs={\n        'ptos': 'db_random.npy/Airfoil',\n        'aoa':  'db_random.npy/Alpha',\n        'vel':  'db_random.npy/Vinf',\n    },\n    keys_aux={},\n)\n\n# data_dict NO va por grupos: es {inputs, outputs, aux}\ndb.data_dict['inputs']['ptos']",
+        "note": {
+          "es": "Formato obsoleto: se mantiene por compatibilidad. Si la forma del array coincide con la geometría se interpreta como campo; si no, como parámetro de la simulación.",
+          "en": "Obsolete format, kept for compatibility. If an array's shape matches the geometry it is read as a field; otherwise as a simulation parameter."
+        }
+      }
+    ],
+    "PYLOM": [
+      {
+        "title": {
+          "es": "Abrir un dataset pyLOM y leer campos",
+          "en": "Open a pyLOM dataset and read fields"
+        },
+        "source": "examples/TIFON_database_PYLOM/basic.ipynb",
+        "code": "import sys\nsys.path.append('/home/m.jaraiz/repos/pyLowOrder')\nfrom FotR import FRODO\n\ndb = FRODO(root_dir='/home/airbus/CETACEO_cp_interp/DATA/TIFON/',\n           format='PYLOM',\n           file='CADGroup_3_#280_stage_0.h5')\n\ndb.extract_inputs(\n    keys_inputs={'ptos': 'xyz', 'aoa': 'aoa', 'mach': 'mach'},\n    keys_aux={},\n)\ndb.extract_outputs(\n    keys_outputs={'cp': 'BoundaryValues_CoefPressure'},\n)\n\nxyz  = db.sets.get_xyz()            # (npoints, 3)\naoa  = db.sets.get_variable('aoa')  # (ncases,)\ncp   = db.sets.get_field('cp')      # (npoints, ncases)",
+        "note": {
+          "es": "PYLOM no tiene ni stats ni residuals. Si pyLOM no está instalado, este formato desaparece del registry por completo.",
+          "en": "PYLOM has neither stats nor residuals. If pyLOM is not installed, this format disappears from the registry entirely."
+        }
+      }
+    ],
+    "HORSES3D": [
+      {
+        "title": {
+          "es": "Carga básica y residuales",
+          "en": "Basic load and residuals"
+        },
+        "source": "examples/esphere_3D_HORSES3D/basic_load.ipynb",
+        "code": "from FotR import FRODO, SAM\n\ndb = FRODO(root_dir='/home/m.jaraiz/Documentos/COMAC/my_ESPHERE_1',\n           format='HORSES3D',\n           strict=False)\n\nSAM.DictVisualizer.rich_tree(db.sim_metadata)\n\ndb.residuals.plot_residuals_from_case(case_idx=0, p=2, verbose=True)\n\n# La firma gira en torno al orden polinómico p, no a grupos CAD\ndb.extract_inputs(p=2, cases_idx=0, verbose=True)\nSAM.DictVisualizer.rich_tree(db.data_dict)",
+        "note": {
+          "es": "`strict=False` relaja las comprobaciones de consistencia (control ausente, `p` dispar). HORSES3D **no tiene sets ni stats**: `db.sets` y `db.stats` son `None`.",
+          "en": "`strict=False` relaxes the consistency checks (missing control file, mismatched `p`). HORSES3D **has no sets or stats**: `db.sets` and `db.stats` are `None`."
+        }
+      }
+    ]
+  },
+  "sam": {
+    "Gardener": [
+      {
+        "title": {
+          "es": "Se llega a él desde sets, no directamente",
+          "en": "Reached through sets, not directly"
+        },
+        "source": "examples/TIFON_database_PYLOM/clustering.ipynb",
+        "code": "# Ningún ejemplo del repositorio llama a Gardener directamente:\n# se llega a él a través de create_jset, que es quien monta el tensor.\ndb.sets.create_jset(sol='all', verbose=False, save_path=None)\n\n# El resultado queda en db.df_data, listo para clustering o entrenamiento\ndb.df_data.head()",
+        "note": {
+          "es": "Para montar el tensor a mano —por ejemplo para combinar varias bases con una normalización común— se usan `create_final_tensor` y luego `concatenate_sets` pasando el `ref` del primer conjunto.",
+          "en": "To assemble the tensor by hand — e.g. to combine several databases under a shared normalisation — use `create_final_tensor` and then `concatenate_sets`, passing the first set as `ref`."
+        }
+      }
+    ],
+    "HDF5reader": [
+      {
+        "title": {
+          "es": "Abrir un .h5 y cargar un dataset",
+          "en": "Open an .h5 and load a dataset"
+        },
+        "source": "examples/SAM_HDF5.ipynb",
+        "code": "import os\nfrom FotR import SAM\n\nDATA_DIR = '/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans3_isTest_field/outputs/'\n\nreader = SAM.HDF5reader(\n    file_path=os.path.join(DATA_DIR, 'CADGroup_4_completo_stage_1.h5'),\n    verbose=True,\n)\n\nreader.print_keys()\narr = reader.load_to_numpy('group/dataset')\nt   = reader.load_to_tensor('group/dataset')",
+        "note": {
+          "es": "Es la única parte de SAM que se instancia, porque guarda la ruta del fichero y su índice de datasets.",
+          "en": "It is the only part of SAM that gets instantiated, because it holds the file path and its dataset index."
+        }
+      }
+    ],
+    "Backpack": [
+      {
+        "title": {
+          "es": "Lo usan los readers, rara vez tú",
+          "en": "Used by the readers, rarely by you"
+        },
+        "source": "examples/TIFON_database_CODA/basic.ipynb",
+        "code": "from FotR import SAM\n\n# Localizar ficheros por patrón, que es como los readers encuentran los casos\nfiles = SAM.Backpack.pattern_pocket.find_files(\n    path, endswith='.vtu', contains='surface', sort=True,\n)\n\n# Inferir el patrón común de una lista de nombres ya existentes\npat = SAM.Backpack.pattern_pocket.FilenamePattern.from_files(files)\nprint(pat.template)\n\n# O escribirlo a mano, como el folder_fmt de una campaña\npat = SAM.Backpack.pattern_pocket.FilenamePattern.from_template('aoa_{}_mach_{}')\nprint(pat.format(3.5, 0.78))",
+        "note": {
+          "es": "Casi todo Backpack es maquinaria interna: patrones de nombre, lectura de logs de CODA, conectividad PyVista y los formatos de HORSES3D. Usa `pattern_pocket`, nunca `pattern_pocket_ant`.",
+          "en": "Most of Backpack is internal machinery: filename patterns, CODA log reading, PyVista connectivity and the HORSES3D formats. Use `pattern_pocket`, never `pattern_pocket_ant`."
+        }
+      }
+    ],
+    "Weapons": [
+      {
+        "title": {
+          "es": "Ordenar antes de derivar",
+          "en": "Order before differentiating"
+        },
+        "source": "examples/TIFON_database_PYLOM/basic.ipynb",
+        "code": "import torch\nfrom FotR import SAM\n\n# Una extracción de superficie llega desordenada: derivar así no significa nada\nxyz_sort, order_sort = SAM.Weapons.sort_by_centroid(xyz)\ncp_sort = cp[order_sort, :]\n\ndcp_ds = SAM.Weapons.surface_derivative(\n    X=torch.from_numpy(xyz_sort),\n    f=torch.from_numpy(cp_sort[:, 50]),\n    order=1,\n)",
+        "note": {
+          "es": "Hay cuatro ordenaciones: `sort_by_centroid`, `sort_lexsort`, `sort_closed_curve_by_kdtree` y `sort_points_by_hull_projection`. Cuál usar depende de si la curva es cerrada y de lo irregular que sea el muestreo.",
+          "en": "There are four orderings: `sort_by_centroid`, `sort_lexsort`, `sort_closed_curve_by_kdtree` and `sort_points_by_hull_projection`. Which one to use depends on whether the curve is closed and how irregular the sampling is."
+        }
+      },
+      {
+        "title": {
+          "es": "Clustering con mezcla de gaussianas",
+          "en": "Gaussian-mixture clustering"
+        },
+        "source": "examples/TIFON_database_PYLOM/clustering.ipynb",
+        "code": "features = ['dcp_ds_log', 'dcp2_ds_log']\n\ndf_data_complete, df_metrics = SAM.Weapons.GMM(\n    df_data=db.df_data,\n    BIC_study=False,\n    groupby=['aoa', 'mach'],\n    nclusters=2,\n    features=features,\n    save_pictures=True,\n    folder_to_save='./GMM_study/',\n    n_components_range=range(1, 5),\n    covariance_type='diag',\n    random_state=42,\n    return_metrics_table=True,\n)",
+        "note": {
+          "es": "Con `BIC_study=True` barre `n_components_range` y elige el número de componentes por BIC/AIC, dejando las figuras en `folder_to_save`.",
+          "en": "With `BIC_study=True` it sweeps `n_components_range` and picks the number of components by BIC/AIC, leaving the figures in `folder_to_save`."
+        }
+      }
+    ],
+    "DifferentialOperators": [
+      {
+        "title": {
+          "es": "Gradiente sobre una nube de puntos",
+          "en": "Gradient over a point cloud"
+        },
+        "source": "examples/TIFON_database_CODA/diff_study.py",
+        "code": "from numpy import diff\nfrom FotR import SAM\n\ncp = db.data_dict['CADGroup_3']['Vars']['0']['BoundaryValues_CoefPressure'][order_sort, :]\n\n# Por radio de vecindad...\ngrad_cp = SAM.DifferentialOperators.gradient(\n    X=xyz_sort,\n    f=cp,\n    radius=1.5 * max(diff(cp, axis=0)),\n    poly_order=2,\n)\n\n# ...o por número de vecinos\ngrad_cp = SAM.DifferentialOperators.gradient(\n    X=xyz_sort, f=cp, stencil_width=20, poly_order=2,\n)",
+        "note": {
+          "es": "No necesita conectividad ni que los puntos estén ordenados: ajusta un polinomio local por mínimos cuadrados móviles en cada vecindad. Es la alternativa a `Weapons.surface_derivative` cuando no hay malla fiable.",
+          "en": "It needs neither connectivity nor ordered points: it fits a local polynomial by moving least squares in each neighbourhood. It is the alternative to `Weapons.surface_derivative` when there is no reliable mesh."
+        }
+      }
+    ],
+    "DictVisualizer": [
+      {
+        "title": {
+          "es": "Ver un diccionario sin ahogarse en arrays",
+          "en": "Inspect a dictionary without drowning in arrays"
+        },
+        "source": "examples/TIFON_database_CODA/basic.ipynb",
+        "code": "from FotR import SAM\n\n# Árbol en consola: es lo que db.summary_data() llama por dentro\nSAM.DictVisualizer.rich_tree(db.data_dict)\nSAM.DictVisualizer.rich_tree(db.metadata)\n\n# sim_metadata suele ser enorme: mejor a fichero y con tope de profundidad\nSAM.DictVisualizer.pretty_print(db.sim_metadata, depth=5,\n                                output_file='./sim_metadata_example.txt')",
+        "note": {
+          "es": "Cada hoja se sustituye por una línea con su tipo y forma, así que se ve la estructura del conjunto en vez de los datos.",
+          "en": "Each leaf is replaced by a line with its type and shape, so you see the structure of the whole instead of the data."
+        }
+      }
+    ]
+  }
+}

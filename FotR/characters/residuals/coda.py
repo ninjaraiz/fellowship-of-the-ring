@@ -140,13 +140,27 @@ class CODAResiduals(BaseResiduals):
             if allowed_folders is not None and folder not in allowed_folders:
                 continue
 
-            params_float = (
-                self.db.metadata['df_cases'][
-                    self.db.metadata['design_vars']
-                ][
-                    self.db.metadata['df_cases']['folder'] == folder
-                ].values.squeeze().tolist()
-            )
+            design_vars = self.db.metadata['design_vars']
+            matched = self.db.metadata['df_cases'][design_vars][
+                self.db.metadata['df_cases']['folder'] == folder
+            ]
+            # A folder with no df_cases row has no design-variable values,
+            # so its row would be narrower than the rest and the final
+            # np.vstack would die with an opaque shape error. Skip it with
+            # a message that says which folder and why.
+            if len(matched) != 1:
+                warnings.warn(
+                    f"Folder '{folder}' matches {len(matched)} rows of "
+                    "df_cases (expected exactly 1); it has no usable "
+                    "design-variable values and is left out of the final "
+                    "residuals. Regenerate cases_metadata.json so that its "
+                    "'folder' column matches the directories on disk.",
+                    UserWarning,
+                )
+                continue
+            params_float = np.atleast_1d(
+                matched.values.squeeze()
+            ).astype(np.float64).tolist()
             stages_done = len(self.db.sim_metadata[folder]['stages'])
 
             if only_finished and stages_done < self.db.metadata['num_stages']:
@@ -186,6 +200,14 @@ class CODAResiduals(BaseResiduals):
                 (res, np.atleast_2d(np.asarray(params_float, dtype=np.float64))),
                 axis=1, dtype=np.float64,
             )
+            if df_all and fila.shape[1] != df_all[0].shape[1]:
+                warnings.warn(
+                    f"Folder '{folder}' produced {fila.shape[1]} columns but "
+                    f"the previous cases produced {df_all[0].shape[1]}; "
+                    "skipping it instead of building a misaligned table.",
+                    UserWarning,
+                )
+                continue
             df_all.append(fila)
 
         if not df_all or df_ref is None:
@@ -966,6 +988,7 @@ class CODAResiduals(BaseResiduals):
         activate_idx: bool = True,
         ncols: int = 2,
         lim_converged: float = 1e-5,
+        xscale: Literal['auto', 'linear', 'log'] = 'auto',
         **kwargs,
     ) -> None:
         """
@@ -1001,6 +1024,12 @@ class CODAResiduals(BaseResiduals):
             Default True.
         ncols : int
             Number of subplot columns. Default 2.
+        xscale : 'auto', 'linear' or 'log'
+            Horizontal scale of the single-design-variable view.
+            ``'auto'`` (default) uses a logarithmic axis when the
+            variable is positive and spans more than a decade, which is
+            what a mesh-refinement family looks like; a linear axis
+            would pile every fine mesh on the left edge.
         lim_converged : float
             Residual threshold for convergence classification. Default 1e-5.
         **kwargs
@@ -1088,6 +1117,7 @@ class CODAResiduals(BaseResiduals):
                     activate_idx=activate_idx,
                     save_dir=save_dir,
                     filename_suffix=suffix,
+                    xscale=xscale,
                     **kwargs,
                 )
             return
@@ -1281,6 +1311,7 @@ class CODAResiduals(BaseResiduals):
         activate_idx: bool,
         save_dir,
         filename_suffix: str = '',
+        xscale: Literal['auto', 'linear', 'log'] = 'auto',
         **kwargs,
     ) -> None:
         """Single-axes semilogy view of final residuals vs one design var.
@@ -1291,6 +1322,11 @@ class CODAResiduals(BaseResiduals):
         values (e.g. pending cases) are masked per curve instead of
         breaking it.  Case-index annotations are skipped above 40 rows
         to keep the plot readable.
+
+        ``xscale='auto'`` switches the horizontal axis to logarithmic
+        when the design variable is strictly positive and spans more
+        than a decade -- the usual shape of a mesh-refinement family,
+        where a linear axis crushes every fine mesh against the origin.
         """
         order = np.argsort(df_finals[dvf[0]].values)
         x_all = df_finals[dvf[0]].values[order]
@@ -1344,17 +1380,60 @@ class CODAResiduals(BaseResiduals):
         )
         ax.grid(True, which='both', linestyle='--', alpha=0.4)
 
+        positive = x_all[np.isfinite(x_all) & (x_all > 0)]
+        use_log = (
+            xscale == 'log'
+            or (
+                xscale == 'auto'
+                and len(positive) == len(x_all)
+                and len(positive) > 1
+                and positive.max() / positive.min() >= 10.0
+            )
+        )
+        if use_log:
+            ax.set_xscale('log')
+
         if activate_idx:
             if len(df_finals) <= 40:
-                state_first = self.db.df_state.iloc[:, 0].values
-                for p in x_all:
-                    matches = np.where(state_first == p)[0]
-                    if matches.size > 0:
-                        ax.annotate(
-                            f"{matches[0]}", (p, ax.get_ylim()[1]),
-                            textcoords="offset points",
-                            xytext=(0, 4), ha='center', fontsize=8,
-                        )
+                # Match on the design variable that actually VARIES. Using
+                # df_state's first column silently compared the varying
+                # variable against a different (often constant) one, so no
+                # point ever matched and the annotations never appeared —
+                # while the caption still promised them.
+                state = self.db.df_state
+                key = dvf[0] if dvf[0] in state.columns else state.columns[0]
+                labels_by_value = {}
+                for pos, value in enumerate(state[key].to_numpy()):
+                    case_id = (
+                        state['case_idx'].iloc[pos]
+                        if 'case_idx' in state.columns else pos
+                    )
+                    if pd.notna(case_id):
+                        labels_by_value.setdefault(float(value), int(case_id))
+
+                ticks, labels = [], []
+                for value in np.unique(x_all):
+                    case_id = labels_by_value.get(float(value))
+                    if case_id is None:
+                        continue
+                    ticks.append(value)
+                    labels.append(str(case_id))
+
+                if ticks:
+                    # A secondary axis rather than annotations at
+                    # y = 1.0: matplotlib then reserves the space, so
+                    # the indices can never end up written across the
+                    # title, and the labels move with the axis when the
+                    # scale is logarithmic.
+                    top = ax.secondary_xaxis('top')
+                    top.set_xticks(ticks)
+                    top.set_xticklabels(
+                        labels, fontsize=7, rotation=90, color='0.35',
+                    )
+                    top.set_xlabel(
+                        'case_idx', fontsize=7.5, color='0.35',
+                    )
+                    top.tick_params(axis='x', length=2, color='0.6')
             else:
                 log.info(
                     "Skipping case annotations (%s rows).",
@@ -1379,10 +1458,12 @@ class CODAResiduals(BaseResiduals):
 
         handles = var_handles + state_handles + threshold_handles
         if handles:
+            # 'outside' keeps the legend out of the data area: placed at
+            # 'lower center' it sat on top of the curves.
             fig.legend(
                 handles, [h.get_label() for h in handles],
-                loc='lower center', frameon=False,
-                ncols=min(4, len(handles)),
+                loc='outside lower center', frameon=False,
+                ncols=min(3, len(handles)), fontsize='small',
             )
 
         if save_dir:

@@ -1,0 +1,666 @@
+{
+  "es": {
+    "map": [
+      {
+        "t": "p",
+        "x": "**FRODO** es la base de datos: abre un directorio de simulaciones, lo parsea y deja los resultados en `data_dict`. **SAM** es la caja de herramientas: cálculo y utilidades que no dependen de ningún formato. FRODO importa SAM; SAM no sabe nada de FRODO."
+      },
+      {
+        "t": "code",
+        "x": "FRODO(root_dir, format)\n  ├─ reader      parsea carpetas, extrae inputs/outputs\n  ├─ sets        tensores ML, operaciones de malla, exportación\n  ├─ residuals   convergencia y métricas integrales\n  └─ stats       estadísticos entre casos, stages y mallas\n\nSAM  (namespace estático, nunca se instancia)\n  ├─ Gardener               tensores de entrenamiento\n  ├─ HDF5reader             lectura de .h5\n  ├─ Backpack               ficheros, mallas, parsers\n  ├─ Weapons                orden, derivadas, clustering, interpolación\n  ├─ DifferentialOperators  gradiente / jacobiano / divergencia (MLS)\n  └─ DictVisualizer         inspección de diccionarios anidados"
+      },
+      {
+        "t": "note",
+        "x": "Casi nada de lo que llamas como `db.algo(...)` vive en FRODO: se resuelve en uno de los cuatro sub-objetos. Cómo y en qué orden, en la guía de FRODO."
+      }
+    ],
+    "frodo": [
+      {
+        "t": "h",
+        "x": "El modelo mental"
+      },
+      {
+        "t": "p",
+        "x": "Una instancia de FRODO es un coordinador delgado. En el constructor elige, según `format`, un *cuarteto* de ayudantes específicos de formato —`reader`, `sets`, `residuals` y `stats`— y a partir de ahí reenvía a ellos casi todo. La única lógica pesada que FRODO tiene en propiedad es `merge_datasets`."
+      },
+      {
+        "t": "p",
+        "x": "El `reader` es obligatorio: si el formato no está registrado, el constructor lanza `ValueError`. Los otros tres son opcionales; cuando faltan, el atributo queda a `None` y se emite un `UserWarning`."
+      },
+      {
+        "t": "h",
+        "x": "Arranque mínimo"
+      },
+      {
+        "t": "code",
+        "x": "from FotR import FRODO\n\ndb = FRODO(root_dir='/data/TIFON', format='CODA', name='tifon')\n\ndb.extract_inputs(id_groups=(3,), vtu_type='surface')   # malla y cond. de vuelo\ndb.extract_outputs(stage=0, id_groups=(3,), vtu_type='surface')  # solución\n\ndb.summary_data()                          # árbol de data_dict\nprint(db.df_state)                         # una fila por caso"
+      },
+      {
+        "t": "p",
+        "x": "`extract_inputs` siempre va primero: los readers escriben las variables de solución dentro del grupo CAD que creó `extract_inputs`."
+      },
+      {
+        "t": "h",
+        "x": "Los kwargs no son los mismos en todos los formatos"
+      },
+      {
+        "t": "p",
+        "x": "FRODO consume dos claves y reenvía **todas las demás tal cual al constructor del reader**. Las dos suyas son `name` (por defecto `'FRODO Database'`) y `update_df_state` (por defecto `False`). De ahí que lo que acepte el constructor dependa del formato:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "formato",
+          "kwarg obligatorio",
+          "notas"
+        ],
+        "rows": [
+          [
+            "CODA",
+            "—",
+            "solo `root_dir`"
+          ],
+          [
+            "CODA_SINGLE",
+            "—",
+            "una malla por caso"
+          ],
+          [
+            "NUMPY",
+            "`file=`",
+            "ruta al `.npy`"
+          ],
+          [
+            "NUMPYFILE",
+            "`file=`",
+            "formato heredado"
+          ],
+          [
+            "PYLOM",
+            "`file=`",
+            "dataset pyLOM"
+          ],
+          [
+            "HORSES3D",
+            "—",
+            "acepta `strict=` (por defecto `True`)"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Si omites un kwarg obligatorio, el error viene del reader, no de FRODO: verás un `TypeError` sobre un argumento que el constructor de FRODO ni menciona."
+      },
+      {
+        "t": "h",
+        "x": "Delegación: por qué `db.add_aux()` funciona"
+      },
+      {
+        "t": "p",
+        "x": "`add_aux` no existe en FRODO. Cuando Python no encuentra un atributo, llama a `__getattr__`, que busca en los cuatro sub-objetos **en este orden fijo**: `sets` → `reader` → `residuals` → `stats`. Gana el primero que lo tenga."
+      },
+      {
+        "t": "code",
+        "x": "db.sets.add_aux(...)   # explícito\ndb.add_aux(...)        # lo mismo, resuelto por __getattr__"
+      },
+      {
+        "t": "p",
+        "x": "Esto tiene tres consecuencias que conviene tener presentes:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "consecuencia",
+          "qué significa"
+        ],
+        "rows": [
+          [
+            "Solo actúa si falla la búsqueda normal",
+            "Los atributos reales de la instancia (`format`, `root_dir`, `data_dict`, `df_state`, `name`…) nunca se delegan."
+          ],
+          [
+            "La misma llamada cambia de firma según el formato",
+            "`db.extract_inputs` llega a `CODAReader.extract_inputs` en una base y a `NUMPYReader.extract_inputs` en otra. Ni los nombres ni el orden de los argumentos están garantizados: lee el docstring del reader concreto."
+          ],
+          [
+            "Las colisiones se resuelven por ese orden, en silencio",
+            "`db.summary` llega a `sets.summary` aunque los readers también definan uno, y `db.db` llega a `sets.db` (el puntero de vuelta al FRODO padre). Escribe `db.reader.summary` cuando la distinción importe."
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Atributos de la instancia"
+      },
+      {
+        "t": "table",
+        "head": [
+          "atributo",
+          "qué es"
+        ],
+        "rows": [
+          [
+            "`format`",
+            "clave usada para elegir el cuarteto en los registries"
+          ],
+          [
+            "`root_dir`",
+            "raíz de la base de datos, en ruta absoluta"
+          ],
+          [
+            "`reader`",
+            "el parser del formato. Siempre presente"
+          ],
+          [
+            "`sets` · `residuals` · `stats`",
+            "los otros tres del cuarteto, o `None`"
+          ],
+          [
+            "`sim_metadata`",
+            "metadatos por caso recogidos al parsear"
+          ],
+          [
+            "`df_state`",
+            "una fila por caso con su estado en disco. No existe si `initial_parse=False`"
+          ],
+          [
+            "`data_dict`",
+            "los datos extraídos. Vacío hasta llamar a `extract_inputs`"
+          ],
+          [
+            "`name` · `kwargs` · `update_df_state`",
+            "etiqueta, kwargs reenviados al reader, y si el reader debe refrescar `df_state`"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "El caso especial de `metadata`"
+      },
+      {
+        "t": "p",
+        "x": "`db.metadata` **no es un atributo de FRODO**. Se resuelve por delegación a `reader.metadata`, que es donde viven `df_cases`, `design_vars`, `eq_type`, `folder_fmt` y `num_stages`. La excepción son las instancias que producen `copy()` y `merge_datasets()`: ésas sí lo fijan como atributo propio, que a partir de entonces tapa al del reader. Si mutas `db.metadata`, conviene saber cuál de los dos tienes en la mano."
+      },
+      {
+        "t": "h",
+        "x": "Fusionar bases: `merge_datasets`"
+      },
+      {
+        "t": "p",
+        "x": "Es un `@staticmethod`: interpola todas las mallas de origen sobre una malla de referencia, concatena los `FlCc` y reconstruye `df_cases` (y `df_state`, y `df_post` en CODA) para que describan **exactamente** los casos que se extrajeron, no todos los que la base tenía definidos."
+      },
+      {
+        "t": "p",
+        "x": "Dos reglas suyas explican la mayoría de los errores que lanza: **`FlCc` es la verdad** sobre qué casos se fusionan, y **no hay deduplicación silenciosa** — si el mismo caso físico aparece en dos fuentes, es `ValueError`, no una elección arbitraria."
+      },
+      {
+        "t": "note",
+        "x": "No funciona con formatos sin clase Sets: la homogeneización de malla pasa por `sets.interpolate_msh2msh`. CODA_SINGLE, que guarda una malla por caso, lanza `NotImplementedError` y necesita una estrategia propia."
+      }
+    ],
+    "sam": [
+      {
+        "t": "h",
+        "x": "Un namespace, no una clase"
+      },
+      {
+        "t": "p",
+        "x": "SAM no se instancia nunca. Todo se llama como `SAM.Area.funcion(...)` y casi todo es `@staticmethod`. La única excepción es `SAM.HDF5reader`, que sí es un objeto real porque guarda la ruta del fichero y su índice de datasets."
+      },
+      {
+        "t": "code",
+        "x": "from FotR import SAM\n\nSAM.DictVisualizer.rich_tree(db.data_dict)\nfiles = SAM.Backpack.pattern_pocket.find_files(path, endswith='.vtu')\ngrad  = SAM.DifferentialOperators.gradient(X, f)\n\nh5 = SAM.HDF5reader('results.h5')   # la excepción: sí se instancia\narr = h5.load_to_numpy('group/dataset')"
+      },
+      {
+        "t": "h",
+        "x": "Las seis áreas"
+      },
+      {
+        "t": "table",
+        "head": [
+          "área",
+          "para qué",
+          "quién la usa"
+        ],
+        "rows": [
+          [
+            "`Gardener`",
+            "Montar y normalizar los tensores planos `[coords | cond. vuelo | aux | salidas]` de entrenamiento, con una fila por par (punto, caso)",
+            "código de usuario"
+          ],
+          [
+            "`HDF5reader`",
+            "Leer datasets de un `.h5` como array numpy o tensor torch",
+            "código de usuario"
+          ],
+          [
+            "`Backpack`",
+            "Ficheros y mallas: inferencia de patrones de nombre, logs de CODA, conectividad PyVista, malla y `.hsol` de HORSES3D, evaluador seguro de fórmulas",
+            "readers y sets, constantemente"
+          ],
+          [
+            "`Weapons`",
+            "Ordenar nubes de puntos, derivadas de superficie y volumen, clustering GMM, y los núcleos de interpolación malla-a-malla",
+            "sets, y código de usuario"
+          ],
+          [
+            "`DifferentialOperators`",
+            "Gradiente, jacobiano y divergencia sobre puntos dispersos por mínimos cuadrados móviles, sin necesidad de conectividad",
+            "código de usuario"
+          ],
+          [
+            "`DictVisualizer`",
+            "Inspeccionar diccionarios anidados resumiendo cada hoja por tipo y forma",
+            "`FRODO.summary_data` y código de usuario"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Por qué ordenar antes de derivar"
+      },
+      {
+        "t": "p",
+        "x": "Una extracción de superficie llega sin orden, y una derivada a lo largo de una superficie desordenada no significa nada. Por eso `Weapons` ofrece cuatro ordenaciones distintas: cuál usar depende de si la curva es cerrada y de lo irregular que sea el muestreo. `DifferentialOperators`, en cambio, no necesita orden ninguno: ajusta un polinomio local por vecindad."
+      },
+      {
+        "t": "h",
+        "x": "El coste de importar"
+      },
+      {
+        "t": "p",
+        "x": "`sam.py` importa `torch`, `pyvista`, `scikit-learn`, `seaborn` y `matplotlib` **a nivel de módulo**, y `frodo.py` importa SAM sin condiciones. Importar cualquier cosa de `FotR` paga esa pila entera. Es también la razón de que los ficheros de test sustituyan SAM por stubs en lugar de importarlo, y de que esa sustitución dependa del orden de importación."
+      },
+      {
+        "t": "h",
+        "x": "Dos avisos"
+      },
+      {
+        "t": "note",
+        "x": "`Backpack.pattern_pocket_ant` es la versión anterior de `pattern_pocket` y sigue ahí solo por compatibilidad. Código nuevo, siempre `pattern_pocket`."
+      },
+      {
+        "t": "note",
+        "x": "`Backpack.HorsesLazyField.load()` está declarado pero lanza `NotImplementedError`: SAM aún no tiene un lector validado del binario Fortran `.hsol`. Solo hay metadatos de cabecera, vía `read_horses_hsol_header`."
+      }
+    ],
+    "datadict": [
+      {
+        "t": "p",
+        "x": "`data_dict` es donde acaban los datos extraídos, y **su forma depende del formato**. Hay dos layouts incompatibles."
+      },
+      {
+        "t": "h",
+        "x": "CODA y NUMPY — por grupo CAD"
+      },
+      {
+        "t": "code",
+        "x": "data_dict['CADGroup_<id>'] = {\n    'Coord':     coordenadas de los puntos\n    'NodeCoord': coordenadas nodales\n    'FlCc':      (ncasos, nvars) condiciones de vuelo — SOLO design_vars\n    'Conec':     conectividad\n    'idx_sort':  orden de los puntos\n    'Vars':      {stage: {variable: (npts, ncasos)}}\n}"
+      },
+      {
+        "t": "h",
+        "x": "CODA_SINGLE — una malla por caso"
+      },
+      {
+        "t": "code",
+        "x": "data_dict['CADGroup_<id>'] = {\n    'Coord', 'Conec', 'Vars': ...  pero como LISTAS POR CASO,\n    porque cada caso tiene su propia malla y npts distinto.\n}"
+      },
+      {
+        "t": "note",
+        "x": "En CODA_SINGLE, `mesh` puede ser una design var (un factor numérico). La identidad de la malla no vive en esa clave —colisionaría— sino en `sim_metadata[*]['mesh_info']` y en `df_state['mesh_file']`."
+      },
+      {
+        "t": "h",
+        "x": "HORSES3D — por grupo y orden polinómico"
+      },
+      {
+        "t": "code",
+        "x": "data_dict['CADGroup_g<g>_<mesh>'] = {\n    'Coord':     NodeCoords\n    'FlCc':      solo design_vars\n    'Vars':      {str(p): {variable: HorsesLazyField}}\n    'hsol_meta': metadatos de cabecera\n}"
+      },
+      {
+        "t": "h",
+        "x": "NUMPYFILE y PYLOM — tres cubos"
+      },
+      {
+        "t": "code",
+        "x": "data_dict = {\n    'inputs':  {'ptos': ..., ...},\n    'outputs': {...},\n    'aux':     {...},\n}"
+      },
+      {
+        "t": "note",
+        "x": "`FlCc` contiene **solo las design vars del usuario**, nunca parámetros del solver. Es la regla que hace que `merge_datasets` pueda identificar un caso por su física y no por su posición."
+      }
+    ]
+  },
+  "en": {
+    "map": [
+      {
+        "t": "p",
+        "x": "**FRODO** is the database: it opens a directory of simulations, parses it, and leaves the results in `data_dict`. **SAM** is the toolbox: computation and utilities that depend on no particular format. FRODO imports SAM; SAM knows nothing about FRODO."
+      },
+      {
+        "t": "code",
+        "x": "FRODO(root_dir, format)\n  ├─ reader      parse folders, extract inputs/outputs\n  ├─ sets        ML tensors, mesh operations, export\n  ├─ residuals   convergence and integral metrics\n  └─ stats       statistics across cases, stages and meshes\n\nSAM  (static namespace, never instantiated)\n  ├─ Gardener               training tensors\n  ├─ HDF5reader             .h5 reading\n  ├─ Backpack               files, meshes, parsers\n  ├─ Weapons                ordering, derivatives, clustering, interpolation\n  ├─ DifferentialOperators  gradient / Jacobian / divergence (MLS)\n  └─ DictVisualizer         nested-dictionary inspection"
+      },
+      {
+        "t": "note",
+        "x": "Almost nothing you call as `db.something(...)` lives on FRODO: it resolves to one of the four sub-objects. How, and in what order, is in the FRODO guide."
+      }
+    ],
+    "frodo": [
+      {
+        "t": "h",
+        "x": "The mental model"
+      },
+      {
+        "t": "p",
+        "x": "A FRODO instance is a thin coordinator. In the constructor it picks, according to `format`, a *quartet* of format-specific helpers — `reader`, `sets`, `residuals` and `stats` — and from then on forwards almost everything to them. The only heavyweight logic FRODO owns is `merge_datasets`."
+      },
+      {
+        "t": "p",
+        "x": "The `reader` is mandatory: if the format is not registered, the constructor raises `ValueError`. The other three are optional; when missing, the attribute is set to `None` and a `UserWarning` is emitted."
+      },
+      {
+        "t": "h",
+        "x": "Minimal start"
+      },
+      {
+        "t": "code",
+        "x": "from FotR import FRODO\n\ndb = FRODO(root_dir='/data/TIFON', format='CODA', name='tifon')\n\ndb.extract_inputs(id_groups=(3,), vtu_type='surface')   # mesh and flight cond.\ndb.extract_outputs(stage=0, id_groups=(3,), vtu_type='surface')  # solution\n\ndb.summary_data()                          # data_dict tree\nprint(db.df_state)                         # one row per case"
+      },
+      {
+        "t": "p",
+        "x": "`extract_inputs` always comes first: readers write the solution arrays into the CAD group that `extract_inputs` created."
+      },
+      {
+        "t": "h",
+        "x": "The kwargs are not the same across formats"
+      },
+      {
+        "t": "p",
+        "x": "FRODO consumes two keys and forwards **everything else verbatim to the reader constructor**. Its own two are `name` (default `'FRODO Database'`) and `update_df_state` (default `False`). What the constructor accepts therefore depends on the format:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "format",
+          "required kwarg",
+          "notes"
+        ],
+        "rows": [
+          [
+            "CODA",
+            "—",
+            "`root_dir` only"
+          ],
+          [
+            "CODA_SINGLE",
+            "—",
+            "one mesh per case"
+          ],
+          [
+            "NUMPY",
+            "`file=`",
+            "path to the `.npy`"
+          ],
+          [
+            "NUMPYFILE",
+            "`file=`",
+            "legacy format"
+          ],
+          [
+            "PYLOM",
+            "`file=`",
+            "pyLOM dataset"
+          ],
+          [
+            "HORSES3D",
+            "—",
+            "accepts `strict=` (default `True`)"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "If you omit a required kwarg, the error comes from the reader, not from FRODO: you get a `TypeError` about an argument FRODO's own constructor never mentions."
+      },
+      {
+        "t": "h",
+        "x": "Delegation: why `db.add_aux()` works"
+      },
+      {
+        "t": "p",
+        "x": "`add_aux` does not exist on FRODO. When Python fails to find an attribute it calls `__getattr__`, which searches the four sub-objects **in this fixed order**: `sets` → `reader` → `residuals` → `stats`. The first one that has it wins."
+      },
+      {
+        "t": "code",
+        "x": "db.sets.add_aux(...)   # explicit\ndb.add_aux(...)        # the same call, resolved by __getattr__"
+      },
+      {
+        "t": "p",
+        "x": "Three consequences are worth keeping in mind:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "consequence",
+          "what it means"
+        ],
+        "rows": [
+          [
+            "It only fires when normal lookup fails",
+            "The instance's real attributes (`format`, `root_dir`, `data_dict`, `df_state`, `name`…) are never delegated."
+          ],
+          [
+            "The same call changes signature per format",
+            "`db.extract_inputs` reaches `CODAReader.extract_inputs` in one database and `NUMPYReader.extract_inputs` in another. Neither argument names nor their order are guaranteed: read the docstring of the concrete reader."
+          ],
+          [
+            "Collisions resolve by that order, silently",
+            "`db.summary` reaches `sets.summary` even though readers define one too, and `db.db` reaches `sets.db` (the back-pointer to the parent FRODO). Write `db.reader.summary` when the distinction matters."
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Instance attributes"
+      },
+      {
+        "t": "table",
+        "head": [
+          "attribute",
+          "what it is"
+        ],
+        "rows": [
+          [
+            "`format`",
+            "key used to select the quartet from the registries"
+          ],
+          [
+            "`root_dir`",
+            "database root, as an absolute path"
+          ],
+          [
+            "`reader`",
+            "the format's parser. Always present"
+          ],
+          [
+            "`sets` · `residuals` · `stats`",
+            "the other three of the quartet, or `None`"
+          ],
+          [
+            "`sim_metadata`",
+            "per-case metadata collected while parsing"
+          ],
+          [
+            "`df_state`",
+            "one row per case with its state on disk. Absent when `initial_parse=False`"
+          ],
+          [
+            "`data_dict`",
+            "the extracted data. Empty until `extract_inputs` runs"
+          ],
+          [
+            "`name` · `kwargs` · `update_df_state`",
+            "label, kwargs forwarded to the reader, and whether the reader should refresh `df_state`"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "The special case of `metadata`"
+      },
+      {
+        "t": "p",
+        "x": "`db.metadata` is **not an attribute of FRODO**. It resolves by delegation to `reader.metadata`, which is where `df_cases`, `design_vars`, `eq_type`, `folder_fmt` and `num_stages` live. The exception is instances produced by `copy()` and `merge_datasets()`: those do set it as a real attribute, which from then on shadows the reader's. If you mutate `db.metadata`, it pays to know which of the two you are holding."
+      },
+      {
+        "t": "h",
+        "x": "Merging databases: `merge_datasets`"
+      },
+      {
+        "t": "p",
+        "x": "It is a `@staticmethod`: it interpolates every source mesh onto a reference mesh, concatenates the `FlCc` arrays and rebuilds `df_cases` (and `df_state`, and `df_post` for CODA) so that they describe **exactly** the cases that were extracted, not every case the database had defined."
+      },
+      {
+        "t": "p",
+        "x": "Two of its rules explain most of the errors it raises: **`FlCc` is the ground truth** about which cases are being merged, and **there is no silent deduplication** — if the same physical case appears in two sources, that is a `ValueError`, not an arbitrary choice."
+      },
+      {
+        "t": "note",
+        "x": "It does not work with formats that have no Sets class: mesh homogenisation goes through `sets.interpolate_msh2msh`. CODA_SINGLE, which stores one mesh per case, raises `NotImplementedError` and needs a strategy of its own."
+      }
+    ],
+    "sam": [
+      {
+        "t": "h",
+        "x": "A namespace, not a class"
+      },
+      {
+        "t": "p",
+        "x": "SAM is never instantiated. Everything is called as `SAM.Area.function(...)` and almost everything is a `@staticmethod`. The one exception is `SAM.HDF5reader`, which is a real object because it holds a file path and its dataset index."
+      },
+      {
+        "t": "code",
+        "x": "from FotR import SAM\n\nSAM.DictVisualizer.rich_tree(db.data_dict)\nfiles = SAM.Backpack.pattern_pocket.find_files(path, endswith='.vtu')\ngrad  = SAM.DifferentialOperators.gradient(X, f)\n\nh5 = SAM.HDF5reader('results.h5')   # the exception: this one is built\narr = h5.load_to_numpy('group/dataset')"
+      },
+      {
+        "t": "h",
+        "x": "The six areas"
+      },
+      {
+        "t": "table",
+        "head": [
+          "area",
+          "what for",
+          "who uses it"
+        ],
+        "rows": [
+          [
+            "`Gardener`",
+            "Build and normalise the flat `[coords | flight cond. | aux | outputs]` training tensors, one row per (point, case) pair",
+            "user code"
+          ],
+          [
+            "`HDF5reader`",
+            "Read datasets from an `.h5` as a numpy array or torch tensor",
+            "user code"
+          ],
+          [
+            "`Backpack`",
+            "Files and meshes: filename-pattern inference, CODA logs, PyVista connectivity, HORSES3D mesh and `.hsol`, safe formula evaluator",
+            "readers and sets, constantly"
+          ],
+          [
+            "`Weapons`",
+            "Point-cloud ordering, surface and volume derivatives, GMM clustering, and the mesh-to-mesh interpolation kernels",
+            "sets, and user code"
+          ],
+          [
+            "`DifferentialOperators`",
+            "Gradient, Jacobian and divergence on scattered points by moving least squares, with no connectivity needed",
+            "user code"
+          ],
+          [
+            "`DictVisualizer`",
+            "Inspect nested dictionaries, summarising each leaf by type and shape",
+            "`FRODO.summary_data` and user code"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Why order before differentiating"
+      },
+      {
+        "t": "p",
+        "x": "A surface extraction arrives unordered, and a derivative along an unordered surface means nothing. That is why `Weapons` offers four different orderings: which one to use depends on whether the curve is closed and how irregular the sampling is. `DifferentialOperators`, by contrast, needs no ordering at all: it fits a local polynomial per neighbourhood."
+      },
+      {
+        "t": "h",
+        "x": "Import cost"
+      },
+      {
+        "t": "p",
+        "x": "`sam.py` imports `torch`, `pyvista`, `scikit-learn`, `seaborn` and `matplotlib` **at module level**, and `frodo.py` imports SAM unconditionally. Importing anything from `FotR` pays for that whole stack. It is also why the test files stub SAM out instead of importing it, and why that stubbing is order-sensitive."
+      },
+      {
+        "t": "h",
+        "x": "Two warnings"
+      },
+      {
+        "t": "note",
+        "x": "`Backpack.pattern_pocket_ant` is the previous version of `pattern_pocket` and remains only for compatibility. New code should always use `pattern_pocket`."
+      },
+      {
+        "t": "note",
+        "x": "`Backpack.HorsesLazyField.load()` is declared but raises `NotImplementedError`: SAM has no validated reader for the `.hsol` Fortran binary yet. Only header metadata is available, via `read_horses_hsol_header`."
+      }
+    ],
+    "datadict": [
+      {
+        "t": "p",
+        "x": "`data_dict` is where extracted data ends up, and **its shape depends on the format**. There are two incompatible layouts."
+      },
+      {
+        "t": "h",
+        "x": "CODA and NUMPY — per CAD group"
+      },
+      {
+        "t": "code",
+        "x": "data_dict['CADGroup_<id>'] = {\n    'Coord':     point coordinates\n    'NodeCoord': nodal coordinates\n    'FlCc':      (ncases, nvars) flight conditions — design_vars ONLY\n    'Conec':     connectivity\n    'idx_sort':  point ordering\n    'Vars':      {stage: {variable: (npts, ncases)}}\n}"
+      },
+      {
+        "t": "h",
+        "x": "CODA_SINGLE — one mesh per case"
+      },
+      {
+        "t": "code",
+        "x": "data_dict['CADGroup_<id>'] = {\n    'Coord', 'Conec', 'Vars': ...  but as PER-CASE LISTS,\n    because each case has its own mesh and a different npts.\n}"
+      },
+      {
+        "t": "note",
+        "x": "In CODA_SINGLE, `mesh` can be a design var (a numeric factor). The mesh identity does not live in that key — it would collide — but in `sim_metadata[*]['mesh_info']` and in `df_state['mesh_file']`."
+      },
+      {
+        "t": "h",
+        "x": "HORSES3D — per group and polynomial order"
+      },
+      {
+        "t": "code",
+        "x": "data_dict['CADGroup_g<g>_<mesh>'] = {\n    'Coord':     NodeCoords\n    'FlCc':      design_vars only\n    'Vars':      {str(p): {variable: HorsesLazyField}}\n    'hsol_meta': header metadata\n}"
+      },
+      {
+        "t": "h",
+        "x": "NUMPYFILE and PYLOM — three cubes"
+      },
+      {
+        "t": "code",
+        "x": "data_dict = {\n    'inputs':  {'ptos': ..., ...},\n    'outputs': {...},\n    'aux':     {...},\n}"
+      },
+      {
+        "t": "note",
+        "x": "`FlCc` holds **only the user's design vars**, never solver parameters. That is the rule that lets `merge_datasets` identify a case by its physics rather than by its position."
+      }
+    ]
+  }
+}

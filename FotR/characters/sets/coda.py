@@ -397,7 +397,8 @@ class CODASets(BaseSets):
             If None, ``db.metadata['design_vars']`` are used.
         save_path : bool or str
             If a directory path string, saves each dataset as
-            ``<path>/<key>_stage_<stage>.h5``. Default False (no saving).
+            ``<path>/<key>_stage_<stage>.h5``. An existing file with the
+            same name is overwritten. Default False (no saving).
         nan_policy : 'fill' or 'raise'
             Action when NaN values are found in a field array:
             ``'fill'`` replaces them with ``nan_fill_value`` and emits a
@@ -590,7 +591,9 @@ class CODASets(BaseSets):
             if save_path:
                 os.makedirs(save_path, exist_ok=True)
                 out = os.path.join(save_path, f"{key}_stage_{stage}.h5")
-                d.save(out)
+                # mode='w': pyLOM opens existing files in append mode by
+                # default and then fails re-creating the 'DATASET' group.
+                d.save(out, mode='w')
                 log.info("Dataset saved to %s", out)
 
             d_list.append(d)

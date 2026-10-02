@@ -145,6 +145,16 @@ class CODASingleReader(CODAReader):
             if pd.notna(folder):
                 by_folder[folder] = pos
 
+        # The stored 'folder' column can be stale: it is written once by the
+        # ring and a later regeneration with a different format spec leaves
+        # names that no longer exist on disk (e.g. 'f1.0' for a directory
+        # actually called 'f1'). folder_fmt + the design variables are the
+        # generative truth, so they provide a fallback — the same approach
+        # BaseRing.recover_pending_jobs takes when it recomputes names
+        # instead of trusting the column.
+        by_generated = self._folders_from_fmt(df_cases)
+        stale_join: list = []
+
         self.sim_metadata = {}
         state_rows: list = []
 
@@ -154,6 +164,10 @@ class CODASingleReader(CODAReader):
                 continue
 
             pos = by_folder.get(folder)
+            if pos is None:
+                pos = by_generated.get(folder)
+                if pos is not None:
+                    stale_join.append((df_cases['folder'].iloc[pos], folder))
             if pos is None:
                 warnings.warn(
                     f"Folder '{folder}' has no matching row in df_cases; "
@@ -201,6 +215,20 @@ class CODASingleReader(CODAReader):
             if pos is not None:
                 df_cases.at[df_cases.index[pos], 'folder'] = folder
 
+        if stale_join:
+            pairs = ', '.join(f"{stored!r}->{found!r}" for stored, found in
+                              stale_join[:6])
+            warnings.warn(
+                f"{len(stale_join)} case(s) were joined by regenerating the "
+                f"name from folder_fmt {self.metadata.get('folder_fmt')!r} "
+                f"because the 'folder' column of cases_metadata.json does "
+                f"not match the directories on disk ({pairs}"
+                f"{', ...' if len(stale_join) > 6 else ''}). The column has "
+                "been corrected in memory, but the file is stale — "
+                "regenerate it with the ring.",
+                UserWarning,
+            )
+
         log.info("%s simulations found.", len(self.sim_metadata))
 
         # df_state is ordered by case_idx, NOT by folder name. Folders are
@@ -224,6 +252,63 @@ class CODASingleReader(CODAReader):
                 .reset_index(drop=True)
             )
         self.df_state = df_state
+
+    def _folders_from_fmt(self, df_cases: pd.DataFrame) -> dict:
+        """
+        Folder names regenerated from ``folder_fmt`` and the design vars.
+
+        Used only as a fallback when ``df_cases['folder']`` does not match a
+        directory. This is **not** the fuzzy numeric matching CODA_SINGLE
+        exists to avoid: the name is rebuilt with the very format string the
+        ring used to create the directory, so the join stays exact.
+
+        Parameters
+        ----------
+        df_cases : pd.DataFrame
+            Case-identity table.
+
+        Returns
+        -------
+        dict[str, int]
+            ``{regenerated_name: row position}``. Empty when
+            ``folder_fmt`` or ``design_vars`` are unavailable. A name that
+            two rows would produce is kept for the first one only, since an
+            ambiguous fallback is worse than none.
+
+        Examples
+        --------
+        ::
+
+            # folder_fmt='f{mesh:g}' and mesh=1.0 -> 'f1', which is the
+            # directory the ring created, even if the stored column says
+            # 'f1.0'.
+            reader._folders_from_fmt(df_cases)
+        """
+        fmt = self.metadata.get('folder_fmt')
+        design_vars = list(self.metadata.get('design_vars') or [])
+        if not fmt or not design_vars:
+            return {}
+
+        out: dict = {}
+        clashes: set = set()
+        for pos in range(len(df_cases)):
+            row = df_cases.iloc[pos]
+            try:
+                values = {
+                    var: float(row[var]) for var in design_vars
+                    if var in df_cases.columns
+                }
+                name = fmt.format(**values)
+            except (KeyError, IndexError, ValueError, TypeError):
+                continue
+            if name in out:
+                clashes.add(name)
+                continue
+            out[name] = pos
+
+        for name in clashes:
+            out.pop(name, None)
+        return out
 
     # ── Mesh helpers ──────────────────────────────────────────────────
 

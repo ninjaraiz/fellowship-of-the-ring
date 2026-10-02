@@ -3,81 +3,478 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FRODO + SAM — tripas</title>
+<title>FRODO + SAM</title>
 <style>
-body{font-family:system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:1rem;line-height:1.5}
-nav{position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;padding:.5rem 0}
-nav a{margin-right:1rem}
-table{border-collapse:collapse;width:100%;margin:.5rem 0}
-th,td{border:1px solid #ccc;padding:.35rem .5rem;text-align:left;font-size:.9rem}
-.ok{background:#e6f4ea}.partial{background:#fef7e0}.none{background:#f5f5f5}.obsolete{background:#fce8e6}
-.card{border:1px solid #ddd;border-radius:6px;padding:.5rem .75rem;margin:.4rem 0}
-.mono{font-family:monospace;font-size:.85rem}
-.badge{font-size:.75rem;border:1px solid #999;border-radius:4px;padding:0 .35rem;margin-left:.4rem}
-pre{background:#f6f6f6;padding:.6rem;overflow:auto}
-input[type=search]{width:100%;padding:.4rem;font-size:1rem}
+:root{
+  --bg:#ffffff; --fg:#1c1f23; --muted:#6b7280; --line:#e3e6ea; --line2:#cbd2d9;
+  --accent:#2f6fd0; --accent-soft:#eaf1fc; --code-bg:#f6f7f9; --card:#ffffff;
+  --ok:#e7f5ec; --ok-fg:#1c6b3c; --no:#f3f4f6; --no-fg:#6b7280;
+  --warn-bd:#e4a11b; --warn-bg:#fdf7e8;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#14171a; --fg:#e6e8ea; --muted:#9aa3ad; --line:#272c31; --line2:#3a4249;
+  --accent:#6ba3f0; --accent-soft:#1b2838; --code-bg:#1b1f23; --card:#181c20;
+  --ok:#17301f; --ok-fg:#86d7a6; --no:#1e2226; --no-fg:#8b949e;
+  --warn-bd:#8a6d1f; --warn-bg:#241f12;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.55;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 1.1rem}
+code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+header{border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:20}
+.hrow{display:flex;align-items:center;gap:1rem;padding:.65rem 0;flex-wrap:wrap}
+.brand{font-weight:650;letter-spacing:-.01em;font-size:1.05rem;white-space:nowrap}
+.brand span{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:.5rem}
+.grow{flex:1 1 220px}
+#q{width:100%;padding:.42rem .7rem;border:1px solid var(--line2);border-radius:7px;
+  background:var(--bg);color:var(--fg);font-size:.9rem}
+#q:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+button{font:inherit;cursor:pointer;border:1px solid var(--line2);background:var(--bg);
+  color:var(--fg);border-radius:7px;padding:.35rem .7rem}
+button:hover{border-color:var(--accent)}
+
+.tabs{display:flex;gap:.1rem;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabs button{border:none;background:none;border-radius:0;padding:.5rem .8rem;
+  color:var(--muted);border-bottom:2px solid transparent;font-size:.92rem}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabs button[disabled]{opacity:.4;cursor:not-allowed}
+.tabs.sub button{font-size:.88rem;padding:.4rem .7rem}
+.tabs.sub button[aria-selected=true]{color:var(--fg);border-bottom-color:var(--fg)}
+
+main{padding:1.2rem 0 4rem}
+h1{font-size:1.5rem;margin:.2rem 0 .1rem}
+h2{font-size:1.18rem;margin:1.8rem 0 .5rem}
+h3{font-size:1rem;margin:1.3rem 0 .35rem}
+p{margin:.5rem 0}
+.lead{color:var(--muted);margin:.1rem 0 1rem}
+.hidden{display:none!important}
+
+table{border-collapse:collapse;width:100%;margin:.6rem 0;font-size:.9rem}
+th,td{border:1px solid var(--line);padding:.4rem .55rem;text-align:left;vertical-align:top}
+th{background:var(--code-bg);font-weight:600}
+td.ok{background:var(--ok);color:var(--ok-fg)}
+td.none{background:var(--no);color:var(--no-fg)}
+
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;
+  padding:.7rem .85rem;overflow:auto;font-size:.84rem;line-height:1.5}
+code{background:var(--code-bg);border-radius:4px;padding:.06rem .3rem;font-size:.88em}
+pre code{background:none;padding:0}
+
+.card{border:1px solid var(--line);border-radius:10px;background:var(--card);
+  padding:.8rem 1rem;margin:.9rem 0}
+.note{border-left:3px solid var(--warn-bd);background:var(--warn-bg);
+  padding:.5rem .75rem;margin:.7rem 0;border-radius:0 6px 6px 0}
+.chip{display:inline-block;font-size:.73rem;border:1px solid var(--line2);
+  border-radius:999px;padding:.05rem .5rem;color:var(--muted);margin-right:.3rem}
+.chip.on{background:var(--ok);color:var(--ok-fg);border-color:transparent}
+.chip.off{background:var(--no);color:var(--no-fg);border-color:transparent}
+.badge{font-size:.7rem;border:1px solid var(--line2);border-radius:4px;
+  padding:0 .35rem;margin-left:.4rem;color:var(--muted);white-space:nowrap}
+.badge.priv{border-color:var(--warn-bd);color:var(--warn-bd)}
+.file{color:var(--muted);font-size:.8rem}
+
+details.meth{border-top:1px solid var(--line);padding:.4rem 0}
+details.meth:first-of-type{border-top:none}
+details.meth>summary{cursor:pointer;list-style:none;display:block}
+details.meth>summary::-webkit-details-marker{display:none}
+details.meth>summary::before{content:"▸";color:var(--muted);
+  display:inline-block;width:1em;font-size:.8em}
+details.meth[open]>summary::before{content:"▾"}
+.sig{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;
+  color:var(--fg);word-break:break-word}
+.sig b{color:var(--accent);font-weight:600}
+.msum{display:block;margin:.1rem 0 0 1em;color:var(--muted);font-size:.88rem}
+.mbody{margin:.5rem 0 .8rem 1em;padding-left:.8rem;border-left:2px solid var(--line)}
+.toolbar{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;
+  margin:.6rem 0;font-size:.87rem;color:var(--muted)}
+.pre-ish{white-space:pre-wrap;font-size:.93rem;margin:.5rem 0}
+.ex-src{font-size:.78rem;color:var(--muted);margin-top:-.4rem}
 </style>
 </head>
 <body>
-<nav><span id="tagline"></span> · <span id="nav"></span> · <button id="lang">EN</button></nav>
-<h1>FRODO + SAM</h1>
-<h2 id="t-map"></h2><p id="b-map"></p>
-<div class="card mono">FRODO(root_dir, format) → reader · sets · residuals · stats<br>SAM.Gardener → tensores · SAM.Backpack → ficheros/mallas · SAM.Weapons/DifferentialOperators → cálculo · SAM.DictVisualizer/HDF5reader → inspección</div>
-<h2 id="t-matrix"></h2><p id="b-matrix"></p>
-<table id="matrix"><thead><tr><th>format</th><th>reader</th><th>sets</th><th>stats</th><th>residuals</th></tr></thead><tbody></tbody></table>
-<h2 id="t-ref"></h2>
-<input type="search" id="q" placeholder="">
-<div id="ref"></div>
-<h2 id="t-flows"></h2><p id="b-flows"></p>
-<div id="flows"></div>
-<h2 id="t-dict"></h2>
-<div class="card mono">CODA/NUMPY: data_dict['CADGroup_X'] = {Coord, NodeCoord, FlCc, Conec, idx_sort, Vars{stage{var:(npts,ncases)}}}<br>HORSES3D: data_dict['CADGroup_g&lt;g&gt;_&lt;mesh&gt;'] = {Coord=NodeCoords, FlCc(design_vars), Vars{str(p){var: HorsesLazyField}}, hsol_meta}<br>NUMPYFILE/PYLOM: data_dict = {inputs:{ptos,…}, outputs:{…}, aux:{…}}</div>
+
+<header>
+ <div class="wrap hrow">
+  <div class="brand">FRODO + SAM <span id="tagline"></span></div>
+  <div class="grow"><input type="search" id="q" placeholder=""></div>
+  <button id="lang">EN</button>
+ </div>
+ <div class="wrap"><div class="tabs" id="maintabs" role="tablist"></div></div>
+</header>
+
+<main class="wrap">
+ <section id="pane-home"></section>
+ <section id="pane-frodo"></section>
+ <section id="pane-sam"></section>
+ <section id="pane-dict"></section>
+ <section id="pane-flows"></section>
+ <section id="pane-search"></section>
+</main>
+
 <script>
-let LANG='es', I18N={}, DOCS=[];
-const MATRIX=[
- ['CODA','ok','ok','ok','ok'],
- ['HORSES3D','ok','none','none','ok'],
- ['NUMPY','ok','ok','ok','none'],
- ['NUMPYFILE','ok','ok','none','none'],
- ['PYLOM','ok','ok','none','none'],
-];
-async function load(){I18N=await (await fetch('i18n.json')).json();DOCS=(await (await fetch('docs.json')).json()).modules;render();}
-function render(){
- const t=I18N[LANG],other=LANG==='es'?'en':'es';
- document.documentElement.lang=LANG;document.getElementById('lang').textContent=other.toUpperCase();
- document.getElementById('tagline').textContent=t.tagline;
- document.getElementById('nav').innerHTML=`<a href="#t-map">${t.nav.map}</a><a href="#t-matrix">${t.nav.matrix}</a><a href="#t-ref">${t.nav.ref}</a><a href="#t-flows">${t.nav.flows}</a><a href="#t-dict">${t.nav.dict}</a>`;
- document.getElementById('t-map').textContent=t.map_title;document.getElementById('b-map').textContent=t.map_body;
- document.getElementById('t-matrix').textContent=t.matrix_title;document.getElementById('b-matrix').textContent=t.matrix_note;
- document.getElementById('t-ref').textContent=t.ref_title;document.getElementById('q').placeholder=t.ref_search;
- document.getElementById('t-flows').textContent=t.flows_title;document.getElementById('b-flows').textContent=t.flows_note;
- document.getElementById('t-dict').textContent=t.dict_title;
- const tb=document.querySelector('#matrix tbody');tb.innerHTML='';
- MATRIX.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML=`<td><b>${r[0]}</b></td>`+r.slice(1).map(s=>`<td class="${s==='ok'?'ok':s==='partial'?'partial':s==='obsolete'?'obsolete':'none'}">${t.status[s]||s}</td>`).join('');tb.appendChild(tr);});
- renderRef('');renderFlows();
+let LANG='es', I18N={}, GUIDES={}, EXAMPLES={}, DOCS=[], FORMATS={}, CLASSES={};
+const EXT=['reader','sets','stats','residuals'];
+const PANES=['home','frodo','sam','dict','flows','search'];
+let VIEW={pane:'home', fmt:null, ext:null, sam:null};
+let SHOW_PRIV=false;
+
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* Markdown mínimo, a propósito: **negrita** y `código`. */
+const inline=s=>esc(s).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+                      .replace(/`([^`]+)`/g,'<code>$1</code>');
+const el=(tag,cls,html)=>{const e=document.createElement(tag);
+  if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e;};
+const T=()=>I18N[LANG];
+
+/* ── carga ─────────────────────────────────────────────────────────────── */
+async function load(){
+ const [i18n,guides,examples,docs]=await Promise.all([
+   fetch('i18n.json').then(r=>r.json()),
+   fetch('guides.json').then(r=>r.json()),
+   fetch('examples.json').then(r=>r.json()),
+   fetch('docs.json').then(r=>r.json()),
+ ]);
+ I18N=i18n; GUIDES=guides; EXAMPLES=examples;
+ DOCS=docs.modules; FORMATS=docs.formats;
+ DOCS.forEach(m=>m.classes.forEach(c=>{CLASSES[c.id]=c;}));
+ readHash(); render();
 }
-function renderRef(q){
- const t=I18N[LANG],box=document.getElementById('ref');box.innerHTML='';q=q.toLowerCase();
- DOCS.forEach(m=>m.classes.forEach(c=>{
-  const hits=c.methods.filter(md=>(md.id+md.doc.summary).toLowerCase().includes(q));
-  if(!hits.length)return;
-  const d=document.createElement('div');d.className='card';
-  d.innerHTML=`<b>${c.id}</b> <span class="mono">${m.file}</span><br><i>${c.doc.summary||''}</i>`;
-  hits.forEach(md=>{const p=document.createElement('div');p.className='mono';
-   p.innerHTML=`· ${md.id}(${md.signature}) <span class="badge">${md.kind}</span><br><span style="font-family:system-ui">${md.doc.summary||'<i>'+t.ref_nodoc+'</i>'}</span>`;
-   d.appendChild(p);});
-  box.appendChild(d);});});
+
+/* ── rutas (#frodo/CODA/sets) ──────────────────────────────────────────── */
+function readHash(){
+ const p=(location.hash||'').replace(/^#/,'').split('/').filter(Boolean);
+ if(p.length&&PANES.includes(p[0])){
+  VIEW.pane=p[0];
+  if(p[0]==='frodo'){VIEW.fmt=p[1]||null;VIEW.ext=p[2]||null;}
+  if(p[0]==='sam'){VIEW.sam=p[1]||null;}
+ }
 }
+function writeHash(){
+ let h=VIEW.pane;
+ if(VIEW.pane==='frodo'&&VIEW.fmt){h+='/'+VIEW.fmt;if(VIEW.ext)h+='/'+VIEW.ext;}
+ if(VIEW.pane==='sam'&&VIEW.sam)h+='/'+VIEW.sam;
+ if(location.hash.replace(/^#/,'')!==h)history.replaceState(null,'','#'+h);
+}
+function go(patch){Object.assign(VIEW,patch);writeHash();render();}
+
+/* ── bloques de guía ───────────────────────────────────────────────────── */
+function guideBlocks(key){
+ const box=el('div');
+ ((GUIDES[LANG]||{})[key]||[]).forEach(b=>{
+  if(b.t==='h')      box.appendChild(el('h3',null,esc(b.x)));
+  else if(b.t==='p') box.appendChild(el('p',null,inline(b.x)));
+  else if(b.t==='note')box.appendChild(el('div','note',inline(b.x)));
+  else if(b.t==='code'){const pre=el('pre');pre.textContent=b.x;box.appendChild(pre);}
+  else if(b.t==='table'){
+   box.appendChild(el('table',null,
+    '<thead><tr>'+b.head.map(h=>`<th>${inline(h)}</th>`).join('')+'</tr></thead><tbody>'
+    +b.rows.map(r=>'<tr>'+r.map(c=>`<td>${inline(c)}</td>`).join('')+'</tr>').join('')
+    +'</tbody>'));
+  }
+ });
+ return box;
+}
+
+/* ── ejemplos ──────────────────────────────────────────────────────────── */
+function examplesBlock(list){
+ const t=T(), box=el('div');
+ if(!list||!list.length)return box;
+ box.appendChild(el('h3',null,esc(t.examples_title)));
+ list.forEach(x=>{
+  const c=el('div','card');
+  c.appendChild(el('div',null,'<b>'+esc(x.title[LANG])+'</b>'));
+  c.appendChild(el('div','ex-src',esc(t.example_source)+': <code>'+esc(x.source)+'</code>'));
+  const pre=el('pre');pre.textContent=x.code;c.appendChild(pre);
+  if(x.note)c.appendChild(el('div','note',inline(x.note[LANG])));
+  box.appendChild(c);
+ });
+ return box;
+}
+
+/* ── métodos y fichas de clase ─────────────────────────────────────────── */
+/* Prosa de docstring: une las líneas de un párrafo normal, pero conserva la
+   sangría de los que llevan líneas indentadas (listas de definición numpydoc,
+   que si no se aplastarían en un muro de texto). */
+function prose(txt){
+ if(!txt)return '';
+ return txt.split(/\n\s*\n/).map(p=>{
+  const lines=p.replace(/\s+$/,'').split('\n');
+  if(!lines.join('').trim())return '';
+  const structured=lines.some((l,i)=>i>0&&/^\s+\S/.test(l));
+  return structured ? `<p class="pre-ish">${inline(p)}</p>`
+                    : `<p>${inline(lines.map(l=>l.trim()).join(' '))}</p>`;
+ }).join('');
+}
+function defList(title,entries,typeOnly){
+ if(!entries||!entries.length)return '';
+ return `<p style="margin:.6rem 0 .2rem"><b>${esc(title)}</b></p><table>`
+  +entries.map(e=>{
+    const head=typeOnly?(e.type||e.name):(e.name+(e.type?` : ${e.type}`:''));
+    return `<tr><td class="mono" style="white-space:nowrap">${esc(head)}</td>`
+          +`<td>${inline(e.desc||'')}</td></tr>`;
+   }).join('')+`</table>`;
+}
+function methodBody(md){
+ const t=T(), d=md.doc; let h='';
+ if(d.description)h+=prose(d.description);
+ h+=defList(t.ref_params,d.params,false);
+ h+=defList(t.ref_returns,d.returns,true);
+ h+=defList(t.ref_raises,d.raises,true);
+ h+=defList(t.ref_attributes,d.attributes,false);
+ h+=defList(t.ref_methods,d.methods,false);
+ (d.text_sections||[]).forEach(s=>{
+  h+=`<p style="margin:.6rem 0 .2rem"><b>${esc(s.title)}</b></p><pre>${esc(s.text)}</pre>`;
+ });
+ return h||`<p class="lead">${esc(t.ref_nodoc)}</p>`;
+}
+function methodNode(md,{full=false}={}){
+ const t=T(), det=el('details','meth');
+ const name=md.signature.replace(/\(/,'\u0000').split('\u0000');
+ const label=full?esc(md.class)+'.<b>'+esc(name[0])+'</b>('+esc(name[1]||'')
+                 :'<b>'+esc(name[0])+'</b>('+esc(name[1]||'');
+ const ret=md.returns?` <span class="badge">→ ${esc(md.returns)}</span>`:'';
+ det.innerHTML=`<summary><span class="sig">${label}</span>`
+  +`<span class="badge">${esc(md.kind)}</span>`
+  +(md.is_private?`<span class="badge priv">${esc(t.ref_private)}</span>`:'')+ret
+  +`<span class="msum">${md.doc.summary?inline(md.doc.summary)
+      :'<i>'+esc(t.ref_nodoc)+'</i>'}</span></summary>`
+  +`<div class="mbody">${methodBody(md)}</div>`;
+ return det;
+}
+function visible(ms){return ms.filter(m=>SHOW_PRIV||!m.is_private);}
+
+function classCard(id,{heading=null}={}){
+ const t=T(), c=CLASSES[id];
+ const card=el('div','card');
+ if(!c){card.appendChild(el('p','lead',esc(id)));return card;}
+ const ms=visible(c.methods);
+ card.appendChild(el('div',null,
+   `<b style="font-size:1.02rem">${esc(heading||c.id)}</b>`
+   +`<span class="badge">${ms.length} ${esc(t.n_methods)}</span>`));
+ const meta=[`${esc(t.defined_in)}: <code>${esc(c.file)}</code>`];
+ if(c.bases&&c.bases.length)meta.push(`${esc(t.bases)}: <code>${c.bases.map(esc).join(', ')}</code>`);
+ card.appendChild(el('div','file',meta.join(' · ')));
+ if(c.doc.summary)card.appendChild(el('p',null,inline(c.doc.summary)));
+ if(c.doc.description)card.appendChild(el('div',null,prose(c.doc.description)));
+ (c.doc.text_sections||[]).forEach(s=>{
+  if(s.title==='Notes'||s.title==='Examples'){
+   card.appendChild(el('p',null,`<b>${esc(s.title)}</b>`));
+   const pre=el('pre');pre.textContent=s.text;card.appendChild(pre);
+  }
+ });
+ const list=el('div');list.style.marginTop='.6rem';
+ ms.forEach(m=>list.appendChild(methodNode(m)));
+ card.appendChild(list);
+
+ /* heredados: lo que la clase no define pero sí puedes llamar */
+ (c.bases||[]).forEach(b=>{
+  const base=CLASSES[b]; if(!base)return;
+  const own=new Set(c.methods.map(m=>m.name));
+  const inh=visible(base.methods).filter(m=>!own.has(m.name));
+  if(!inh.length)return;
+  const det=el('details','card');det.style.margin='.7rem 0 0';
+  det.innerHTML=`<summary><b>${esc(t.inherited)} ${esc(b)}</b>`
+   +`<span class="badge">${inh.length}</span></summary>`
+   +`<p class="lead" style="margin:.4rem 0">${esc(t.inherited_note)}</p>`;
+  const box=el('div');inh.forEach(m=>box.appendChild(methodNode(m)));
+  det.appendChild(box);card.appendChild(det);
+ });
+ return card;
+}
+
+/* ── pestañas ──────────────────────────────────────────────────────────── */
+function tabStrip(items,current,onPick,sub){
+ const strip=el('div','tabs'+(sub?' sub':''));
+ items.forEach(it=>{
+  const b=el('button',null,esc(it.label));
+  b.setAttribute('role','tab');
+  b.setAttribute('aria-selected',String(it.key===current));
+  if(it.disabled)b.disabled=true; else b.onclick=()=>onPick(it.key);
+  if(it.title)b.title=it.title;
+  strip.appendChild(b);
+ });
+ return strip;
+}
+function privToggle(){
+ const t=T(), lab=el('label');
+ lab.innerHTML=`<input type="checkbox" ${SHOW_PRIV?'checked':''}> ${esc(t.ref_show_private)}`;
+ lab.querySelector('input').onchange=e=>{SHOW_PRIV=e.target.checked;render();};
+ const bar=el('div','toolbar');bar.appendChild(lab);
+ bar.appendChild(el('span',null,esc(t.ref_lang_note)));
+ return bar;
+}
+
+/* ── paneles ───────────────────────────────────────────────────────────── */
+function renderHome(){
+ const t=T(), p=document.getElementById('pane-home');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.home_title)));
+ p.appendChild(el('p','lead',esc(t.home_intro)));
+ p.appendChild(guideBlocks('map'));
+ p.appendChild(el('h2',null,esc(t.matrix_title)));
+ const rows=Object.entries(FORMATS).map(([f,row])=>
+  `<tr><td><b>${esc(f)}</b></td>`+EXT.map(k=>row[k]
+    ?`<td class="ok"><code>${esc(row[k])}</code></td>`
+    :`<td class="none">${esc(t.status.none)}</td>`).join('')+'</tr>').join('');
+ p.appendChild(el('table',null,
+  `<thead><tr><th>format</th>${EXT.map(k=>`<th>${k}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`));
+ p.appendChild(el('p','lead',esc(t.matrix_note)));
+}
+
+function renderFrodo(){
+ const t=T(), p=document.getElementById('pane-frodo');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.frodo_title)));
+ p.appendChild(el('p','lead',esc(t.frodo_note)));
+
+ const fmts=Object.keys(FORMATS);
+ const items=[{key:'_guide',label:t.tab_guide},{key:'_class',label:t.tab_class}]
+   .concat(fmts.map(f=>({key:f,label:f})));
+ if(!VIEW.fmt||!items.some(i=>i.key===VIEW.fmt))VIEW.fmt='_guide';
+ p.appendChild(tabStrip(items,VIEW.fmt,k=>go({fmt:k,ext:null})));
+
+ const body=el('div');p.appendChild(body);
+
+ if(VIEW.fmt==='_guide'){body.appendChild(guideBlocks('frodo'));return;}
+ if(VIEW.fmt==='_class'){
+  body.appendChild(privToggle());
+  body.appendChild(classCard('FRODO'));
+  return;
+ }
+
+ const row=FORMATS[VIEW.fmt]||{};
+ const chips=el('div');chips.style.margin='.8rem 0 .2rem';
+ chips.innerHTML=`<span class="file">${esc(t.pieces)}: </span>`
+  +EXT.map(k=>`<span class="chip ${row[k]?'on':'off'}">${k}</span>`).join('');
+ body.appendChild(chips);
+
+ body.appendChild(examplesBlock((EXAMPLES.formats||{})[VIEW.fmt]));
+
+ const extItems=EXT.map(k=>({key:k,label:t.ext[k],disabled:!row[k],
+   title:row[k]?t.ext_sub[k]:t.ext_none}));
+ const first=EXT.find(k=>row[k]);
+ if(!VIEW.ext||!row[VIEW.ext])VIEW.ext=first||null;
+ body.appendChild(el('h3',null,esc(t.pieces)));
+ body.appendChild(tabStrip(extItems,VIEW.ext,k=>go({ext:k}),true));
+
+ if(!VIEW.ext){body.appendChild(el('div','note',esc(t.ext_none)));return;}
+ body.appendChild(el('p','lead',esc(t.ext_sub[VIEW.ext])));
+ body.appendChild(privToggle());
+ body.appendChild(classCard(row[VIEW.ext]));
+}
+
+function renderSam(){
+ const t=T(), p=document.getElementById('pane-sam');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.sam_title)));
+ p.appendChild(el('p','lead',esc(t.sam_note)));
+
+ const areas=Object.values(CLASSES).filter(c=>c.parent==='SAM').map(c=>c.id);
+ const items=[{key:'_guide',label:t.tab_guide}]
+   .concat(areas.map(a=>({key:a,label:a.replace('SAM.','')})));
+ if(!VIEW.sam||!items.some(i=>i.key===VIEW.sam))VIEW.sam='_guide';
+ p.appendChild(tabStrip(items,VIEW.sam,k=>go({sam:k})));
+
+ const body=el('div');p.appendChild(body);
+ if(VIEW.sam==='_guide'){body.appendChild(guideBlocks('sam'));return;}
+
+ const short=VIEW.sam.replace('SAM.','');
+ body.appendChild(examplesBlock((EXAMPLES.sam||{})[short]));
+ body.appendChild(privToggle());
+ body.appendChild(classCard(VIEW.sam,{heading:VIEW.sam}));
+
+ const nested=Object.values(CLASSES)
+   .filter(c=>c.parent&&c.parent.startsWith(VIEW.sam)).map(c=>c.id);
+ if(nested.length){
+  body.appendChild(el('h3',null,esc(t.nested)));
+  nested.forEach(n=>body.appendChild(classCard(n)));
+ }
+}
+
+function renderDict(){
+ const t=T(), p=document.getElementById('pane-dict');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.dict_title)));
+ p.appendChild(el('p','lead',esc(t.dict_note)));
+ p.appendChild(guideBlocks('datadict'));
+}
+
 async function renderFlows(){
- const box=document.getElementById('flows');box.innerHTML='';
+ const t=T(), p=document.getElementById('pane-flows');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.flows_title)));
+ p.appendChild(el('p','lead',esc(t.flows_note)));
  for(const f of ['flow_numpy','flow_coda','flow_pylom','flow_horses3d']){
+  const c=el('div','card');c.appendChild(el('div',null,'<b>'+f+'</b>'));
   try{const txt=await (await fetch(`flows/${f}.md`)).text();
-   const d=document.createElement('div');d.className='card';
-   d.innerHTML=`<b>${f}</b><pre></pre>`;d.querySelector('pre').textContent=txt.slice(0,4000);box.appendChild(d);
-  }catch(e){const d=document.createElement('div');d.className='card';d.innerHTML=`<b>${f}</b> — pendiente de re-ejecución`;box.appendChild(d);}
- }}
-document.getElementById('q').addEventListener('input',e=>renderRef(e.target.value));
-document.getElementById('lang').addEventListener('click',()=>{LANG=LANG==='es'?'en':'es';render();});
+      const pre=el('pre');pre.textContent=txt;c.appendChild(pre);}
+  catch(e){c.appendChild(el('p','lead','pendiente de re-ejecución'));}
+  p.appendChild(c);
+ }
+}
+
+function renderSearch(q){
+ const t=T(), p=document.getElementById('pane-search');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.search_results)));
+ const needle=q.toLowerCase();
+ let n=0;
+ Object.values(CLASSES).forEach(c=>{
+  const hits=visible(c.methods).filter(m=>[
+    m.id,m.signature,m.doc.summary,m.doc.description,
+    ...(m.doc.params||[]).map(x=>x.name)
+  ].join(' ').toLowerCase().includes(needle));
+  if(!hits.length)return;
+  n+=hits.length;
+  const card=el('div','card');
+  card.appendChild(el('div',null,
+    `<b>${esc(c.id)}</b> <span class="file">${esc(c.file)}</span>`));
+  hits.forEach(m=>card.appendChild(methodNode(m,{full:false})));
+  p.appendChild(card);
+ });
+ if(!n)p.appendChild(el('p','lead',esc(t.search_empty)));
+}
+
+/* ── render global ─────────────────────────────────────────────────────── */
+function render(){
+ const t=T(), other=LANG==='es'?'en':'es';
+ document.documentElement.lang=LANG;
+ document.getElementById('lang').textContent=other.toUpperCase();
+ document.getElementById('tagline').textContent=t.tagline;
+ document.getElementById('q').placeholder=t.search_placeholder;
+
+ const q=document.getElementById('q').value.trim();
+ const pane=q?'search':VIEW.pane;
+
+ const strip=document.getElementById('maintabs');strip.innerHTML='';
+ ['home','frodo','sam','dict','flows'].forEach(k=>{
+  const b=el('button',null,esc(t.nav[k]));
+  b.setAttribute('role','tab');
+  b.setAttribute('aria-selected',String(k===pane));
+  b.onclick=()=>{document.getElementById('q').value='';go({pane:k});};
+  strip.appendChild(b);
+ });
+ if(q){
+  const b=el('button',null,'✕ '+esc(t.search_back));
+  b.onclick=()=>{document.getElementById('q').value='';render();};
+  strip.appendChild(b);
+ }
+
+ PANES.forEach(k=>document.getElementById('pane-'+k).classList.toggle('hidden',k!==pane));
+ if(pane==='home')  renderHome();
+ if(pane==='frodo') renderFrodo();
+ if(pane==='sam')   renderSam();
+ if(pane==='dict')  renderDict();
+ if(pane==='flows') renderFlows();
+ if(pane==='search')renderSearch(q);
+ if(!q)writeHash();
+}
+
+let tid=null;
+document.getElementById('q').addEventListener('input',()=>{
+ clearTimeout(tid);tid=setTimeout(render,120);
+});
+document.getElementById('lang').addEventListener('click',()=>{
+ LANG=LANG==='es'?'en':'es';render();
+});
+window.addEventListener('hashchange',()=>{readHash();render();});
 load();
 </script>
 </body>

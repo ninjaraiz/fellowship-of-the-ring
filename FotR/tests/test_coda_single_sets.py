@@ -432,6 +432,64 @@ def test_richardson_rejects_meshes_that_do_not_refine(db):
     assert np.isnan(row["p"]) and not row["converged"]
 
 
+def test_richardson_all_mode_enumerates_every_combination(db):
+    """'all' must cover C(n,3) triplets, fine to coarse, no repeats."""
+    h = np.array([1.0, 2.0, 4.0, 8.0, 16.0])
+    table = pd.DataFrame({
+        "case": ["m1", "m2", "m3", "m4", "m5"],
+        "h": h,
+        "value": 3.0 + 0.5 * h ** 2,
+    })
+    consecutive = db.stats.richardson(table, "value", h_col="h")
+    every = db.stats.richardson(table, "value", h_col="h", triplets="all")
+
+    assert len(consecutive) == 3                       # 5 - 2
+    assert len(every) == 10                            # C(5, 3)
+    trios = list(zip(every["fine"], every["medium"], every["coarse"]))
+    assert len(set(trios)) == len(trios)
+    # Every row keeps the fine-to-coarse ordering.
+    assert (every["h1"] < every["h2"]).all()
+    assert (every["h2"] < every["h3"]).all()
+    # The consecutive windows are a subset of the full enumeration.
+    assert set(zip(consecutive["fine"], consecutive["medium"],
+                   consecutive["coarse"])).issubset(set(trios))
+
+
+def test_richardson_all_mode_finds_wider_refinement_ratios(db):
+    """The point of 'all': ratios the family's neighbours cannot give.
+
+    Mirrors the real mesh family: several meshes crowded together at the
+    fine end, then a couple of well-separated coarse ones. No window of
+    three neighbours spans a factor of two, but a non-adjacent triplet
+    does.
+    """
+    h = np.array([1.0, 1.1, 1.2, 2.0, 4.0])
+    table = pd.DataFrame({
+        "case": ["a", "b", "c", "d", "e"],
+        "h": h,
+        "value": 2.0 + 0.3 * h ** 2,
+    })
+    consecutive = db.stats.richardson(table, "value", h_col="h")
+    every = db.stats.richardson(table, "value", h_col="h", triplets="all")
+    assert consecutive["r21"].max() < 1.7
+    # a/d/e is r21 = r32 = 2, the textbook triplet, and it is only
+    # reachable by skipping b and c.
+    ade = every[(every["fine"] == "a") & (every["medium"] == "d")
+                & (every["coarse"] == "e")].iloc[0]
+    assert np.isclose(ade["r21"], 2.0) and np.isclose(ade["r32"], 2.0)
+    assert np.isclose(ade["p"], 2.0, atol=1e-6)
+
+
+def test_richardson_rejects_an_unknown_triplet_mode(db):
+    table = pd.DataFrame({
+        "case": ["a", "b", "c"],
+        "n_points": [10000.0, 2500.0, 625.0],
+        "value": [1.0, 1.2, 1.5],
+    })
+    with pytest.raises(ValueError, match="triplets="):
+        db.stats.richardson(table, "value", triplets="pairs")
+
+
 def test_richardson_needs_three_meshes(db):
     table = pd.DataFrame({
         "case": ["a", "b"], "n_points": [1000.0, 250.0], "value": [1.0, 1.2],

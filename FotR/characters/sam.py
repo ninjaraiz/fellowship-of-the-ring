@@ -1,3 +1,54 @@
+"""
+sam.py – Simulations & Analytics Module
+========================================
+The toolbox FRODO leans on, and the one place to look for computation
+that is not tied to any particular simulation format.
+
+Unlike :class:`~FotR.characters.frodo.FRODO`, ``SAM`` is **a static
+namespace, never an instance**. It is never constructed: every entry
+point is reached as ``SAM.<Area>.<function>(...)``, and almost all of
+them are ``@staticmethod``. The only exception is
+:class:`SAM.HDF5reader`, which is a real object because it holds an open
+file path and its dataset index.
+
+The six areas
+-------------
+Gardener
+    Assemble and normalise the flat ``[coords | flight conditions | aux |
+    outputs]`` tensors used to train surrogate models.
+HDF5reader
+    Thin ``h5py`` wrapper returning numpy arrays or torch tensors.
+Backpack
+    Files, meshes and parsers: filename-pattern inference, CODA monitor
+    CSV/txt readers, PyVista connectivity helpers, HORSES3D mesh and
+    ``.hsol`` readers, and a safe arithmetic-expression evaluator.
+Weapons
+    Point-cloud ordering, surface and finite-difference derivatives,
+    Green-Gauss gradients, Gaussian-mixture clustering, and the
+    mesh-to-mesh interpolation kernels used by ``sets``.
+DifferentialOperators
+    Gradient, Jacobian and divergence on scattered points via moving
+    least squares.
+DictVisualizer
+    Inspect nested dictionaries (rich tree, pretty print, networkx
+    graph). ``FRODO.summary_data`` is a one-line call into this area.
+
+Import cost
+-----------
+This module imports ``torch``, ``pyvista``, ``scikit-learn``, ``seaborn``
+and ``matplotlib`` **at module level**, and ``frodo.py`` imports it
+unconditionally. Importing anything from ``FotR`` therefore pays for the
+whole stack. This is why the test-suite files stub ``SAM`` out instead of
+importing it, and why that stubbing is order-sensitive.
+
+Who calls what
+--------------
+``Backpack`` and ``Weapons`` are the areas the rest of the package
+depends on (readers and sets call them constantly). ``Gardener``,
+``DifferentialOperators`` and ``HDF5reader`` are mostly called by user
+code, downstream of a FRODO database.
+"""
+
 import os
 import re
 
@@ -33,14 +84,34 @@ class SAM:
     workflows, data transformation, and surrogate model preparation for
     CFD simulations and other engineering data pipelines.
 
+    It is a **static namespace**: it is never instantiated, and every
+    entry point is reached as ``SAM.<Area>.<function>(...)``. Only
+    :class:`HDF5reader` is a real, instantiable object.
+
     Sub-modules
     -----------
     Gardener   – joint tensor assembly and normalisation for ML training.
     HDF5reader – thin HDF5 file reader (numpy / torch output).
-    Backpack   – file utilities, mesh helpers, CSV parsers.
+    Backpack   – file utilities, mesh helpers, CSV/txt parsers.
     Weapons    – point-cloud sorting, surface derivatives, GMM clustering,
                  mesh-to-mesh interpolation.
+    DifferentialOperators – gradient / Jacobian / divergence on scattered
+                 points by moving least squares.
     DictVisualizer – rich / networkx / pprint helpers for nested dicts.
+
+    Examples
+    --------
+    ::
+
+        from FotR import SAM
+
+        SAM.DictVisualizer.rich_tree(db.data_dict)
+        files = SAM.Backpack.pattern_pocket.find_files(path, endswith='.vtu')
+        grad  = SAM.DifferentialOperators.gradient(X, f)
+
+    See Also
+    --------
+    FotR.characters.frodo.FRODO : the database coordinator SAM supports.
     """
 
     light = EarendilsLight(__name__)
@@ -54,6 +125,41 @@ class SAM:
     # GARDENER
     # =========================================================================
     class Gardener:
+        """
+        Assemble and normalise flat training tensors from extracted data.
+
+        Gardener turns the per-group arrays a FRODO database produces
+        (coordinates, flight conditions, auxiliary features, solution
+        variables) into the single 2-D table a surrogate model expects.
+        The row layout is always::
+
+            [x_coords | flight_conditions | aux_features | output_variables]
+
+        with one row per ``(point, case)`` pair, so a group of ``n_points``
+        nodes and ``n_cases`` cases yields ``n_points × n_cases`` rows.
+
+        Every builder returns a dict carrying both the raw ``'tensor'``
+        and its min-max normalised twin ``'scaled'``, together with the
+        ``'mins'``/``'maxs'`` used. Passing those back as ``ref=`` is how
+        several datasets are put on a common scale — which
+        :meth:`concatenate_sets` relies on.
+
+        Methods
+        -------
+        create_final_tensor
+            The standard builder.
+        create_final_tensor_scored
+            Same, plus a per-row importance score.
+        concatenate_sets
+            Stack several built sets, reusing one set's normalisation.
+        reduce_dataset_per_frequency
+            Thin over-represented value ranges to rebalance a dataset.
+
+        Notes
+        -----
+        Every method is a ``@staticmethod``; Gardener is never
+        instantiated.
+        """
 
         @staticmethod
         def create_final_tensor(
@@ -644,6 +750,27 @@ class SAM:
         """
 
         def __init__(self, file_path: str, verbose: bool = False):
+            """Open an HDF5 file and index the datasets it contains.
+
+            Parameters
+            ----------
+            file_path : str
+                Path to the ``.h5`` file.
+            verbose : bool, optional
+                Print every dataset path and attribute while exploring.
+                Default ``False``.
+
+            Raises
+            ------
+            FileNotFoundError
+                If *file_path* does not exist.
+
+            Notes
+            -----
+            ``self.labels`` ends up holding only the paths containing
+            ``'/'``, i.e. datasets nested inside a group; top-level
+            datasets are filtered out.
+            """
             self.file_path = file_path
             self.labels = []
             self._explore(verbose)
@@ -657,6 +784,13 @@ class SAM:
                 raise FileNotFoundError(f"File not found: {file_path}")
 
         def _explore(self, verbose: bool):
+            """Walk the file and collect every dataset path into ``labels``.
+
+            Parameters
+            ----------
+            verbose : bool
+                Print each path and its attributes as they are visited.
+            """
             with h5py.File(self.file_path, 'r') as f:
                 def collect(name, obj):
                     self.labels.append(name)
@@ -713,7 +847,65 @@ class SAM:
     # BACKPACK
     # =========================================================================
     class Backpack:
+        """
+        Everything needed to get data off disk and into arrays.
+
+        Backpack is the area the rest of the package leans on hardest:
+        readers call it to locate case files, parse CODA monitor logs and
+        build mesh connectivity. It groups four kinds of helper.
+
+        Filename patterns
+            :class:`pattern_pocket` infers the common pattern behind a
+            set of filenames or folder names, matches against it, and
+            rebuilds concrete names from values. This is how readers turn
+            a ``folder_fmt`` such as ``'aoa_{}_mach_{}'`` into the list of
+            case directories.
+        Solver log parsing
+            :meth:`read_cfd_times` and :meth:`get_df_from_csv` read CODA
+            ``-out.txt`` wall times and monitor CSVs.
+        Mesh helpers
+            :meth:`get_unified_connectivity`,
+            :meth:`cell_connectivity_in_order` and
+            :meth:`ensure_cell_data` work on PyVista grids;
+            :meth:`read_horses_mesh_h5`, :meth:`read_horses_hsol_header`
+            and :meth:`horses_expected_vars` cover the HORSES3D
+            high-order formats, with :class:`HorsesLazyField` standing in
+            for a field that has not been read yet.
+        Miscellaneous
+            :meth:`eval_formula` evaluates an arithmetic expression
+            through an AST parser instead of ``eval``;
+            :meth:`same_columns` and :meth:`create_tensors_from_h5` are
+            small array utilities.
+
+        Notes
+        -----
+        Two pattern implementations live side by side:
+        :class:`pattern_pocket` is the current one, and
+        :class:`pattern_pocket_ant` is its superseded predecessor, kept
+        only for callers that have not migrated. New code should use
+        :class:`pattern_pocket`.
+        """
+
         class pattern_pocket:
+            """
+            Current filename/folder pattern engine.
+
+            A pattern can be inferred from a list of existing names
+            (:meth:`FilenamePattern.from_files`) or written out
+            explicitly (:meth:`FilenamePattern.from_template`, e.g.
+            ``'aoa_{}_mach_{}'``). Once built it can test names
+            (``match``, ``search``), scan a directory (``findall``) and
+            rebuild a concrete name from values (``format``).
+
+            :meth:`find_files` is the general directory lister used
+            throughout the readers; it combines a pattern with plain
+            ``endswith`` / ``contains`` filters.
+
+            See Also
+            --------
+            pattern_pocket_ant : the superseded implementation.
+            """
+
             @dataclass(slots=True)
             class FilenamePattern:
                 """
@@ -1266,6 +1458,22 @@ class SAM:
                 return files
         
         class pattern_pocket_ant:
+            """
+            Superseded filename pattern engine. Do not use in new code.
+
+            This is the earlier implementation of what
+            :class:`pattern_pocket` now does, kept in place only so that
+            existing callers keep working. Its ``FilenamePattern`` is a
+            plain dataclass holding the regex as a string (the current one
+            compiles and caches it), and its ``find_files`` has a
+            different filtering contract.
+
+            .. deprecated::
+                Use :class:`pattern_pocket` instead. Nothing new should
+                reference this class; it is a candidate for removal once
+                the remaining callers are migrated.
+            """
+
             @dataclass(slots=True)
             class FilenamePattern:
                 """
@@ -2303,7 +2511,16 @@ class SAM:
                 return (self.n_points,)
 
             def load(self) -> np.ndarray:
-                """Materialise the field (not yet implemented)."""
+                """Materialise the field. Declared but not implemented.
+
+                Raises
+                ------
+                NotImplementedError
+                    Always. SAM has no validated Fortran-binary ``.hsol``
+                    reader yet, so only header metadata is available. Use
+                    :meth:`SAM.Backpack.read_horses_hsol_header` for what
+                    can be known without reading the data.
+                """
                 raise NotImplementedError(
                     f"HORSES3D .hsol field parsing not yet implemented "
                     f"(var='{self.name}', case='{self.case}', p={self.p}, "
@@ -2391,6 +2608,44 @@ class SAM:
     # WEAPONS
     # =========================================================================
     class Weapons:
+        """
+        Geometry and field operations on unstructured point clouds.
+
+        The name covers four unrelated jobs that share one trait: they
+        all work on raw arrays of points and values, with no knowledge of
+        the database they came from.
+
+        Ordering
+            CFD surface extractions arrive unordered, which makes a
+            derivative along the surface meaningless. ``sort_by_centroid``,
+            ``sort_lexsort``, ``sort_closed_curve_by_kdtree`` and
+            ``sort_points_by_hull_projection`` produce the index order
+            that makes the point sequence follow the geometry; which one
+            to pick depends on whether the curve is closed and how
+            irregular the sampling is.
+        Derivatives
+            ``surface_derivative`` for first and second derivatives along
+            a surface, ``finite_diff_derivative`` and
+            ``finite_diff_derivative_Fornberg`` for arbitrarily spaced
+            nodes, and ``compute_3dgrad_greengauss`` (with
+            ``build_element_neighbors``) for a volume Green-Gauss
+            gradient.
+        Clustering
+            ``GMM`` fits a Gaussian mixture, optionally running a BIC/AIC
+            sweep to choose the number of components, and writes out the
+            figures and tables.
+        Interpolation
+            The private ``_interpolate_*`` kernels (IDW, KD-tree IDW,
+            ``griddata``, PyVista) are the engines behind
+            ``sets.interpolate_msh2msh`` and ``sets.interpolate_vol2surf``.
+            Call them through ``sets``, not directly.
+
+        Notes
+        -----
+        Some methods take and return ``torch`` tensors and others numpy
+        arrays; check each signature. Every method is a
+        ``@staticmethod``.
+        """
 
         @staticmethod
         def sort_by_centroid(points: np.ndarray):
@@ -3719,6 +3974,42 @@ class SAM:
             return mesh_dst.sample(mesh_src).cell_data["values"]
 
     class DifferentialOperators:
+        """
+        Gradient, Jacobian and divergence on scattered points, by MLS.
+
+        These operators work on a point cloud with no connectivity: for
+        each point a local neighbourhood is gathered, a polynomial is
+        fitted to it by moving least squares, and the derivative is read
+        off the fitted coefficients. That makes them the tool of choice
+        when a mesh is unavailable or unreliable — which is the usual
+        situation for an extracted surface or a merged database.
+
+        The three public entry points share the same tuning parameters:
+        ``radius`` (neighbourhood size; inferred when omitted),
+        ``stencil_width`` (how many neighbours to fit through) and
+        ``poly_order`` (degree of the local fit, 2 by default).
+
+        Methods
+        -------
+        gradient
+            Gradient of a scalar field.
+        jacobian
+            Jacobian of a vector field.
+        divergence
+            Divergence of a vector field.
+
+        Notes
+        -----
+        All three build the same MLS operators through the private
+        ``_build_gradient_operators``, so computing several of them over
+        the same cloud repeats that work; the cost is dominated by the
+        neighbour search.
+
+        See Also
+        --------
+        SAM.Weapons.surface_derivative : derivatives along an ordered surface.
+        """
+
         @staticmethod
         def _polynomial_basis(
             DX,
@@ -4052,9 +4343,40 @@ class SAM:
     # DICT VISUALIZER
     # =========================================================================
     class DictVisualizer:
+        """
+        Inspect deeply nested dictionaries without drowning in arrays.
+
+        ``data_dict`` nests CAD groups, stages and variables several
+        levels deep, and its leaves are large arrays and DataFrames.
+        These helpers walk the structure and replace each leaf with a
+        one-line description of its type and shape, so the shape of the
+        whole becomes readable.
+
+        Methods
+        -------
+        rich_tree
+            Print as a tree. This is what ``FRODO.summary_data`` calls.
+        pretty_print
+            Indented text, with a depth limit and optional file output.
+        plot_graph
+            Render as a directed graph via networkx.
+
+        Examples
+        --------
+        ::
+
+            SAM.DictVisualizer.rich_tree(db.data_dict)
+            db.summary_data()                      # the same thing
+            SAM.DictVisualizer.pretty_print(db.data_dict, depth=3)
+        """
 
         @staticmethod
         def _simplify(obj):
+            """Describe one leaf value as a short type-and-shape string.
+
+            Arrays, tensors, DataFrames and meshes are summarised rather
+            than rendered; anything else is returned unchanged.
+            """
             if isinstance(obj, torch.Tensor):
                 return f"Torch Tensor(shape={tuple(obj.shape)}, dtype={obj.dtype})"
             elif isinstance(obj, np.ndarray):
