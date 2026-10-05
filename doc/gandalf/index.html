@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GANDALF</title>
+<style>
+:root{
+  --bg:#ffffff; --fg:#1c1f23; --muted:#6b7280; --line:#e3e6ea; --line2:#cbd2d9;
+  --accent:#2f6fd0; --accent-soft:#eaf1fc; --code-bg:#f6f7f9; --card:#ffffff;
+  --ok:#e7f5ec; --ok-fg:#1c6b3c; --no:#f3f4f6; --no-fg:#6b7280;
+  --warn-bd:#e4a11b; --warn-bg:#fdf7e8;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#14171a; --fg:#e6e8ea; --muted:#9aa3ad; --line:#272c31; --line2:#3a4249;
+  --accent:#6ba3f0; --accent-soft:#1b2838; --code-bg:#1b1f23; --card:#181c20;
+  --ok:#17301f; --ok-fg:#86d7a6; --no:#1e2226; --no-fg:#8b949e;
+  --warn-bd:#8a6d1f; --warn-bg:#241f12;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);line-height:1.55;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 1.1rem}
+code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+header{border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:20}
+.hrow{display:flex;align-items:center;gap:1rem;padding:.65rem 0;flex-wrap:wrap}
+.brand{font-weight:650;letter-spacing:-.01em;font-size:1.05rem;white-space:nowrap}
+.brand span{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:.5rem}
+.grow{flex:1 1 220px}
+#q{width:100%;padding:.42rem .7rem;border:1px solid var(--line2);border-radius:7px;
+  background:var(--bg);color:var(--fg);font-size:.9rem}
+#q:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+button{font:inherit;cursor:pointer;border:1px solid var(--line2);background:var(--bg);
+  color:var(--fg);border-radius:7px;padding:.35rem .7rem}
+button:hover{border-color:var(--accent)}
+
+.tabs{display:flex;gap:.1rem;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabs button{border:none;background:none;border-radius:0;padding:.5rem .8rem;
+  color:var(--muted);border-bottom:2px solid transparent;font-size:.92rem}
+.tabs button:hover{color:var(--fg)}
+.tabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabs button[disabled]{opacity:.4;cursor:not-allowed}
+.tabs.sub button{font-size:.88rem;padding:.4rem .7rem}
+.tabs.sub button[aria-selected=true]{color:var(--fg);border-bottom-color:var(--fg)}
+
+main{padding:1.2rem 0 4rem}
+h1{font-size:1.5rem;margin:.2rem 0 .1rem}
+h2{font-size:1.18rem;margin:1.8rem 0 .5rem}
+h3{font-size:1rem;margin:1.3rem 0 .35rem}
+p{margin:.5rem 0}
+.lead{color:var(--muted);margin:.1rem 0 1rem}
+.hidden{display:none!important}
+
+table{border-collapse:collapse;width:100%;margin:.6rem 0;font-size:.9rem}
+th,td{border:1px solid var(--line);padding:.4rem .55rem;text-align:left;vertical-align:top}
+th{background:var(--code-bg);font-weight:600}
+td.ok{background:var(--ok);color:var(--ok-fg)}
+td.none{background:var(--no);color:var(--no-fg)}
+
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;
+  padding:.7rem .85rem;overflow:auto;font-size:.84rem;line-height:1.5}
+code{background:var(--code-bg);border-radius:4px;padding:.06rem .3rem;font-size:.88em}
+pre code{background:none;padding:0}
+
+.card{border:1px solid var(--line);border-radius:10px;background:var(--card);
+  padding:.8rem 1rem;margin:.9rem 0}
+.note{border-left:3px solid var(--warn-bd);background:var(--warn-bg);
+  padding:.5rem .75rem;margin:.7rem 0;border-radius:0 6px 6px 0}
+.chip{display:inline-block;font-size:.73rem;border:1px solid var(--line2);
+  border-radius:999px;padding:.05rem .5rem;color:var(--muted);margin-right:.3rem}
+.chip.on{background:var(--ok);color:var(--ok-fg);border-color:transparent}
+.chip.off{background:var(--no);color:var(--no-fg);border-color:transparent}
+.badge{font-size:.7rem;border:1px solid var(--line2);border-radius:4px;
+  padding:0 .35rem;margin-left:.4rem;color:var(--muted);white-space:nowrap}
+.badge.priv{border-color:var(--warn-bd);color:var(--warn-bd)}
+.file{color:var(--muted);font-size:.8rem}
+
+details.meth{border-top:1px solid var(--line);padding:.4rem 0}
+details.meth:first-of-type{border-top:none}
+details.meth>summary{cursor:pointer;list-style:none;display:block}
+details.meth>summary::-webkit-details-marker{display:none}
+details.meth>summary::before{content:"▸";color:var(--muted);
+  display:inline-block;width:1em;font-size:.8em}
+details.meth[open]>summary::before{content:"▾"}
+.sig{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;
+  color:var(--fg);word-break:break-word}
+.sig b{color:var(--accent);font-weight:600}
+.msum{display:block;margin:.1rem 0 0 1em;color:var(--muted);font-size:.88rem}
+.mbody{margin:.5rem 0 .8rem 1em;padding-left:.8rem;border-left:2px solid var(--line)}
+.toolbar{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;
+  margin:.6rem 0;font-size:.87rem;color:var(--muted)}
+.pre-ish{white-space:pre-wrap;font-size:.93rem;margin:.5rem 0}
+.ex-src{font-size:.78rem;color:var(--muted);margin-top:-.4rem}
+</style>
+</head>
+<body>
+
+<header>
+ <div class="wrap hrow">
+  <div class="brand">GANDALF <span id="tagline"></span></div>
+  <div class="grow"><input type="search" id="q" placeholder=""></div>
+  <button id="lang">EN</button>
+ </div>
+ <div class="wrap"><div class="tabs" id="maintabs" role="tablist"></div></div>
+</header>
+
+<main class="wrap">
+ <section id="pane-home"></section>
+ <section id="pane-gandalf"></section>
+ <section id="pane-rings"></section>
+ <section id="pane-backpack"></section>
+ <section id="pane-trouble"></section>
+ <section id="pane-search"></section>
+</main>
+
+<script>
+let LANG='es', I18N={}, GUIDES={}, EXAMPLES={}, DOCS=[], RINGS={}, CLASSES={};
+const PANES=['home','gandalf','rings','backpack','trouble','search'];
+const BACKPACK='BaseRing.Backpack';
+
+/* Fases de la campaña, en el orden en que hay que ejecutarlas. 'other'
+   recoge todo lo que no esté listado, para que no se pierda nada si el
+   codigo gana metodos nuevos. */
+const PHASES=[
+ {key:'init',     methods:['__init__']},
+ {key:'cases',    methods:['define_cases']},
+ {key:'geometry', methods:['define_geom_file']},
+ {key:'params',   methods:['add_param','compute_param']},
+ {key:'folders',  methods:['generate_folders','_write_cases_metadata']},
+ {key:'slurm',    methods:['assign_jobs','submit_cases','recover_pending_jobs']},
+ {key:'other',    methods:[]},
+];
+const PHASED=new Set(PHASES.flatMap(p=>p.methods));
+
+let VIEW={pane:'home', sub:null, phase:null};
+let SHOW_PRIV=false;
+
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const inline=s=>esc(s).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+                      .replace(/`([^`]+)`/g,'<code>$1</code>');
+const el=(tag,cls,h)=>{const e=document.createElement(tag);
+  if(cls)e.className=cls; if(h!=null)e.innerHTML=h; return e;};
+const T=()=>I18N[LANG];
+
+async function load(){
+ const [i18n,guides,examples,docs]=await Promise.all([
+   fetch('i18n.json').then(r=>r.json()),
+   fetch('guides.json').then(r=>r.json()),
+   fetch('examples.json').then(r=>r.json()),
+   fetch('docs.json').then(r=>r.json()),
+ ]);
+ I18N=i18n; GUIDES=guides; EXAMPLES=examples.sections;
+ DOCS=docs.modules; RINGS=docs.rings;
+ DOCS.forEach(m=>m.classes.forEach(c=>{CLASSES[c.id]=c;}));
+ readHash(); render();
+}
+
+function readHash(){
+ const p=(location.hash||'').replace(/^#/,'').split('/').filter(Boolean);
+ if(p.length&&PANES.includes(p[0])){
+  VIEW.pane=p[0]; VIEW.sub=p[1]||null; VIEW.phase=p[2]||null;
+ }
+}
+function writeHash(){
+ let h=VIEW.pane;
+ if(VIEW.sub)h+='/'+VIEW.sub;
+ if(VIEW.sub&&VIEW.phase)h+='/'+VIEW.phase;
+ if(location.hash.replace(/^#/,'')!==h)history.replaceState(null,'','#'+h);
+}
+function go(patch){Object.assign(VIEW,patch);writeHash();render();}
+
+/* ── prosa, guías y ejemplos ───────────────────────────────────────────── */
+function prose(txt){
+ if(!txt)return '';
+ return txt.split(/\n\s*\n/).map(p=>{
+  const lines=p.replace(/\s+$/,'').split('\n');
+  if(!lines.join('').trim())return '';
+  const structured=lines.some((l,i)=>i>0&&/^\s+\S/.test(l));
+  return structured ? `<p class="pre-ish">${inline(p)}</p>`
+                    : `<p>${inline(lines.map(l=>l.trim()).join(' '))}</p>`;
+ }).join('');
+}
+function guideBlocks(key){
+ const box=el('div');
+ ((GUIDES[LANG]||{})[key]||[]).forEach(b=>{
+  if(b.t==='h')      box.appendChild(el('h3',null,esc(b.x)));
+  else if(b.t==='p') box.appendChild(el('p',null,inline(b.x)));
+  else if(b.t==='note')box.appendChild(el('div','note',inline(b.x)));
+  else if(b.t==='code'){const pre=el('pre');pre.textContent=b.x;box.appendChild(pre);}
+  else if(b.t==='table')box.appendChild(el('table',null,
+    '<thead><tr>'+b.head.map(h=>`<th>${inline(h)}</th>`).join('')+'</tr></thead><tbody>'
+    +b.rows.map(r=>'<tr>'+r.map(c=>`<td>${inline(c)}</td>`).join('')+'</tr>').join('')+'</tbody>'));
+ });
+ return box;
+}
+function examplesBlock(key){
+ const t=T(), list=EXAMPLES[key]||[], box=el('div');
+ if(!list.length)return box;
+ box.appendChild(el('h3',null,esc(t.examples_title)));
+ list.forEach(x=>{
+  const c=el('div','card');
+  c.appendChild(el('div',null,'<b>'+esc(x.title[LANG])+'</b>'));
+  c.appendChild(el('div','ex-src',esc(t.example_source)+': <code>'+esc(x.source)+'</code>'));
+  const pre=el('pre');pre.textContent=x.code;c.appendChild(pre);
+  if(x.note)c.appendChild(el('div','note',inline(x.note[LANG])));
+  box.appendChild(c);
+ });
+ return box;
+}
+
+/* ── métodos ───────────────────────────────────────────────────────────── */
+function defList(title,entries,typeOnly){
+ if(!entries||!entries.length)return '';
+ return `<p style="margin:.6rem 0 .2rem"><b>${esc(title)}</b></p><table>`
+  +entries.map(e=>{
+    const head=typeOnly?(e.type||e.name):(e.name+(e.type?` : ${e.type}`:''));
+    return `<tr><td class="mono" style="white-space:nowrap">${esc(head)}</td>`
+          +`<td>${inline(e.desc||'')}</td></tr>`;}).join('')+`</table>`;
+}
+function methodBody(md){
+ const t=T(), d=md.doc; let h='';
+ if(d.description)h+=prose(d.description);
+ h+=defList(t.ref_params,d.params,false);
+ h+=defList(t.ref_returns,d.returns,true);
+ h+=defList(t.ref_raises,d.raises,true);
+ h+=defList(t.ref_attributes,d.attributes,false);
+ h+=defList(t.ref_methods,d.methods,false);
+ (d.text_sections||[]).forEach(s=>{
+  h+=`<p style="margin:.6rem 0 .2rem"><b>${esc(s.title)}</b></p><pre>${esc(s.text)}</pre>`;});
+ return h||`<p class="lead">${esc(t.ref_nodoc)}</p>`;
+}
+function methodNode(md,origin){
+ const t=T(), det=el('details','meth');
+ const parts=md.signature.replace(/\(/,'\u0000').split('\u0000');
+ const ret=md.returns?` <span class="badge">→ ${esc(md.returns)}</span>`:'';
+ det.innerHTML=`<summary><span class="sig"><b>${esc(parts[0])}</b>(${esc(parts[1]||'')}</span>`
+  +`<span class="badge">${esc(md.kind)}</span>`
+  +(md.is_private?`<span class="badge priv">${esc(t.ref_private)}</span>`:'')
+  +(origin?`<span class="badge">${esc(origin)}</span>`:'')+ret
+  +`<span class="msum">${md.doc.summary?inline(md.doc.summary)
+      :'<i>'+esc(t.ref_nodoc)+'</i>'}</span></summary>`
+  +`<div class="mbody">${methodBody(md)}</div>`;
+ return det;
+}
+const visible=ms=>ms.filter(m=>SHOW_PRIV||!m.is_private);
+
+function classCard(id,heading){
+ const t=T(), c=CLASSES[id], card=el('div','card');
+ if(!c){card.appendChild(el('p','lead',esc(id)));return card;}
+ const ms=visible(c.methods);
+ card.appendChild(el('div',null,
+   `<b style="font-size:1.02rem">${esc(heading||c.id)}</b>`
+   +`<span class="badge">${ms.length} ${esc(t.n_methods)}</span>`));
+ const meta=[`${esc(t.defined_in)}: <code>${esc(c.file)}</code>`];
+ if(c.bases&&c.bases.length)meta.push(`${esc(t.bases)}: <code>${c.bases.map(esc).join(', ')}</code>`);
+ card.appendChild(el('div','file',meta.join(' · ')));
+ if(c.doc.summary)card.appendChild(el('p',null,inline(c.doc.summary)));
+ if(c.doc.description)card.appendChild(el('div',null,prose(c.doc.description)));
+ (c.doc.text_sections||[]).forEach(s=>{
+  card.appendChild(el('p',null,`<b>${esc(s.title)}</b>`));
+  const pre=el('pre');pre.textContent=s.text;card.appendChild(pre);});
+ const list=el('div');list.style.marginTop='.6rem';
+ ms.forEach(m=>list.appendChild(methodNode(m)));
+ card.appendChild(list);
+ return card;
+}
+
+/* ── pestañas ──────────────────────────────────────────────────────────── */
+function tabStrip(items,current,onPick,sub){
+ const strip=el('div','tabs'+(sub?' sub':''));
+ items.forEach(it=>{
+  const b=el('button',null,esc(it.label));
+  b.setAttribute('role','tab');
+  b.setAttribute('aria-selected',String(it.key===current));
+  if(it.title)b.title=it.title;
+  b.onclick=()=>onPick(it.key);
+  strip.appendChild(b);
+ });
+ return strip;
+}
+function privToggle(){
+ const t=T(), lab=el('label');
+ lab.innerHTML=`<input type="checkbox" ${SHOW_PRIV?'checked':''}> ${esc(t.ref_show_private)}`;
+ lab.querySelector('input').onchange=e=>{SHOW_PRIV=e.target.checked;render();};
+ const bar=el('div','toolbar');bar.appendChild(lab);
+ bar.appendChild(el('span',null,esc(t.ref_lang_note)));
+ return bar;
+}
+
+/* ── paneles ───────────────────────────────────────────────────────────── */
+function renderHome(){
+ const t=T(), p=document.getElementById('pane-home');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.home_title)));
+ p.appendChild(el('p','lead',esc(t.home_intro)));
+ p.appendChild(guideBlocks('map'));
+ p.appendChild(el('h2',null,esc(t.rings_table_title)));
+ const rows=Object.entries(RINGS).map(([r,cls])=>{
+  const c=CLASSES[cls]||{doc:{summary:''},file:''};
+  return `<tr><td><code>${esc(r)}</code></td><td><b>${esc(cls)}</b></td>`
+        +`<td>${inline(c.doc.summary||'')}</td></tr>`;}).join('');
+ p.appendChild(el('table',null,
+  `<thead><tr><th>ring</th><th>clase</th><th>&nbsp;</th></tr></thead><tbody>${rows}</tbody>`));
+ p.appendChild(el('p','lead',esc(t.rings_table_note)));
+ p.appendChild(examplesBlock('workflow'));
+}
+
+function renderGandalf(){
+ const t=T(), p=document.getElementById('pane-gandalf');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.gandalf_title)));
+ p.appendChild(el('p','lead',esc(t.gandalf_note)));
+ const items=[{key:'_guide',label:t.tab_guide},{key:'_class',label:t.tab_class}];
+ if(!items.some(i=>i.key===VIEW.sub))VIEW.sub='_guide';
+ p.appendChild(tabStrip(items,VIEW.sub,k=>go({sub:k,phase:null})));
+ const body=el('div');p.appendChild(body);
+ if(VIEW.sub==='_guide'){body.appendChild(guideBlocks('facade'));return;}
+ body.appendChild(examplesBlock('facade'));
+ body.appendChild(privToggle());
+ body.appendChild(classCard('GANDALF'));
+}
+
+function renderRings(){
+ const t=T(), p=document.getElementById('pane-rings');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.rings_title)));
+ p.appendChild(el('p','lead',esc(t.rings_note)));
+ const names=Object.keys(RINGS);
+ const items=[{key:'_guide',label:t.tab_guide}].concat(names.map(r=>({key:r,label:r})));
+ if(!items.some(i=>i.key===VIEW.sub))VIEW.sub='_guide';
+ p.appendChild(tabStrip(items,VIEW.sub,k=>go({sub:k,phase:null})));
+ const body=el('div');p.appendChild(body);
+ if(VIEW.sub==='_guide'){body.appendChild(guideBlocks('rings'));return;}
+
+ const cls=RINGS[VIEW.sub], c=CLASSES[cls];
+ body.appendChild(el('div','file',
+   `<code>${esc(cls)}</code> · ${esc(t.defined_in)}: <code>${esc(c?c.file:'')}</code>`
+   +(c&&c.bases.length?` · ${esc(t.bases)}: <code>${esc(c.bases.join(', '))}</code>`:'')));
+ if(c&&c.doc.summary)body.appendChild(el('p',null,inline(c.doc.summary)));
+ body.appendChild(examplesBlock(VIEW.sub));
+
+ /* Métodos del ring + los que hereda de BaseRing, menos el Backpack. */
+ const base=CLASSES['BaseRing'];
+ const own=new Set((c?c.methods:[]).map(m=>m.name));
+ const pool=(c?c.methods.map(m=>({m,origin:t.own})):[])
+   .concat(base?base.methods.filter(m=>!own.has(m.name)).map(m=>({m,origin:t.from_base})):[]);
+
+ const phaseItems=PHASES.map(ph=>({key:ph.key,label:t.phase[ph.key],title:t.phase_sub[ph.key]}));
+ if(!phaseItems.some(i=>i.key===VIEW.phase))VIEW.phase='init';
+ body.appendChild(tabStrip(phaseItems,VIEW.phase,k=>go({phase:k}),true));
+ body.appendChild(el('p','lead',esc(t.phase_sub[VIEW.phase])));
+
+ const spec=PHASES.find(x=>x.key===VIEW.phase);
+ const hits=visible(pool.map(x=>x.m).filter(m=>
+    spec.methods.length ? spec.methods.includes(m.name) : !PHASED.has(m.name)))
+   .map(m=>pool.find(x=>x.m===m));
+
+ body.appendChild(examplesBlock(VIEW.phase));
+ body.appendChild(privToggle());
+ if(!hits.length){body.appendChild(el('div','note',esc(t.phase_empty)));return;}
+ const card=el('div','card');
+ hits.forEach(x=>card.appendChild(methodNode(x.m,x.origin)));
+ body.appendChild(card);
+}
+
+function renderBackpack(){
+ const t=T(), p=document.getElementById('pane-backpack');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.backpack_title)));
+ p.appendChild(el('p','lead',esc(t.backpack_note)));
+ p.appendChild(examplesBlock('backpack'));
+ p.appendChild(privToggle());
+ p.appendChild(classCard(BACKPACK));
+}
+
+function renderTrouble(){
+ const t=T(), p=document.getElementById('pane-trouble');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.trouble_title)));
+ p.appendChild(el('p','lead',esc(t.trouble_note)));
+ p.appendChild(guideBlocks('trouble'));
+}
+
+function renderSearch(q){
+ const t=T(), p=document.getElementById('pane-search');p.innerHTML='';
+ p.appendChild(el('h1',null,esc(t.search_results)));
+ const needle=q.toLowerCase(); let n=0;
+ Object.values(CLASSES).forEach(c=>{
+  const hits=visible(c.methods).filter(m=>[m.id,m.signature,m.doc.summary,
+    m.doc.description,...(m.doc.params||[]).map(x=>x.name)].join(' ').toLowerCase().includes(needle));
+  if(!hits.length)return;
+  n+=hits.length;
+  const card=el('div','card');
+  card.appendChild(el('div',null,`<b>${esc(c.id)}</b> <span class="file">${esc(c.file)}</span>`));
+  hits.forEach(m=>card.appendChild(methodNode(m)));
+  p.appendChild(card);});
+ if(!n)p.appendChild(el('p','lead',esc(t.search_empty)));
+}
+
+/* ── render global ─────────────────────────────────────────────────────── */
+function render(){
+ const t=T(), other=LANG==='es'?'en':'es';
+ document.documentElement.lang=LANG;
+ document.getElementById('lang').textContent=other.toUpperCase();
+ document.getElementById('tagline').textContent=t.tagline;
+ document.getElementById('q').placeholder=t.search_placeholder;
+
+ const q=document.getElementById('q').value.trim();
+ const pane=q?'search':VIEW.pane;
+
+ const strip=document.getElementById('maintabs');strip.innerHTML='';
+ ['home','gandalf','rings','backpack','trouble'].forEach(k=>{
+  const b=el('button',null,esc(t.nav[k]));
+  b.setAttribute('role','tab');
+  b.setAttribute('aria-selected',String(k===pane));
+  b.onclick=()=>{document.getElementById('q').value='';go({pane:k,sub:null,phase:null});};
+  strip.appendChild(b);});
+ if(q){
+  const b=el('button',null,'✕ '+esc(t.search_back));
+  b.onclick=()=>{document.getElementById('q').value='';render();};
+  strip.appendChild(b);}
+
+ PANES.forEach(k=>document.getElementById('pane-'+k).classList.toggle('hidden',k!==pane));
+ if(pane==='home')    renderHome();
+ if(pane==='gandalf') renderGandalf();
+ if(pane==='rings')   renderRings();
+ if(pane==='backpack')renderBackpack();
+ if(pane==='trouble') renderTrouble();
+ if(pane==='search')  renderSearch(q);
+ if(!q)writeHash();
+}
+
+let tid=null;
+document.getElementById('q').addEventListener('input',()=>{clearTimeout(tid);tid=setTimeout(render,120);});
+document.getElementById('lang').addEventListener('click',()=>{LANG=LANG==='es'?'en':'es';render();});
+window.addEventListener('hashchange',()=>{readHash();render();});
+load();
+</script>
+</body>
+</html>

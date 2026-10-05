@@ -1,0 +1,206 @@
+{
+  "sections": {
+    "workflow": [
+      {
+        "title": {
+          "es": "La campaña completa, de principio a fin",
+          "en": "The whole campaign, start to finish"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "import os, pandas as pd\nfrom FotR import GANDALF\nfrom FotR.characters.rings import BaseRing      # para el Backpack\n\ndataset_dir = '/home/m.jaraiz/Documentos/DATASETS/data_TIFON'\ndf_post = pd.read_csv(os.path.join(dataset_dir,\n                      'rans3_#280_airfoil/metadata/df_post.csv'),\n                      usecols=['aoa', 'mach', 'h', 'case_idx', 're'])\n\n# 1 ─ el ring\ngdf = GANDALF(os.path.join(dataset_dir, 'rans5'),\n              eq_type='rans', num_stages=2,\n              version='flowsimulator2024', ring='coda')\n\n# 2 ─ los casos\ngdf.define_cases(method='external', external_dataframe=df_post[['aoa', 'mach']])\n\n# 3 ─ la geometría (de aquí sale la cuerda)\ngdf.define_geom_file(\n    geom_file_path=os.path.join(dataset_dir, 'airfoil_files', 'eta_0_0.csv'),\n    sep=',', decimal='.', header='infer', cols_idx=[1, 3], normalize=False,\n)\nc  = gdf.array_ptos[:, 0].max() - gdf.array_ptos[:, 0].min()\ncm = -c / 4\n\n# 4 ─ parámetros derivados\nT, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\nmu = BaseRing.Backpack.Sutherland_law(mu0=1.716e-5, T=T, Treference=255.55)\ngdf.compute_param(name='re', formula='L * Mach*sqrt(1.4*287*T)*rho/mu',\n                  externals={'rho': rho, 'mu': mu, 'L': c, 'T': T})\n\n# 5 ─ las carpetas\ngdf.generate_folders(\n    base_files=['run_sst_v5.py', 'run.sh'],\n    mesh_path=os.path.join(dataset_dir, 'GCI/meshes/mesh_f22_v8_f0.75.msh'),\n    script_dir=os.path.join(dataset_dir, 'sources'),\n    folder_fmt='aoa_{AoA:.4f}_mach_{Mach:.4f}',\n    overwrite=False, update_base_files=True,\n    data_to_update={'AOA_PLACEHOLDER': 'AoA', 'MACH_PLACEHOLDER': 'Mach',\n                    'PYTHON_FILE_PLACEHOLDER': 'run_sst_v5.py',\n                    'CHORD_PLACEHOLDER': str(c), 'CM_PLACEHOLDER': str(cm)})\n\n# 6 ─ a la cola\ngdf.assign_jobs(file_sh='run.sh', nodes=['n005', 'n007'],\n                cpus_per_job=48, submit=True)\ngdf.submit_cases()",
+        "note": {
+          "es": "El orden no es negociable: cada paso comprueba que el anterior corrió y, si no, lanza `RuntimeError`. `compute_param` usa los nombres de columna **tal y como los creó** `define_cases`.",
+          "en": "The order is not negotiable: each step checks the previous one ran and raises `RuntimeError` otherwise. `compute_param` uses the column names **exactly as** `define_cases` created them."
+        }
+      }
+    ],
+    "facade": [
+      {
+        "title": {
+          "es": "Construir el ring y comprobar cuál llevas",
+          "en": "Build the ring and check which one you are carrying"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "from FotR import GANDALF\n\ngdf = GANDALF(\n    '/data/TIFON/rans5',\n    eq_type='rans',          # 'euler' o 'rans'\n    num_stages=2,            # obligatorio: sin esto, ValueError\n    version='flowsimulator2024',\n    ring='coda',             # 'coda' (por defecto) o 'coda_single'\n)\n\nprint(gdf)                   # GANDALF(ring=CODARing)\nprint(gdf.root_dir)          # atributo del ring, servido por delegación\nprint([m for m in dir(gdf) if not m.startswith('_')][:8])",
+        "note": {
+          "es": "`gdf` no guarda nada propio: todo lo sirve el ring. `__dir__` está sobrescrito para que el autocompletado muestre los métodos del ring.",
+          "en": "`gdf` owns nothing of its own: the ring serves everything. `__dir__` is overridden so tab-completion shows the ring's methods."
+        }
+      }
+    ],
+    "backpack": [
+      {
+        "title": {
+          "es": "Atmósfera ISA y viscosidad: la ruta correcta",
+          "en": "ISA atmosphere and viscosity: the correct route"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "# ✗ NO funciona — ninguna de las dos:\n#   GANDALF.Backpack.isa_atmosphere(h=11000)\n#       AttributeError: type object 'GANDALF' has no attribute 'Backpack'\n#   gdf.Backpack.isa_atmosphere(h=11000)\n#       AttributeError: 'GANDALF' object has no attribute 'Backpack'\n\n# ✓ SÍ funciona:\nfrom FotR.characters.rings import BaseRing\n\nT, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\nmu = BaseRing.Backpack.Sutherland_law(mu0=1.716e-5, T=T, Treference=255.55)\n\nprint(T, P, rho, mu)\n# 216.65  22631.7  0.363916  1.498819e-05",
+        "note": {
+          "es": "`Backpack` está en `GANDALF._NON_DELEGATED`: es lo único que la fachada **no** pasa al ring. Y `from FotR import BaseRing` tampoco vale, porque `BaseRing` no se re-exporta en `FotR/__init__.py`.",
+          "en": "`Backpack` is in `GANDALF._NON_DELEGATED`: it is the one thing the facade does **not** forward to the ring. And `from FotR import BaseRing` does not work either, because `BaseRing` is not re-exported in `FotR/__init__.py`."
+        }
+      },
+      {
+        "title": {
+          "es": "Mirar la cola de Slurm sin salir de Python",
+          "en": "Inspect the Slurm queue without leaving Python"
+        },
+        "source": "examples/gandalf/TIFON1.ipynb",
+        "code": "from FotR.characters.rings import BaseRing\n\n# Opciones de squeue, como listas o tuplas anidadas\nBaseRing.Backpack.squeue_terminal([('-u', 'm.jaraiz'), ('-o', '%.18i %.9P %.30j %.8T %R')])\n\n# CPUs libres/usadas por nodo: sinfo -N -o '%n %C'\nBaseRing.Backpack.sinfocpu_terminal()",
+        "note": {
+          "es": "Ambas devuelven el `stdout` y además lo registran por `logging`. Si no estás en un clúster con Slurm, avisan por log en vez de romper.",
+          "en": "Both return `stdout` and also log it. Off a Slurm cluster they warn through the log instead of breaking."
+        }
+      },
+      {
+        "title": {
+          "es": "Normalizar un perfil a cuerda 1",
+          "en": "Normalise an aerofoil to unit chord"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "from FotR.characters.rings import BaseRing\n\n# ¡Cuidado! Con un array float64 modifica la entrada EN SITIO.\ncoords_norm = BaseRing.Backpack.normalize_airfoil(coords.copy())\n\n# También se aplica solo, desde define_geom_file:\ngdf.define_geom_file(geom_file_path=..., cols_idx=[1, 3], normalize=True)",
+        "note": {
+          "es": "`np.asarray` solo copia cuando tiene que cambiar el dtype, así que con `float64` te deja el array original desplazado y escalado. Pasa siempre `.copy()` si lo necesitas intacto.",
+          "en": "`np.asarray` only copies when it must change the dtype, so with `float64` it leaves your original array shifted and scaled. Always pass `.copy()` if you need it intact."
+        }
+      }
+    ],
+    "cases": [
+      {
+        "title": {
+          "es": "Casos desde un DataFrame existente",
+          "en": "Cases from an existing DataFrame"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "df_post = pd.read_csv('.../metadata/df_post.csv', usecols=['aoa', 'mach', 'h'])\n\ngdf.define_cases(\n    method='external',\n    external_dataframe=df_post[['aoa', 'mach']],\n)\n\nprint(gdf.design_vars)      # ['aoa', 'mach'] — los nombres salen de las columnas\nprint(gdf.case_tensor.shape)",
+        "note": {
+          "es": "Con `'external'`, los nombres de las design vars son **los de las columnas que pasas**. Son los que después tienen que aparecer en `folder_fmt` y en las fórmulas de `compute_param`.",
+          "en": "With `'external'`, the design-var names are **those of the columns you pass**. They are the ones that must later appear in `folder_fmt` and in `compute_param` formulas."
+        }
+      },
+      {
+        "title": {
+          "es": "Muestreo del espacio de diseño (Halton / LHS)",
+          "en": "Design-space sampling (Halton / LHS)"
+        },
+        "source": "examples/gandalf/cylinder.ipynb",
+        "code": "gdf.define_cases(\n    method='Halton',                       # 'halton', 'lhs' o 'external'\n    bounds={'AoA': (0.0, 5.0), 'Mach': (0.8, 1.1), 'h': 11000},\n    n_samples=80,\n    peak_ranges={'AoA': None, 'Mach': (0.95, 1.05)},   # densificar el transónico\n    range_sigma=2.0,\n    seed=42,\n)",
+        "note": {
+          "es": "Un valor escalar en `bounds` (como `'h': 11000`) es una constante, no un rango. `peak_ranges` concentra puntos en una franja mediante una gaussiana truncada; `range_sigma` controla cuánto.",
+          "en": "A scalar in `bounds` (like `'h': 11000`) is a constant, not a range. `peak_ranges` concentrates points in a band through a truncated Gaussian; `range_sigma` controls how much."
+        }
+      }
+    ],
+    "geometry": [
+      {
+        "title": {
+          "es": "Leer el perfil y sacar la cuerda",
+          "en": "Read the aerofoil and get the chord"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "gdf.define_geom_file(\n    geom_file_path=os.path.join(dataset_dir, 'airfoil_files', 'eta_0_0.csv'),\n    sep=',', decimal='.', header='infer',   # kwargs que van a pd.read_csv\n    cols_idx=[1, 3],                        # qué columnas son x e y\n    normalize=False,\n)\n\nc  = gdf.array_ptos[:, 0].max() - gdf.array_ptos[:, 0].min()\ncm = -c / 4            # la malla ya tiene el borde de ataque en x=0",
+        "note": {
+          "es": "`cols_idx` indexa las columnas del CSV ya leído, no sus nombres. El resultado queda en `gdf.df_geom` (crudo) y `gdf.array_ptos` (las dos columnas elegidas).",
+          "en": "`cols_idx` indexes the columns of the CSV as read, not their names. The result lands in `gdf.df_geom` (raw) and `gdf.array_ptos` (the two chosen columns)."
+        }
+      }
+    ],
+    "params": [
+      {
+        "title": {
+          "es": "Parámetro derivado por fórmula",
+          "en": "Derived parameter from a formula"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\nmu = BaseRing.Backpack.Sutherland_law(mu0=1.716e-5, T=T, Treference=255.55)\n\ngdf.compute_param(\n    name='re',\n    formula='L * Mach*sqrt(1.4*287*T)*rho/mu',\n    externals={'rho': rho, 'mu': mu, 'L': c, 'T': T},\n)\nprint(gdf.df_cases.columns)",
+        "note": {
+          "es": "La fórmula se evalúa con un parser restringido, **no con `eval`**: solo acepta columnas de `df_cases`, claves de `externals`, números, `+ - * / ** %`, `sin cos exp log sqrt`, `pi` y el espacio `np.`. Cualquier otro nombre es `ValueError`.",
+          "en": "The formula is evaluated by a restricted parser, **not `eval`**: only `df_cases` columns, `externals` keys, numbers, `+ - * / ** %`, `sin cos exp log sqrt`, `pi` and the `np.` namespace. Any other name raises `ValueError`."
+        }
+      },
+      {
+        "title": {
+          "es": "Columna desde un array que ya tienes",
+          "en": "Column from an array you already have"
+        },
+        "source": "examples/gandalf/cylinder.ipynb",
+        "code": "import numpy as np\n\nRe = np.linspace(9.28e5, 1.97e6, 6)\ngdf.add_param(name='Re', data=Re)     # una fila por caso, en el mismo orden",
+        "note": {
+          "es": "`add_param` no calcula nada: exige un array de longitud exactamente `len(df_cases)`. Para algo derivado, usa `compute_param`.",
+          "en": "`add_param` computes nothing: it requires an array of length exactly `len(df_cases)`. For anything derived, use `compute_param`."
+        }
+      }
+    ],
+    "folders": [
+      {
+        "title": {
+          "es": "Generar las carpetas y sustituir los placeholders",
+          "en": "Generate the folders and substitute the placeholders"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "gdf.generate_folders(\n    base_files=['run_sst_v5.py', 'run.sh'],\n    mesh_path='.../GCI/meshes/mesh_f22_v8_f0.75.msh',   # malla única, ring 'coda'\n    script_dir=os.path.join(dataset_dir, 'sources'),\n    folder_fmt='aoa_{AoA:.4f}_mach_{Mach:.4f}',\n    overwrite=False,\n    update_base_files=True,\n    data_to_update={\n        'AOA_PLACEHOLDER': 'AoA',          # nombre de columna -> valor del caso\n        'MACH_PLACEHOLDER': 'Mach',\n        'CHORD_PLACEHOLDER': str(c),       # no es columna -> literal\n    },\n)",
+        "note": {
+          "es": "En `data_to_update`, un valor que coincide con una columna de `df_cases` se sustituye caso a caso; cualquier otra cosa se escribe tal cual como literal. Las llaves de `folder_fmt` tienen que ser nombres de design vars.",
+          "en": "In `data_to_update`, a value matching a `df_cases` column is substituted per case; anything else is written verbatim as a literal. The braces in `folder_fmt` must be design-var names."
+        }
+      }
+    ],
+    "slurm": [
+      {
+        "title": {
+          "es": "Repartir por nodos y lanzar",
+          "en": "Spread across nodes and launch"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "gdf.assign_jobs(\n    file_sh='run.sh',\n    nodes=[f'n00{n}' for n in [5, 7]],\n    cpus_per_job=48,\n    submit=True,        # escribe nodo y CPUs en cada run.sh\n)\n\ngdf.submit_cases()      # esto es lo que de verdad hace sbatch",
+        "note": {
+          "es": "`assign_jobs(submit=True)` **no lanza nada**: solo edita los scripts. La cola no ve nada hasta `submit_cases()`. Si te quedaste a medias, `recover_pending_jobs()` reasigna los casos de un nodo caído.",
+          "en": "`assign_jobs(submit=True)` **launches nothing**: it only edits the scripts. The queue sees nothing until `submit_cases()`. If you were left half-way, `recover_pending_jobs()` reassigns the cases of a dead node."
+        }
+      }
+    ],
+    "coda": [
+      {
+        "title": {
+          "es": "Una malla compartida por todos los casos",
+          "en": "One mesh shared by every case"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "gdf = GANDALF(root, eq_type='rans', num_stages=2, ring='coda')   # por defecto\n\ngdf.generate_folders(\n    base_files=['run_sst_v5.py', 'run.sh'],\n    mesh_path='.../mesh_f22_v8_f0.75.msh',   # UNA ruta, en singular\n    script_dir=sources,\n    folder_fmt='aoa_{AoA:.4f}_mach_{Mach:.4f}',\n)",
+        "note": {
+          "es": "Es el comportamiento histórico y el que lee después FRODO con `format='CODA'`. La misma malla se copia en todas las carpetas.",
+          "en": "This is the historical behaviour, and what FRODO later reads with `format='CODA'`. The same mesh is copied into every folder."
+        }
+      }
+    ],
+    "coda_single": [
+      {
+        "title": {
+          "es": "Una malla distinta por caso (estudio GCI)",
+          "en": "A different mesh per case (GCI study)"
+        },
+        "source": "examples/gandalf/codasingle.ipynb",
+        "code": "mesh_factors = [0.75, 0.85, 0.95]\nMESHES = {f: f'mesh_f22_v8_f{f}.msh' for f in mesh_factors}\n\ngdf = GANDALF(root, eq_type='rans', num_stages=2,\n              version='flowsimulator2024', ring='coda_single')\n\ngdf.define_cases(\n    method='external',\n    external_dataframe=pd.DataFrame({\n        'aoa':  [aoa]  * len(mesh_factors),\n        'mach': [mach] * len(mesh_factors),\n        'mesh': mesh_factors,          # el factor de refinado es design var\n    }),\n)\n\ngdf.generate_folders(\n    base_files=['run_sst_v4.py', 'run.sh'],\n    mesh_paths=[os.path.join(GCI_DIR, 'meshes', MESHES[m])\n                for m in mesh_factors],   # UNA POR CASO, en orden\n    script_dir=SOURCES_DIR,\n    folder_fmt='f{mesh:g}',\n)",
+        "note": {
+          "es": "La diferencia con `coda` es `mesh_paths` (lista, posición *i* ↔ caso *i*) en vez de `mesh_path`. Lo lee después FRODO con `format='CODA_SINGLE'`.",
+          "en": "The difference from `coda` is `mesh_paths` (a list, position *i* ↔ case *i*) instead of `mesh_path`. FRODO later reads it with `format='CODA_SINGLE'`."
+        }
+      }
+    ],
+    "init": [
+      {
+        "title": {
+          "es": "Crear el ring",
+          "en": "Create the ring"
+        },
+        "source": "examples/gandalf/TIFON2.ipynb",
+        "code": "from FotR import GANDALF\n\n# malla compartida (por defecto)\ngdf = GANDALF('/data/TIFON/rans5', eq_type='rans', num_stages=2,\n              version='flowsimulator2024', ring='coda')\n\n# una malla por caso\ngdf = GANDALF('/data/TIFON/GCI/aoa_1.000_m_0.800',\n              eq_type='rans', num_stages=2,\n              version='flowsimulator2024', ring='coda_single')",
+        "note": {
+          "es": "`num_stages` es obligatorio aunque la firma diga `None`: sin él, `ValueError`. `root_dir` y `root_dir/metadata` se crean ya; `outputs/` espera a `generate_folders`.",
+          "en": "`num_stages` is required even though the signature says `None`: without it, `ValueError`. `root_dir` and `root_dir/metadata` are created right away; `outputs/` waits for `generate_folders`."
+        }
+      }
+    ]
+  }
+}

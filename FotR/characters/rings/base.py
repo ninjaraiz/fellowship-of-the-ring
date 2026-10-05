@@ -55,8 +55,45 @@ class BaseRing:
         num_stages: Optional[int] = None,
         **kwargs
     ) -> None:
-        """
-        Initializes the CFD case manager.
+        """Create the ring and lay out ``root_dir`` on disk.
+
+        ``root_dir`` and ``root_dir/metadata`` are created immediately;
+        ``outputs/`` is created later, by ``generate_folders``.
+
+        Parameters
+        ----------
+        root_dir : str
+            Dataset root directory.
+        eq_type : str, optional
+            ``'euler'`` or ``'rans'`` (case-insensitive). Default
+            ``'rans'``.
+        num_stages : int
+            Number of solver stages. **Required**: there is no default,
+            and omitting it raises ``ValueError``.
+        **kwargs
+            Only ``version`` is read (stored as :attr:`version` and
+            written into ``cases_metadata.json``); anything else is
+            ignored silently.
+
+        Raises
+        ------
+        ValueError
+            If *eq_type* is not ``'euler'`` or ``'rans'``, or if
+            *num_stages* is left as ``None``.
+
+        Attributes
+        ----------
+        case_tensor : numpy.ndarray or None
+            ``(n_cases, n_design_vars)``. Filled by ``define_cases``.
+        design_vars : list or None
+            Column names of ``case_tensor``, in order.
+        df_cases : pandas.DataFrame or None
+            One row per case. ``define_cases`` creates it;
+            ``add_param``/``compute_param`` add columns;
+            ``generate_folders`` adds ``folder`` and ``exist``.
+        df_geom, array_ptos
+            Geometry read by ``define_geom_file``. ``array_ptos`` is the
+            ``(N, 2)`` array of the selected columns.
         """
         self.root_dir = root_dir
         self.eq_type = eq_type.lower()
@@ -245,8 +282,26 @@ class BaseRing:
         name: str = "param",
         data: Optional[np.ndarray] = None
     ) -> None:
-        """
-        Add a new parameter to the cases DataFrame. The data must be provided as a external numpy array. For calculated data, use compute_param().
+        """Add a column to ``df_cases`` from an array you already have.
+
+        For a value derived from existing columns use
+        :meth:`compute_param` instead, which takes a formula.
+
+        Parameters
+        ----------
+        name : str, optional
+            Name of the new column. Default ``'param'``.
+        data : numpy.ndarray
+            Values, one per case. Flattened with ``ravel()`` and cast to
+            float, so its length must equal ``len(df_cases)``.
+
+        Raises
+        ------
+        RuntimeError
+            If ``define_cases`` has not run yet.
+        ValueError
+            If *data* is ``None``, or its length does not match the
+            number of cases.
         """
         if self.df_cases is None:
             raise RuntimeError(
@@ -552,8 +607,26 @@ class BaseRing:
                     )
 
     def submit_cases(self) -> None:
-        """
-        Submit all case jobs using their respective shell scripts.
+        """Run ``sbatch`` on every case folder, in case order.
+
+        Each job is submitted from inside its own case directory, so
+        relative paths in the shell script resolve as the solver
+        expects. A case whose script is missing is logged and skipped
+        rather than aborting the batch.
+
+        Raises
+        ------
+        RuntimeError
+            If ``generate_folders`` has not run (no folders), if
+            ``assign_jobs`` has not run (no ``file_sh`` selected), or if
+            ``sbatch`` is not on PATH — i.e. you are not on a Slurm
+            cluster.
+
+        Notes
+        -----
+        This actually launches the campaign. ``assign_jobs(submit=True)``
+        only writes the node and CPU count into each script; nothing
+        reaches the queue until this call.
         """
         output_dir = os.path.join(self.root_dir, 'outputs')
         casos = getattr(self, 'folders_name', None)
@@ -1155,6 +1228,44 @@ class BaseRing:
         return recovered_jobs
 
     class Backpack:
+        """
+        Standalone helpers for building a case campaign.
+
+        Atmosphere and fluid properties (:meth:`isa_atmosphere`,
+        :meth:`Sutherland_law`), geometry conditioning
+        (:meth:`normalize_airfoil`), Slurm inspection
+        (:meth:`squeue_terminal`, :meth:`sinfocpu_terminal`) and the
+        sampling warp used by :meth:`BaseRing.define_cases`
+        (``_warp_variable``). Everything is a ``@staticmethod``: the
+        Backpack is never instantiated and holds no state.
+
+        Notes
+        -----
+        **This is reachable as ``BaseRing.Backpack``, never as
+        ``GANDALF.Backpack``.** The GANDALF facade forwards attribute
+        lookups to its ring, but ``'Backpack'`` is listed in
+        ``GANDALF._NON_DELEGATED`` and is deliberately excluded, so both
+        ``GANDALF.Backpack`` (on the class) and ``gdf.Backpack`` (on an
+        instance) raise ``AttributeError``. Import the ring instead::
+
+            from FotR.characters.rings import BaseRing
+            T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)
+
+        ``BaseRing`` is not re-exported by ``FotR``, so
+        ``from FotR import BaseRing`` does not work either. A concrete
+        ring also inherits it (``CODARing.Backpack`` is the same object).
+
+        Examples
+        --------
+        ::
+
+            from FotR.characters.rings import BaseRing
+
+            T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)
+            mu = BaseRing.Backpack.Sutherland_law(
+                mu0=1.716e-5, T=T, Treference=255.55,
+            )
+        """
 
         @staticmethod
         def _warp_variable(u, bounds, peak_range=None, range_sigma=3):
@@ -1224,9 +1335,31 @@ class BaseRing:
 
         @staticmethod
         def normalize_airfoil(coords: Union[np.ndarray, "torch.Tensor"]):
-            """
-            Normalise an Nx2 airfoil to chord 1 with the leading edge at x = 0.
-            Works on a copy: the input array is never modified.
+            """Normalise an Nx2 airfoil to chord 1, leading edge at x = 0.
+
+            Parameters
+            ----------
+            coords : numpy.ndarray or torch.Tensor
+                ``(N, 2)`` array of x, y coordinates.
+
+            Returns
+            -------
+            numpy.ndarray or torch.Tensor
+                Same type as the input, scaled by the chord.
+
+            Raises
+            ------
+            ValueError
+                If *coords* is not two-dimensional with two columns.
+
+            Warnings
+            --------
+            **The input is modified in place when it is already a float
+            array.** ``np.asarray`` only copies when it has to change
+            the dtype, so passing a ``float64`` array leaves the
+            caller's array shifted and scaled; passing an integer array
+            happens to copy. Pass ``coords.copy()`` if you need to keep
+            the original.
             """
             import torch as _torch
 
@@ -1318,7 +1451,34 @@ class BaseRing:
 
         @staticmethod
         def Sutherland_law(mu0, T, Treference):
-            """
-            Sutherland viscosity law with reference values.
+            """Dynamic viscosity from Sutherland's law.
+
+            Parameters
+            ----------
+            mu0 : float
+                Reference viscosity [Pa·s], e.g. ``1.716e-5`` for air.
+            T : float or numpy.ndarray
+                Temperature [K] at which to evaluate the viscosity.
+            Treference : float
+                Reference temperature [K] matching *mu0*, e.g.
+                ``255.55``.
+
+            Returns
+            -------
+            float or numpy.ndarray
+                Dynamic viscosity [Pa·s], same shape as *T*.
+
+            Notes
+            -----
+            The Sutherland constant is hard-coded to 110.4 K (air).
+
+            Examples
+            --------
+            ::
+
+                T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)
+                mu = BaseRing.Backpack.Sutherland_law(
+                    mu0=1.716e-5, T=T, Treference=255.55,
+                )
             """
             return mu0 * (T / Treference) ** 1.5 * (Treference + 110.4) / (T + 110.4)

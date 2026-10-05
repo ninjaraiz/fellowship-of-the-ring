@@ -1,0 +1,1116 @@
+{
+  "rings": {
+    "coda": "CODARing",
+    "coda_single": "CODASingleRing"
+  },
+  "modules": [
+    {
+      "file": "FotR/characters/gandalf.py",
+      "classes": [
+        {
+          "id": "GANDALF",
+          "file": "FotR/characters/gandalf.py",
+          "parent": null,
+          "bases": [],
+          "doc": {
+            "summary": "GANDALF: Great Algorithm to N — case definition and SLURM launching.",
+            "description": "",
+            "params": [
+              {
+                "name": "root_dir",
+                "type": "str",
+                "desc": "Dataset root directory."
+              },
+              {
+                "name": "eq_type",
+                "type": "str",
+                "desc": "``'euler'`` or ``'rans'``."
+              },
+              {
+                "name": "num_stages",
+                "type": "int",
+                "desc": "Number of solver stages (required)."
+              },
+              {
+                "name": "ring",
+                "type": "str",
+                "desc": "Case-generation ring: ``'coda'`` (single shared mesh, default) or ``'coda_single'`` (one mesh per case via ``mesh_paths``). Keyword-only; historical positional calls are unaffected."
+              },
+              {
+                "name": "**kwargs",
+                "type": "",
+                "desc": "Forwarded to the ring (see :class:`BaseRing`)."
+              },
+              {
+                "name": "All other attributes and methods are served by the ring itself",
+                "type": "",
+                "desc": ""
+              },
+              {
+                "name": "(``define_cases``, ``generate_folders``, ``assign_jobs``,",
+                "type": "",
+                "desc": ""
+              },
+              {
+                "name": "``submit_cases``, ``recover_pending_jobs``, …), except ``Backpack``,",
+                "type": "",
+                "desc": ""
+              },
+              {
+                "name": "which is only available as ``BaseRing.Backpack`` and is deliberately",
+                "type": "",
+                "desc": ""
+              },
+              {
+                "name": "not delegated.",
+                "type": "",
+                "desc": ""
+              },
+              {
+                "name": "Attribute writes (except ``_ring`` itself) are forwarded to the",
+                "type": "",
+                "desc": ""
+              },
+              {
+                "name": "ring, so the facade and the ring never diverge.",
+                "type": "",
+                "desc": ""
+              }
+            ],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "GANDALF.some_light",
+              "class": "GANDALF",
+              "name": "some_light",
+              "signature": "some_light(name=None)",
+              "returns": "",
+              "kind": "classmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light help system.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "GANDALF.__init__",
+              "class": "GANDALF",
+              "name": "__init__",
+              "signature": "__init__(root_dir: str, eq_type: str = 'rans', num_stages: Optional[int] = None, **kwargs)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Create the facade over the selected ring (default ``'coda'``).",
+                "description": "",
+                "params": [
+                  {
+                    "name": "root_dir",
+                    "type": "str",
+                    "desc": "Dataset root directory, forwarded to the ring."
+                  },
+                  {
+                    "name": "eq_type",
+                    "type": "str, optional",
+                    "desc": "``'euler'`` or ``'rans'``. Default ``'rans'``."
+                  },
+                  {
+                    "name": "num_stages",
+                    "type": "int",
+                    "desc": "Number of solver stages. Required by the ring."
+                  },
+                  {
+                    "name": "**kwargs",
+                    "type": "",
+                    "desc": "``ring`` selects the generation policy: ``'coda'`` (one shared mesh, the default) or ``'coda_single'`` (one mesh per case). It is popped here; **everything else is forwarded verbatim to the ring constructor**, where only ``version`` is read."
+                  }
+                ],
+                "returns": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *ring* is not a key of ``RING_REGISTRY``, if *eq_type* is invalid, or if *num_stages* is missing."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Examples",
+                    "text": "::\n\n    from FotR import GANDALF\n\n    gdf = GANDALF(\n        '/data/TIFON/rans5',\n        eq_type='rans', num_stages=2,\n        version='flowsimulator2024', ring='coda',\n    )"
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "GANDALF.__getattr__",
+              "class": "GANDALF",
+              "name": "__getattr__",
+              "signature": "__getattr__(name)",
+              "returns": "",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Delegate everything (except dunders and Backpack) to the ring.",
+                "description": "The facade owns almost nothing: ``define_cases``,\n``define_geom_file``, ``add_param``, ``compute_param``,\n``generate_folders``, ``assign_jobs``, ``submit_cases``,\n``recover_pending_jobs`` and every data attribute\n(``df_cases``, ``case_tensor``, ``array_ptos``, ``root_dir``, …)\nare served by the ring, so a GANDALF behaves like the ring it\nwraps.",
+                "params": [
+                  {
+                    "name": "name",
+                    "type": "str",
+                    "desc": "Attribute being looked up."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "object",
+                    "desc": "The attribute taken from the active ring."
+                  }
+                ],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "AttributeError",
+                    "desc": "If *name* is a dunder, if it is listed in ``_NON_DELEGATED``, if there is no active ring, or if the ring itself does not have it."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Notes",
+                    "text": "``_NON_DELEGATED`` currently holds exactly one name,\n``'Backpack'``, so ``gdf.Backpack`` raises ``AttributeError``\nby design — reach it as ``BaseRing.Backpack`` instead. Note\nthat ``GANDALF.Backpack`` (on the **class**) fails for a\ndifferent reason: ``__getattr__`` only runs for instances, so\nthat lookup never reaches this method and Python reports\n``type object 'GANDALF' has no attribute 'Backpack'``."
+                  }
+                ],
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/rings/base.py",
+      "classes": [
+        {
+          "id": "BaseRing",
+          "file": "FotR/characters/rings/base.py",
+          "parent": null,
+          "bases": [],
+          "doc": {
+            "summary": "Shared case-generation logic for all rings.",
+            "description": "",
+            "params": [
+              {
+                "name": "root_dir",
+                "type": "str",
+                "desc": "Dataset root directory (``outputs/`` + ``metadata/`` are created)."
+              },
+              {
+                "name": "eq_type",
+                "type": "str",
+                "desc": "``'euler'`` or ``'rans'``."
+              },
+              {
+                "name": "num_stages",
+                "type": "int",
+                "desc": "Number of solver stages (required)."
+              }
+            ],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "BaseRing.some_light",
+              "class": "BaseRing",
+              "name": "some_light",
+              "signature": "some_light(name=None)",
+              "returns": "",
+              "kind": "classmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light help system.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.__init__",
+              "class": "BaseRing",
+              "name": "__init__",
+              "signature": "__init__(root_dir: str, eq_type: str = 'rans', num_stages: Optional[int] = None, **kwargs)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Create the ring and lay out ``root_dir`` on disk.",
+                "description": "``root_dir`` and ``root_dir/metadata`` are created immediately;\n``outputs/`` is created later, by ``generate_folders``.",
+                "params": [
+                  {
+                    "name": "root_dir",
+                    "type": "str",
+                    "desc": "Dataset root directory."
+                  },
+                  {
+                    "name": "eq_type",
+                    "type": "str, optional",
+                    "desc": "``'euler'`` or ``'rans'`` (case-insensitive). Default ``'rans'``."
+                  },
+                  {
+                    "name": "num_stages",
+                    "type": "int",
+                    "desc": "Number of solver stages. **Required**: there is no default, and omitting it raises ``ValueError``."
+                  },
+                  {
+                    "name": "**kwargs",
+                    "type": "",
+                    "desc": "Only ``version`` is read (stored as :attr:`version` and written into ``cases_metadata.json``); anything else is ignored silently."
+                  }
+                ],
+                "returns": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *eq_type* is not ``'euler'`` or ``'rans'``, or if *num_stages* is left as ``None``."
+                  }
+                ],
+                "attributes": [
+                  {
+                    "name": "case_tensor",
+                    "type": "numpy.ndarray or None",
+                    "desc": "``(n_cases, n_design_vars)``. Filled by ``define_cases``."
+                  },
+                  {
+                    "name": "design_vars",
+                    "type": "list or None",
+                    "desc": "Column names of ``case_tensor``, in order."
+                  },
+                  {
+                    "name": "df_cases",
+                    "type": "pandas.DataFrame or None",
+                    "desc": "One row per case. ``define_cases`` creates it; ``add_param``/``compute_param`` add columns; ``generate_folders`` adds ``folder`` and ``exist``."
+                  },
+                  {
+                    "name": "df_geom, array_ptos",
+                    "type": "",
+                    "desc": "Geometry read by ``define_geom_file``. ``array_ptos`` is the ``(N, 2)`` array of the selected columns."
+                  }
+                ],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.define_geom_file",
+              "class": "BaseRing",
+              "name": "define_geom_file",
+              "signature": "define_geom_file(geom_file_path: str, cols_idx: list = [0, 2], normalize: bool = False, **kwargs)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Define the geometry file (airfoil coordinates) with pandas library.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "geom_file_path",
+                    "type": "str",
+                    "desc": "path to the geometry CSV file."
+                  },
+                  {
+                    "name": "cols_idx",
+                    "type": "list[int]",
+                    "desc": "list of column indices to extract (default: [0,2] for x and y)."
+                  },
+                  {
+                    "name": "normalize",
+                    "type": "bool",
+                    "desc": "whether to normalize the airfoil coordinates."
+                  },
+                  {
+                    "name": "**kwargs",
+                    "type": "",
+                    "desc": "additional arguments for pd.read_csv."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.define_cases",
+              "class": "BaseRing",
+              "name": "define_cases",
+              "signature": "define_cases(method: str, bounds: Optional[dict] = None, n_samples: int = 100, peak_ranges: Optional[dict] = None, range_sigma: float = 2.0, external_dataframe: Optional[pd.DataFrame] = None, seed: Optional[int] = None)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Define the tensor of CFD cases (e.g., AoA, Mach).",
+                "description": "",
+                "params": [
+                  {
+                    "name": "method",
+                    "type": "str",
+                    "desc": "'halton', 'lhs', or 'external'."
+                  },
+                  {
+                    "name": "bounds",
+                    "type": "dict",
+                    "desc": "{'AoA': (0, 5), 'Mach': (0.3, 1.5), 'h': 11000}."
+                  },
+                  {
+                    "name": "n_samples",
+                    "type": "int",
+                    "desc": "number of points to generate (for halton/lhs)."
+                  },
+                  {
+                    "name": "peak_ranges",
+                    "type": "dict",
+                    "desc": "Ranges of bounds where higher point density is needed. Default None. Example: {'AoA': None, 'Mach': (0.7, 1.2)}."
+                  },
+                  {
+                    "name": "range_sigma",
+                    "type": "float",
+                    "desc": "controls concentration of the warp."
+                  },
+                  {
+                    "name": "external_dataframe",
+                    "type": "pd.DataFrame",
+                    "desc": "DataFrame with external cases (for 'external' method)."
+                  },
+                  {
+                    "name": "seed",
+                    "type": "int",
+                    "desc": "seed for reproducibility."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.add_param",
+              "class": "BaseRing",
+              "name": "add_param",
+              "signature": "add_param(name: str = 'param', data: Optional[np.ndarray] = None)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Add a column to ``df_cases`` from an array you already have.",
+                "description": "For a value derived from existing columns use\n:meth:`compute_param` instead, which takes a formula.",
+                "params": [
+                  {
+                    "name": "name",
+                    "type": "str, optional",
+                    "desc": "Name of the new column. Default ``'param'``."
+                  },
+                  {
+                    "name": "data",
+                    "type": "numpy.ndarray",
+                    "desc": "Values, one per case. Flattened with ``ravel()`` and cast to float, so its length must equal ``len(df_cases)``."
+                  }
+                ],
+                "returns": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "RuntimeError",
+                    "desc": "If ``define_cases`` has not run yet."
+                  },
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *data* is ``None``, or its length does not match the number of cases."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.compute_param",
+              "class": "BaseRing",
+              "name": "compute_param",
+              "signature": "compute_param(name: str = 'param', formula: Optional[str] = None, externals: Optional[dict] = None)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Compute a new parameter based on a formula and add it to the cases DataFrame.",
+                "description": "The formula is evaluated by a restricted expression parser (no\n``eval``): column names, ``externals`` entries, numeric constants,\n``+ - * / ** %`` and the functions ``sin cos exp log sqrt`` plus\nthe ``np`` namespace (``np.sin`` etc.) and ``pi``.",
+                "params": [
+                  {
+                    "name": "name",
+                    "type": "str",
+                    "desc": "Name of the new parameter."
+                  },
+                  {
+                    "name": "formula",
+                    "type": "str",
+                    "desc": "Formula to compute the parameter, using DataFrame column names as variables."
+                  },
+                  {
+                    "name": "externals",
+                    "type": "dict",
+                    "desc": "External variables to include in the formula."
+                  }
+                ],
+                "returns": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If a name in the formula is neither a column, an external, nor an allowed function/constant."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._eval_formula",
+              "class": "BaseRing",
+              "name": "_eval_formula",
+              "signature": "_eval_formula(formula: str, env: dict, allowed_funcs: dict)",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "Evaluate an arithmetic expression without ``eval``.",
+                "description": "Thin delegate to :func:`SAM.Backpack.eval_formula`, where the\nimplementation now lives so that other subpackages (notably\n``sets``) can reuse it without importing ``rings``.\n\nThe import is local so that ``rings`` does not pull SAM's heavy\ndependency stack (torch, pyvista, sklearn) at module import time.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._expand_nodelist",
+              "class": "BaseRing",
+              "name": "_expand_nodelist",
+              "signature": "_expand_nodelist(spec: str)",
+              "returns": "list",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "Expand a Slurm nodelist spec into plain node names.",
+                "description": "Handles ``n003``, comma lists and bracket ranges such as\n``n[003-005]`` or ``n[001,003]``. Anything unparseable is kept\nverbatim so matching degrades gracefully instead of failing.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._job_name",
+              "class": "BaseRing",
+              "name": "_job_name",
+              "signature": "_job_name(caso: str)",
+              "returns": "str",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "Derive a short Slurm ``%NAME`` from a case folder name.",
+                "description": "``name_value`` pairs become ``<initial><value:.2f>`` (e.g.\n``aoa_3.50`` → ``a3.50``); anything else falls back to the\nfolder name with non-alphanumeric characters stripped.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing._write_cases_metadata",
+              "class": "BaseRing",
+              "name": "_write_cases_metadata",
+              "signature": "_write_cases_metadata(df_cases: pd.DataFrame, extra: Optional[dict] = None)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Persist folder_fmt/design_vars/df_cases for FRODO readers.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.assign_jobs",
+              "class": "BaseRing",
+              "name": "assign_jobs",
+              "signature": "assign_jobs(file_sh: str, nodes: list, cpus_per_job: int, submit: bool = False)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Assign cases to available nodes in a balanced way.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "file_sh",
+                    "type": "str",
+                    "desc": "Name of the shell script file to modify for each case."
+                  },
+                  {
+                    "name": "nodes",
+                    "type": "list[str]",
+                    "desc": "List of available node names."
+                  },
+                  {
+                    "name": "cpus_per_job",
+                    "type": "int",
+                    "desc": "Number of CPUs to assign per job."
+                  },
+                  {
+                    "name": "submit",
+                    "type": "bool",
+                    "desc": "If True, modify the shell script files with assigned node and CPUs."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.submit_cases",
+              "class": "BaseRing",
+              "name": "submit_cases",
+              "signature": "submit_cases()",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Run ``sbatch`` on every case folder, in case order.",
+                "description": "Each job is submitted from inside its own case directory, so\nrelative paths in the shell script resolve as the solver\nexpects. A case whose script is missing is logged and skipped\nrather than aborting the batch.",
+                "params": [],
+                "returns": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "RuntimeError",
+                    "desc": "If ``generate_folders`` has not run (no folders), if ``assign_jobs`` has not run (no ``file_sh`` selected), or if ``sbatch`` is not on PATH — i.e. you are not on a Slurm cluster."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Notes",
+                    "text": "This actually launches the campaign. ``assign_jobs(submit=True)``\nonly writes the node and CPU count into each script; nothing\nreaches the queue until this call."
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.recover_pending_jobs",
+              "class": "BaseRing",
+              "name": "recover_pending_jobs",
+              "signature": "recover_pending_jobs(broken_node: str, replacement_node: str, file_sh: Optional[str] = None, dry_run: bool = True)",
+              "returns": "",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Reassign pending Slurm jobs that are constrained to a failed node.",
+                "description": "The cases are identified using the metadata stored in\n``<root_dir>/metadata/cases_metadata.json`` and the working directory\nreported by Slurm for each pending job.\n\nThe method:\n    1. Reads the simulation metadata.\n    2. Searches the user's PENDING Slurm jobs.\n    3. Identifies jobs requesting ``broken_node``.\n    4. Associates each job with its simulation directory.\n    5. Shows the proposed changes if ``dry_run=True``.\n    6. Otherwise cancels the old job, modifies its ``run.sh`` and\n    resubmits it with ``sbatch``.",
+                "params": [
+                  {
+                    "name": "broken_node",
+                    "type": "str",
+                    "desc": "Node that is unavailable, e.g. ``\"n003\"``."
+                  },
+                  {
+                    "name": "replacement_node",
+                    "type": "str",
+                    "desc": "Node to which the affected simulations will be reassigned, e.g. ``\"n005\"``."
+                  },
+                  {
+                    "name": "file_sh",
+                    "type": "str",
+                    "desc": "Name of the Slurm submission script inside each simulation folder. Defaults to the ``file_sh`` given to :meth:`assign_jobs`, falling back to ``\"run.sh\"``."
+                  },
+                  {
+                    "name": "dry_run",
+                    "type": "bool",
+                    "desc": "If True, only display the proposed operations. If False, actually cancel, modify and resubmit the jobs."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "BaseRing.Backpack",
+          "file": "FotR/characters/rings/base.py",
+          "parent": "BaseRing",
+          "bases": [],
+          "doc": {
+            "summary": "Standalone helpers for building a case campaign.",
+            "description": "Atmosphere and fluid properties (:meth:`isa_atmosphere`,\n:meth:`Sutherland_law`), geometry conditioning\n(:meth:`normalize_airfoil`), Slurm inspection\n(:meth:`squeue_terminal`, :meth:`sinfocpu_terminal`) and the\nsampling warp used by :meth:`BaseRing.define_cases`\n(``_warp_variable``). Everything is a ``@staticmethod``: the\nBackpack is never instantiated and holds no state.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Notes",
+                "text": "**This is reachable as ``BaseRing.Backpack``, never as\n``GANDALF.Backpack``.** The GANDALF facade forwards attribute\nlookups to its ring, but ``'Backpack'`` is listed in\n``GANDALF._NON_DELEGATED`` and is deliberately excluded, so both\n``GANDALF.Backpack`` (on the class) and ``gdf.Backpack`` (on an\ninstance) raise ``AttributeError``. Import the ring instead::\n\n    from FotR.characters.rings import BaseRing\n    T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\n\n``BaseRing`` is not re-exported by ``FotR``, so\n``from FotR import BaseRing`` does not work either. A concrete\nring also inherits it (``CODARing.Backpack`` is the same object)."
+              },
+              {
+                "title": "Examples",
+                "text": "::\n\n    from FotR.characters.rings import BaseRing\n\n    T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\n    mu = BaseRing.Backpack.Sutherland_law(\n        mu0=1.716e-5, T=T, Treference=255.55,\n    )"
+              }
+            ],
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "BaseRing.Backpack._warp_variable",
+              "class": "BaseRing.Backpack",
+              "name": "_warp_variable",
+              "signature": "_warp_variable(u, bounds, peak_range=None, range_sigma=3)",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "Apply a non-linear warp to u in [0,1] to concentrate points inside a range (peak_range). With peak_range None, linear mapping.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.squeue_terminal",
+              "class": "BaseRing.Backpack",
+              "name": "squeue_terminal",
+              "signature": "squeue_terminal(opt: Union[list, tuple])",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "Show the Slurm queue in the terminal with the given options.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "opt",
+                    "type": "list[list] | tuple[tuple] | list[tuple] | tuple[list]",
+                    "desc": "Options for the squeue command."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.sinfocpu_terminal",
+              "class": "BaseRing.Backpack",
+              "name": "sinfocpu_terminal",
+              "signature": "sinfocpu_terminal()",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "Query Slurm node CPU states (``sinfo -N -o '%n %C'``).",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.normalize_airfoil",
+              "class": "BaseRing.Backpack",
+              "name": "normalize_airfoil",
+              "signature": "normalize_airfoil(coords: Union[np.ndarray, 'torch.Tensor'])",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "Normalise an Nx2 airfoil to chord 1, leading edge at x = 0.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "coords",
+                    "type": "numpy.ndarray or torch.Tensor",
+                    "desc": "``(N, 2)`` array of x, y coordinates."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "numpy.ndarray or torch.Tensor",
+                    "desc": "Same type as the input, scaled by the chord."
+                  }
+                ],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *coords* is not two-dimensional with two columns."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Warnings",
+                    "text": "**The input is modified in place when it is already a float\narray.** ``np.asarray`` only copies when it has to change\nthe dtype, so passing a ``float64`` array leaves the\ncaller's array shifted and scaled; passing an integer array\nhappens to copy. Pass ``coords.copy()`` if you need to keep\nthe original."
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.isa_atmosphere",
+              "class": "BaseRing.Backpack",
+              "name": "isa_atmosphere",
+              "signature": "isa_atmosphere(h)",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "Calculate the static pressure, temperature and density according to ISA model.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "h",
+                    "type": "float or np.ndarray",
+                    "desc": "Geometric altitude [m]"
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "T",
+                    "type": "float or np.ndarray",
+                    "desc": "Temperature [K]"
+                  },
+                  {
+                    "name": "P",
+                    "type": "float or np.ndarray",
+                    "desc": "Pressure [Pa]"
+                  },
+                  {
+                    "name": "rho",
+                    "type": "float or np.ndarray",
+                    "desc": "Density [kg/m^3]"
+                  }
+                ],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.Backpack.Sutherland_law",
+              "class": "BaseRing.Backpack",
+              "name": "Sutherland_law",
+              "signature": "Sutherland_law(mu0, T, Treference)",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "Dynamic viscosity from Sutherland's law.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "mu0",
+                    "type": "float",
+                    "desc": "Reference viscosity [Pa·s], e.g. ``1.716e-5`` for air."
+                  },
+                  {
+                    "name": "T",
+                    "type": "float or numpy.ndarray",
+                    "desc": "Temperature [K] at which to evaluate the viscosity."
+                  },
+                  {
+                    "name": "Treference",
+                    "type": "float",
+                    "desc": "Reference temperature [K] matching *mu0*, e.g. ``255.55``."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "float or numpy.ndarray",
+                    "desc": "Dynamic viscosity [Pa·s], same shape as *T*."
+                  }
+                ],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Notes",
+                    "text": "The Sutherland constant is hard-coded to 110.4 K (air)."
+                  },
+                  {
+                    "title": "Examples",
+                    "text": "::\n\n    T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\n    mu = BaseRing.Backpack.Sutherland_law(\n        mu0=1.716e-5, T=T, Treference=255.55,\n    )"
+                  }
+                ],
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/rings/coda.py",
+      "classes": [
+        {
+          "id": "CODARing",
+          "file": "FotR/characters/rings/coda.py",
+          "parent": null,
+          "bases": [
+            "BaseRing"
+          ],
+          "doc": {
+            "summary": "CODA case generator with one shared mesh.",
+            "description": "",
+            "params": [
+              {
+                "name": "root_dir, eq_type, num_stages",
+                "type": "",
+                "desc": "See :class:`BaseRing`."
+              }
+            ],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODARing.generate_folders",
+              "class": "CODARing",
+              "name": "generate_folders",
+              "signature": "generate_folders(base_files: list, mesh_path: str, script_dir: str, folder_fmt: str = 'aoa_{AoA:.2f}_mach_{Mach:.3f}_h_{h:.0f}', overwrite: bool = False, update_base_files: bool = False, data_to_update: Optional[dict] = None)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Generate subfolders for each defined CFD case.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "base_files",
+                    "type": "list",
+                    "desc": "List of base files to copy into each subfolder."
+                  },
+                  {
+                    "name": "mesh_path",
+                    "type": "str",
+                    "desc": "Shared mesh file, copied into every case folder."
+                  },
+                  {
+                    "name": "script_dir",
+                    "type": "str",
+                    "desc": "Directory where base files are located."
+                  },
+                  {
+                    "name": "folder_fmt",
+                    "type": "str",
+                    "desc": "Folder name format. Names must match those used in bounds in define_cases. Example: \"AoA_{AoA:.2f}_Mach_{Mach:.3f}_h_{h:.0f}\"."
+                  },
+                  {
+                    "name": "overwrite",
+                    "type": "bool",
+                    "desc": "If True, overwrite existing folders."
+                  },
+                  {
+                    "name": "update_base_files",
+                    "type": "bool",
+                    "desc": "If True, placeholders in base files are replaced using ``data_to_update``. By default, False."
+                  },
+                  {
+                    "name": "data_to_update",
+                    "type": "dict",
+                    "desc": "``{PLACEHOLDER: df_cases column or literal}``. Values naming a ``df_cases`` column are replaced per case; anything else is used as a literal string. Example: ``{\"AOA_PLACEHOLDER\": \"AoA\", \"CHORD_PLACEHOLDER\": str(c)}``."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/rings/coda_single.py",
+      "classes": [
+        {
+          "id": "CODASingleRing",
+          "file": "FotR/characters/rings/coda_single.py",
+          "parent": null,
+          "bases": [
+            "BaseRing"
+          ],
+          "doc": {
+            "summary": "CODA case generator with a per-case mesh.",
+            "description": "",
+            "params": [
+              {
+                "name": "root_dir, eq_type, num_stages",
+                "type": "",
+                "desc": "See :class:`BaseRing`."
+              }
+            ],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "CODASingleRing.generate_folders",
+              "class": "CODASingleRing",
+              "name": "generate_folders",
+              "signature": "generate_folders(base_files: list, mesh_paths: list, script_dir: str, folder_fmt: str = 'aoa_{AoA:.2f}_mach_{Mach:.3f}_h_{h:.0f}', overwrite: bool = False, update_base_files: bool = False, data_to_update: Optional[dict] = None)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Generate subfolders for each defined CFD case, one mesh per case.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "base_files",
+                    "type": "list",
+                    "desc": "List of base files to copy into each subfolder."
+                  },
+                  {
+                    "name": "mesh_paths",
+                    "type": "list[str]",
+                    "desc": "Mesh file per case, in case order (position ``i`` ↔ case ``i``). Each file is copied into its case folder."
+                  },
+                  {
+                    "name": "script_dir",
+                    "type": "str",
+                    "desc": "Directory where base files are located."
+                  },
+                  {
+                    "name": "folder_fmt",
+                    "type": "str",
+                    "desc": "Folder name format. Names must match those used in bounds in define_cases."
+                  },
+                  {
+                    "name": "overwrite",
+                    "type": "bool",
+                    "desc": "If True, overwrite existing folders."
+                  },
+                  {
+                    "name": "update_base_files",
+                    "type": "bool",
+                    "desc": "If True, placeholders in base files are replaced using ``data_to_update``. By default, False."
+                  },
+                  {
+                    "name": "data_to_update",
+                    "type": "dict",
+                    "desc": "``{PLACEHOLDER: df_cases column or literal}``."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

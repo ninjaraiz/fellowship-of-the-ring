@@ -62,7 +62,41 @@ class GANDALF:
         num_stages: Optional[int] = None,
         **kwargs
     ) -> None:
-        """Create the facade over the selected ring (default ``'coda'``)."""
+        """Create the facade over the selected ring (default ``'coda'``).
+
+        Parameters
+        ----------
+        root_dir : str
+            Dataset root directory, forwarded to the ring.
+        eq_type : str, optional
+            ``'euler'`` or ``'rans'``. Default ``'rans'``.
+        num_stages : int
+            Number of solver stages. Required by the ring.
+        **kwargs
+            ``ring`` selects the generation policy: ``'coda'`` (one
+            shared mesh, the default) or ``'coda_single'`` (one mesh per
+            case). It is popped here; **everything else is forwarded
+            verbatim to the ring constructor**, where only ``version``
+            is read.
+
+        Raises
+        ------
+        ValueError
+            If *ring* is not a key of ``RING_REGISTRY``, if *eq_type* is
+            invalid, or if *num_stages* is missing.
+
+        Examples
+        --------
+        ::
+
+            from FotR import GANDALF
+
+            gdf = GANDALF(
+                '/data/TIFON/rans5',
+                eq_type='rans', num_stages=2,
+                version='flowsimulator2024', ring='coda',
+            )
+        """
         # Same positional order as the historical API; the ring is an
         # optional keyword so old calls keep working unchanged.
         ring = kwargs.pop('ring', 'coda')
@@ -80,7 +114,43 @@ class GANDALF:
     # ── Transparent delegation ──────────────────────────────────────────
 
     def __getattr__(self, name):
-        """Delegate everything (except dunders and Backpack) to the ring."""
+        """Delegate everything (except dunders and Backpack) to the ring.
+
+        The facade owns almost nothing: ``define_cases``,
+        ``define_geom_file``, ``add_param``, ``compute_param``,
+        ``generate_folders``, ``assign_jobs``, ``submit_cases``,
+        ``recover_pending_jobs`` and every data attribute
+        (``df_cases``, ``case_tensor``, ``array_ptos``, ``root_dir``, …)
+        are served by the ring, so a GANDALF behaves like the ring it
+        wraps.
+
+        Parameters
+        ----------
+        name : str
+            Attribute being looked up.
+
+        Returns
+        -------
+        object
+            The attribute taken from the active ring.
+
+        Raises
+        ------
+        AttributeError
+            If *name* is a dunder, if it is listed in
+            ``_NON_DELEGATED``, if there is no active ring, or if the
+            ring itself does not have it.
+
+        Notes
+        -----
+        ``_NON_DELEGATED`` currently holds exactly one name,
+        ``'Backpack'``, so ``gdf.Backpack`` raises ``AttributeError``
+        by design — reach it as ``BaseRing.Backpack`` instead. Note
+        that ``GANDALF.Backpack`` (on the **class**) fails for a
+        different reason: ``__getattr__`` only runs for instances, so
+        that lookup never reaches this method and Python reports
+        ``type object 'GANDALF' has no attribute 'Backpack'``.
+        """
         if name.startswith('__') or name in type(self)._NON_DELEGATED:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"

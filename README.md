@@ -80,6 +80,7 @@ la misma llamada puede tener firma distinta según el formato.
 | dónde | qué es |
 |---|---|
 | `doc/frodo_sam/index.html` | Visor de la documentación (ES/EN). Pestaña **FRODO** con una sub-pestaña por formato y, dentro, una por cada pieza (`reader`, `sets`, `stats`, `residuals`) con sus métodos y ejemplos; pestaña **SAM** con una sub-pestaña por área; más el explorador de `data_dict` y un buscador global |
+| `doc/gandalf/index.html` | Visor de la documentación de GANDALF (ES/EN). Pestañas **GANDALF** (la fachada), **Rings** con una sub-pestaña por ring y, dentro, una por cada fase de la campaña, **Backpack** y **Problemas** |
 | `doc/frodo_sam/ANALISIS.md` | Análisis de arquitectura y deuda técnica, para quien vaya a tocar el código |
 | `doc/HANDOFF.md` | Estado del repositorio entre sesiones de trabajo |
 | `examples/` | Notebooks por formato y base de datos |
@@ -94,7 +95,8 @@ python3 -m http.server -d doc/frodo_sam 8000   # y abrir http://localhost:8000
 Para regenerar la referencia de métodos tras tocar un docstring:
 
 ```bash
-python3 doc/frodo_sam/generate_docs.py
+python3 doc/frodo_sam/generate_docs.py    # FRODO y SAM
+python3 doc/gandalf/generate_docs.py      # GANDALF y los rings
 ```
 
 El generador lee los cuatro registros (`readers/`, `sets/`, `stats/`,
