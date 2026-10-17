@@ -390,7 +390,11 @@
               },
               {
                 "title": "Examples",
-                "text": "Open a CODA database and extract one CAD group::\n\n    from FotR import FRODO\n\n    db = FRODO(root_dir='/data/TIFON', format='CODA', name='tifon')\n    db.extract_inputs(id_group='3')\n    db.extract_outputs(id_group='3', stage='all')\n    db.summary_data()\n\nThe quartet is reachable both directly and by delegation::\n\n    db.sets.add_aux(...)   # explicit\n    db.add_aux(...)        # same call, resolved by __getattr__"
+                "text": "Open a CODA database and extract one CAD group::\n\n    from FotR import FRODO\n\n    db = FRODO(root_dir='/data/TIFON', format='CODA', name='tifon')\n    db.extract_inputs(id_groups=(3,), vtu_type='surface')\n    db.extract_outputs(stage=0, id_groups=(3,), vtu_type='surface')\n    db.summary_data()\n\nThe quartet is reachable both directly and by delegation::\n\n    db.sets.add_aux(...)   # explicit\n    db.add_aux(...)        # same call, resolved by __getattr__\n\nBecause that delegation hides which class a call lands on, and\nbecause ``extract_inputs``/``extract_outputs`` are re-declared here\nas ``(*args, **kwargs)``, ``help(db.extract_inputs)`` cannot show the\narguments to pass. Ask the object instead::\n\n    db.some_light('extract_inputs')   # which reader, and its real signature"
+              },
+              {
+                "title": "See Also",
+                "text": "FotR.earendils_light.EarendilsLight : what ``some_light`` resolves to."
               }
             ],
             "has_doc": true
@@ -1038,7 +1042,16 @@
             "raises": [],
             "attributes": [],
             "methods": [],
-            "text_sections": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    from FotR import GANDALF\n\n    gdf = GANDALF('/data/TIFON/rans5', eq_type='rans', num_stages=2,\n                  version='flowsimulator2024', ring='coda')\n\nBecause everything is forwarded, which class a call lands on depends\non the ``ring`` chosen above, and the two rings take different\narguments. Ask the object rather than scrolling back::\n\n    gdf.some_light('generate_folders')   # which ring, and its signature\n\n``Backpack`` is the one name that is never forwarded, so looking it\nup on the facade fails; the search finds where it really lives::\n\n    GANDALF.some_light('isa_atmosphere')  # BaseRing.Backpack.isa_atmosphere"
+              },
+              {
+                "title": "See Also",
+                "text": "FotR.earendils_light.EarendilsLight : what ``some_light`` resolves to."
+              }
+            ],
             "has_doc": true
           },
           "methods": [
@@ -1871,11 +1884,11 @@
               },
               {
                 "title": "Examples",
-                "text": "::\n\n    from FotR import SAM\n\n    SAM.DictVisualizer.rich_tree(db.data_dict)\n    files = SAM.Backpack.pattern_pocket.find_files(path, endswith='.vtu')\n    grad  = SAM.DifferentialOperators.gradient(X, f)"
+                "text": "::\n\n    from FotR import SAM\n\n    SAM.DictVisualizer.rich_tree(db.data_dict)\n    files = SAM.Backpack.pattern_pocket.find_files(path, endswith='.vtu')\n    grad  = SAM.DifferentialOperators.gradient(X, f)\n\nSix areas, several with nested classes, make a path easy to forget.\n``some_light`` finds a name across the package without importing\nanything, and only then imports the module holding the match::\n\n    SAM.some_light('find_files')      # where it lives, and its signature"
               },
               {
                 "title": "See Also",
-                "text": "FotR.characters.frodo.FRODO : the database coordinator SAM supports."
+                "text": "FotR.characters.frodo.FRODO : the database coordinator SAM supports.\nFotR.earendils_light.EarendilsLight : what ``some_light`` resolves to."
               }
             ],
             "has_doc": true

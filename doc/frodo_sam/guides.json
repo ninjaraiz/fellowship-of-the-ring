@@ -146,6 +146,26 @@
       },
       {
         "t": "h",
+        "x": "Preguntarle al objeto, que es el único que lo sabe"
+      },
+      {
+        "t": "p",
+        "x": "Hasta aquí el diagnóstico. El remedio es que la base de datos te lo diga ella misma. `help()` no puede: FRODO vuelve a declarar `extract_inputs` y `extract_outputs` como `(*args, **kwargs)`, así que te enseña una firma vacía y su propia prosa genérica. La firma que tienes que escribir vive en el reader al que resolvió **tu** formato."
+      },
+      {
+        "t": "code",
+        "x": "help(db.extract_inputs)\n#   extract_inputs(self, *args, **kwargs)        ← gracias por nada\n\ndb.some_light('extract_inputs')\n#   FRODO.extract_inputs  →  CODAReader.extract_inputs\n#       reached through .reader   (format 'CODA')\n#       FotR/characters/readers/coda.py:767\n#       FRODO.extract_inputs only forwards (*args, **kwargs);\n#       the signature below is the one to call.\n#\n#     extract_inputs(id_groups, vtu_type='surface', method_to_sort='lexsort',\n#                    cases_idx='all', subset=None, verbose=False) -> None"
+      },
+      {
+        "t": "p",
+        "x": "Lee la **misma** tupla `_LIGHT_DELEGATES` que usa `__getattr__`, así que no es una aproximación: es exactamente lo que una búsqueda de atributo habría alcanzado, en el mismo orden. Abre la base con `format='NUMPY'` y la respuesta cambia, porque el objeto es otro."
+      },
+      {
+        "t": "note",
+        "x": "Y si solo recuerdas el nombre, `FRODO.some_light('compute_param')` lo busca en todo el paquete leyendo el código con `ast`, **sin importar nada**: buscar no te cuesta ni torch ni pyvista. Para cualquier otra cosa, `help(objeto)` sigue siendo mejor."
+      },
+      {
+        "t": "h",
         "x": "Atributos de la instancia"
       },
       {
@@ -282,6 +302,26 @@
             "`FRODO.summary_data` y código de usuario"
           ]
         ]
+      },
+      {
+        "t": "h",
+        "x": "¿Y dónde estaba esa función?"
+      },
+      {
+        "t": "p",
+        "x": "Seis áreas, varias con clases anidadas dentro, y rutas como `SAM.Backpack.pattern_pocket.find_files`. Recordar el nombre es fácil; recordar en qué bolsillo de la mochila lo guardó Sam, bastante menos. `help()` no sirve aquí, porque necesita el objeto y lo que tú tienes es el nombre."
+      },
+      {
+        "t": "code",
+        "x": "SAM.some_light('find_files')\n\n#   2 matches for 'find_files':\n#       SAM.Backpack.pattern_pocket.find_files       (FotR.characters.sam)\n#       SAM.Backpack.pattern_pocket_ant.find_files   (FotR.characters.sam)\n#\n#   SAM.Backpack.pattern_pocket.find_files   FotR.characters.sam:1213\n#\n#     find_files(path, *, pattern=None, endswith=None, contains=None,\n#                not_contains=None, literal=True, ignore_case=False,\n#                sort=True, verbose=True) -> list[str]"
+      },
+      {
+        "t": "p",
+        "x": "El índice se construye leyendo el código con `ast`, **sin importar nada**: buscar dentro de SAM no te carga torch, ni pyvista, ni seaborn. Solo se importa el módulo de la coincidencia, y solo para leer su firma."
+      },
+      {
+        "t": "note",
+        "x": "Fíjate en que ahí salen las dos: `pattern_pocket` y `pattern_pocket_ant`. Cuando un nombre aparece varias veces las lista todas antes de detallarlas, que es precisamente lo que quieres cuando una de ellas es la versión vieja — ver el aviso del final."
       },
       {
         "t": "h",
@@ -611,6 +651,26 @@
       },
       {
         "t": "h",
+        "x": "Ask the object, which is the only one that knows"
+      },
+      {
+        "t": "p",
+        "x": "That was the diagnosis; the remedy is to have the database tell you itself. `help()` cannot: FRODO re-declares `extract_inputs` and `extract_outputs` as `(*args, **kwargs)`, so it shows an empty signature and its own generic prose. The signature you have to write lives on the reader **your** format resolved to."
+      },
+      {
+        "t": "code",
+        "x": "help(db.extract_inputs)\n#   extract_inputs(self, *args, **kwargs)        ← thanks for nothing\n\ndb.some_light('extract_inputs')\n#   FRODO.extract_inputs  →  CODAReader.extract_inputs\n#       reached through .reader   (format 'CODA')\n#       FotR/characters/readers/coda.py:767\n#       FRODO.extract_inputs only forwards (*args, **kwargs);\n#       the signature below is the one to call.\n#\n#     extract_inputs(id_groups, vtu_type='surface', method_to_sort='lexsort',\n#                    cases_idx='all', subset=None, verbose=False) -> None"
+      },
+      {
+        "t": "p",
+        "x": "It reads the **same** `_LIGHT_DELEGATES` tuple that `__getattr__` uses, so this is not an approximation: it is exactly what an attribute lookup would have reached, in the same order. Open the database with `format='NUMPY'` and the answer changes, because the object is a different one."
+      },
+      {
+        "t": "note",
+        "x": "And when you only remember the name, `FRODO.some_light('compute_param')` finds it across the package by reading the source with `ast`, **importing nothing**: searching costs you neither torch nor pyvista. For anything else, `help(obj)` is still better."
+      },
+      {
+        "t": "h",
         "x": "Instance attributes"
       },
       {
@@ -747,6 +807,26 @@
             "`FRODO.summary_data` and user code"
           ]
         ]
+      },
+      {
+        "t": "h",
+        "x": "And where was that function?"
+      },
+      {
+        "t": "p",
+        "x": "Six areas, several with nested classes inside, and paths like `SAM.Backpack.pattern_pocket.find_files`. Remembering the name is easy; remembering which pocket of the pack Sam put it in, rather less so. `help()` is no use here, because it needs the object and what you have is the name."
+      },
+      {
+        "t": "code",
+        "x": "SAM.some_light('find_files')\n\n#   2 matches for 'find_files':\n#       SAM.Backpack.pattern_pocket.find_files       (FotR.characters.sam)\n#       SAM.Backpack.pattern_pocket_ant.find_files   (FotR.characters.sam)\n#\n#   SAM.Backpack.pattern_pocket.find_files   FotR.characters.sam:1213\n#\n#     find_files(path, *, pattern=None, endswith=None, contains=None,\n#                not_contains=None, literal=True, ignore_case=False,\n#                sort=True, verbose=True) -> list[str]"
+      },
+      {
+        "t": "p",
+        "x": "The index is built by reading the source with `ast`, **importing nothing**: searching inside SAM loads you no torch, no pyvista, no seaborn. Only the module holding the match is imported, and only to read its signature."
+      },
+      {
+        "t": "note",
+        "x": "Note that both show up: `pattern_pocket` and `pattern_pocket_ant`. When a name appears more than once it lists them all before detailing them, which is exactly what you want when one of them is the superseded version — see the warning at the end."
       },
       {
         "t": "h",

@@ -81,7 +81,16 @@
             "raises": [],
             "attributes": [],
             "methods": [],
-            "text_sections": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    from FotR import GANDALF\n\n    gdf = GANDALF('/data/TIFON/rans5', eq_type='rans', num_stages=2,\n                  version='flowsimulator2024', ring='coda')\n\nBecause everything is forwarded, which class a call lands on depends\non the ``ring`` chosen above, and the two rings take different\narguments. Ask the object rather than scrolling back::\n\n    gdf.some_light('generate_folders')   # which ring, and its signature\n\n``Backpack`` is the one name that is never forwarded, so looking it\nup on the facade fails; the search finds where it really lives::\n\n    GANDALF.some_light('isa_atmosphere')  # BaseRing.Backpack.isa_atmosphere"
+              },
+              {
+                "title": "See Also",
+                "text": "FotR.earendils_light.EarendilsLight : what ``some_light`` resolves to."
+              }
+            ],
             "has_doc": true
           },
           "methods": [

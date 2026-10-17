@@ -33,6 +33,26 @@
       },
       {
         "t": "h",
+        "x": "Preguntarle qué anillo lleva puesto"
+      },
+      {
+        "t": "p",
+        "x": "Una fachada que reenvía todo tiene un efecto secundario incómodo: `help(gdf.generate_folders)` te enseña el método del ring, sí, pero antes tienes que saber **cuál** de los dos te tocó — y eso depende de un `ring=` que escribiste hace cincuenta líneas. Pregúntaselo al objeto:"
+      },
+      {
+        "t": "code",
+        "x": "gdf.some_light('generate_folders')\n\n#   GANDALF.generate_folders  →  CODASingleRing.generate_folders\n#       reached through ._ring\n#       FotR/characters/rings/coda_single.py:35\n#\n#     generate_folders(base_files, mesh_paths, script_dir,\n#                      folder_fmt='aoa_{AoA:.2f}_mach_{Mach:.3f}_h_{h:.0f}',\n#                      overwrite=False, update_base_files=False,\n#                      data_to_update=None) -> None"
+      },
+      {
+        "t": "p",
+        "x": "Ahí está la diferencia entre los dos anillos, sin tener que ir a buscarla: `mesh_paths` en plural y en lista. Con `ring='coda'` la misma pregunta devuelve `CODARing.generate_folders` y un `mesh_path` en singular."
+      },
+      {
+        "t": "note",
+        "x": "Recorre `_LIGHT_DELEGATES`, que en GANDALF es `('_ring',)`. No adivina: es la misma ruta que sigue `__getattr__` cuando llamas al método de verdad."
+      },
+      {
+        "t": "h",
         "x": "Qué hace cada dunder"
       },
       {
@@ -158,6 +178,10 @@
       {
         "t": "note",
         "x": "`from FotR import BaseRing` **no** funciona: `FotR/__init__.py` solo re-exporta FRODO, SAM, GANDALF, LEGOLAS, ARAGORN, GIMLI, RunResult y EarendilsLight. Hay que importar de `FotR.characters.rings`. `CODARing.Backpack` también vale, porque hereda el mismo objeto."
+      },
+      {
+        "t": "note",
+        "x": "Atajo para la próxima vez: `GANDALF.some_light('isa_atmosphere')` te lo encuentra solo — responde `BaseRing.Backpack.isa_atmosphere`, con su fichero y su línea. Busca por todo el paquete leyendo el código con `ast`, así que da igual que la fachada te esconda el camino."
       },
       {
         "t": "h",
@@ -315,6 +339,26 @@
       },
       {
         "t": "h",
+        "x": "Asking which ring it is wearing"
+      },
+      {
+        "t": "p",
+        "x": "A facade that forwards everything has one awkward side effect: `help(gdf.generate_folders)` does show the ring's method, but first you have to know **which** of the two you got — and that depends on a `ring=` you typed fifty lines ago. Ask the object:"
+      },
+      {
+        "t": "code",
+        "x": "gdf.some_light('generate_folders')\n\n#   GANDALF.generate_folders  →  CODASingleRing.generate_folders\n#       reached through ._ring\n#       FotR/characters/rings/coda_single.py:35\n#\n#     generate_folders(base_files, mesh_paths, script_dir,\n#                      folder_fmt='aoa_{AoA:.2f}_mach_{Mach:.3f}_h_{h:.0f}',\n#                      overwrite=False, update_base_files=False,\n#                      data_to_update=None) -> None"
+      },
+      {
+        "t": "p",
+        "x": "There is the difference between the two rings, without going to look for it: `mesh_paths`, plural and a list. With `ring='coda'` the same question returns `CODARing.generate_folders` and a singular `mesh_path`."
+      },
+      {
+        "t": "note",
+        "x": "It walks `_LIGHT_DELEGATES`, which on GANDALF is `('_ring',)`. It does not guess: it is the same route `__getattr__` takes when you actually call the method."
+      },
+      {
+        "t": "h",
         "x": "What each dunder does"
       },
       {
@@ -440,6 +484,10 @@
       {
         "t": "note",
         "x": "`from FotR import BaseRing` does **not** work: `FotR/__init__.py` only re-exports FRODO, SAM, GANDALF, LEGOLAS, ARAGORN, GIMLI, RunResult and EarendilsLight. Import from `FotR.characters.rings`. `CODARing.Backpack` works too, since it inherits the same object."
+      },
+      {
+        "t": "note",
+        "x": "A shortcut for next time: `GANDALF.some_light('isa_atmosphere')` finds it for you — it answers `BaseRing.Backpack.isa_atmosphere`, with its file and line. It searches the whole package by reading the source with `ast`, so it does not care that the facade hides the route."
       },
       {
         "t": "h",

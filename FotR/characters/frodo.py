@@ -155,14 +155,25 @@ class FRODO:
         from FotR import FRODO
 
         db = FRODO(root_dir='/data/TIFON', format='CODA', name='tifon')
-        db.extract_inputs(id_group='3')
-        db.extract_outputs(id_group='3', stage='all')
+        db.extract_inputs(id_groups=(3,), vtu_type='surface')
+        db.extract_outputs(stage=0, id_groups=(3,), vtu_type='surface')
         db.summary_data()
 
     The quartet is reachable both directly and by delegation::
 
         db.sets.add_aux(...)   # explicit
         db.add_aux(...)        # same call, resolved by __getattr__
+
+    Because that delegation hides which class a call lands on, and
+    because ``extract_inputs``/``extract_outputs`` are re-declared here
+    as ``(*args, **kwargs)``, ``help(db.extract_inputs)`` cannot show the
+    arguments to pass. Ask the object instead::
+
+        db.some_light('extract_inputs')   # which reader, and its real signature
+
+    See Also
+    --------
+    FotR.earendils_light.EarendilsLight : what ``some_light`` resolves to.
     """
 
     #: Sub-objects searched by :meth:`__getattr__`, in order. Eärendil's

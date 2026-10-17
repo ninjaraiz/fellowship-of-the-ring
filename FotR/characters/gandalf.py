@@ -43,6 +43,30 @@ class GANDALF:
     not delegated.
     Attribute writes (except ``_ring`` itself) are forwarded to the
     ring, so the facade and the ring never diverge.
+
+    Examples
+    --------
+    ::
+
+        from FotR import GANDALF
+
+        gdf = GANDALF('/data/TIFON/rans5', eq_type='rans', num_stages=2,
+                      version='flowsimulator2024', ring='coda')
+
+    Because everything is forwarded, which class a call lands on depends
+    on the ``ring`` chosen above, and the two rings take different
+    arguments. Ask the object rather than scrolling back::
+
+        gdf.some_light('generate_folders')   # which ring, and its signature
+
+    ``Backpack`` is the one name that is never forwarded, so looking it
+    up on the facade fails; the search finds where it really lives::
+
+        GANDALF.some_light('isa_atmosphere')  # BaseRing.Backpack.isa_atmosphere
+
+    See Also
+    --------
+    FotR.earendils_light.EarendilsLight : what ``some_light`` resolves to.
     """
 
     #: Attributes never served from the ring (stay on BaseRing only).

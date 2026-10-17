@@ -135,9 +135,16 @@ class SAM:
         files = SAM.Backpack.pattern_pocket.find_files(path, endswith='.vtu')
         grad  = SAM.DifferentialOperators.gradient(X, f)
 
+    Six areas, several with nested classes, make a path easy to forget.
+    ``some_light`` finds a name across the package without importing
+    anything, and only then imports the module holding the match::
+
+        SAM.some_light('find_files')      # where it lives, and its signature
+
     See Also
     --------
     FotR.characters.frodo.FRODO : the database coordinator SAM supports.
+    FotR.earendils_light.EarendilsLight : what ``some_light`` resolves to.
     """
 
     light = EarendilsLight(__name__)
