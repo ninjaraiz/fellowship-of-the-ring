@@ -22,10 +22,13 @@ from typing import Literal, Optional, Tuple, Union, TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import plotly.graph_objects as go
+from ..._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+# ``make_axes_locatable`` is imported by the methods that need it.
+plt     = lazy_module('matplotlib.pyplot')
+mcolors = lazy_module('matplotlib.colors')
+go      = lazy_module('plotly.graph_objects')
 
 from ..sam import SAM
 from .base import BaseResiduals
@@ -960,6 +963,7 @@ class CODAResiduals(BaseResiduals):
         )
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', markerscale=3)
 
+        from mpl_toolkits.axes_grid1 import make_axes_locatable   # deferred
         divider = make_axes_locatable(ax)
         ax_cfl  = divider.append_axes("bottom", size="35%", pad=0.1, sharex=ax)
         ax_cfl.scatter(
@@ -1278,6 +1282,7 @@ class CODAResiduals(BaseResiduals):
                         horizontalalignment='right', bbox=dict(boxstyle='round', facecolor='white', alpha=0.5))
             cur.tick_params(labelbottom=False)
 
+            from mpl_toolkits.axes_grid1 import make_axes_locatable   # deferred
             divider = make_axes_locatable(cur)
             ax_cfl  = divider.append_axes(
                 "bottom", size="35%", pad=0.1, sharex=cur

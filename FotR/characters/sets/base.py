@@ -49,12 +49,16 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import Literal, Optional, TYPE_CHECKING, Union
 
-import h5py
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import torch
+
+from ..._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+h5py    = lazy_module('h5py')
+mcolors = lazy_module('matplotlib.colors')
+plt     = lazy_module('matplotlib.pyplot')
+torch   = lazy_module('torch')
 
 from ..sam import SAM
 

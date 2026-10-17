@@ -64,11 +64,14 @@ from typing import Literal, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm, SymLogNorm
-import seaborn as sns
-from scipy import stats as scipy_stats
-from scipy.stats import skew, kurtosis
+from ..._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+# ``LogNorm``/``SymLogNorm`` and ``skew``/``kurtosis`` are imported by the
+# single method that uses each.
+plt         = lazy_module('matplotlib.pyplot')
+sns         = lazy_module('seaborn')
+scipy_stats = lazy_module('scipy.stats')
 
 from .base import BaseStats
 
@@ -801,6 +804,7 @@ class CODAStats(BaseStats):
                 flcc_vars=['Mach', 'AoA'], case_metric='mean_diff',
             )
         """
+        from scipy.stats import skew, kurtosis   # deferred
         key_group = f'CADGroup_{id_group}'
         if key_group not in self.db.data_dict:
             raise KeyError(f"'{key_group}' not found in data_dict.")
@@ -1693,6 +1697,7 @@ class CODAStats(BaseStats):
                 'max_abs_diff', True, (9, 5), None,
             )
         """
+        from matplotlib.colors import LogNorm, SymLogNorm   # deferred
 
         # ------------------------------------------------------------
         # Scatter normal (1 ó 2 variables) o PCA (>2 variables)

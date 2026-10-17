@@ -28,8 +28,12 @@ from typing import Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-import torch
-import h5py
+
+from ..._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+torch = lazy_module('torch')
+h5py  = lazy_module('h5py')
 
 from ..sam import SAM
 from .base import BaseSets

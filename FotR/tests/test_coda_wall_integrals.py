@@ -16,9 +16,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# plot_wall_integrals never touches pyLOM, but sets/coda.py imports it
-# at module level: provide a bare stand-in when it is not installed
-# (other test modules may have installed a fuller one already).
+# plot_wall_integrals never touches pyLOM, and sets/coda.py now binds it
+# through lazy_module, so nothing should reach for it here. The bare
+# stand-in stays as a safety net in case something does (other test
+# modules may have installed a fuller one already).
 if "pyLOM" not in sys.modules:
     try:
         import pyLOM  # noqa: F401

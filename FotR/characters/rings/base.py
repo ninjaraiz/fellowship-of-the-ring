@@ -21,7 +21,9 @@ from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
-from scipy.stats import truncnorm, qmc
+
+# ``truncnorm`` and ``qmc`` are imported by the two methods that use them,
+# so that building a ring does not pay for SciPy.
 
 from ...EarendilsLight import EarendilsLight
 
@@ -163,6 +165,7 @@ class BaseRing:
             external_dataframe (pd.DataFrame): DataFrame with external cases (for 'external' method).
             seed (int): seed for reproducibility.
         """
+        from scipy.stats import qmc   # deferred
 
         method = method.lower()
         if method not in ["halton", "lhs", "external"]:
@@ -1273,6 +1276,7 @@ class BaseRing:
             Apply a non-linear warp to u in [0,1] to concentrate points
             inside a range (peak_range). With peak_range None, linear mapping.
             """
+            from scipy.stats import truncnorm   # deferred
             v_min, v_max = bounds
 
             if peak_range is None:

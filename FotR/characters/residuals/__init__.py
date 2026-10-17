@@ -12,29 +12,22 @@ Adding a new Residuals class
 2. The import block below picks it up automatically on next restart.
 """
 
-from .base import BaseResiduals   # always available
+from ..._lazy import LazyRegistry
+from .base import BaseResiduals   # always available, and cheap
 
-# ── Formats with no Residuals implementation ──────────────────────────────────
-RESIDUALS_REGISTRY: dict = {
-    'Airfoil':   None,
+# CODA_SINGLE reuses the CODA residuals: monitor files and metadata
+# layout are identical, only the mesh differs per case.
+#: Declared formats. Each class is imported the first time its format is
+#: looked up, so using one format does not import the others. ``None`` means
+#: "format known, no implementation"; a missing optional dependency resolves
+#: to ``None`` too, exactly as the old try/except blocks did.
+RESIDUALS_REGISTRY = LazyRegistry(__name__, {
+    'Airfoil': None,
     'NUMPYFILE': None,
-    'PYLOM':     None,
-}
-
-# ── Progressive imports ───────────────────────────────────────────────────────
-try:
-    from .coda import CODAResiduals
-    RESIDUALS_REGISTRY['CODA'] = CODAResiduals
-    # CODA_SINGLE reuses the CODA residuals: monitor files and metadata
-    # layout are identical, only the mesh differs per case.
-    RESIDUALS_REGISTRY['CODA_SINGLE'] = CODAResiduals
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .horses3d import Horses3DResiduals
-    RESIDUALS_REGISTRY['HORSES3D'] = Horses3DResiduals
-except ModuleNotFoundError:
-    pass
+    'PYLOM': None,
+    'CODA': '.coda:CODAResiduals',
+    'CODA_SINGLE': '.coda:CODAResiduals',
+    'HORSES3D': '.horses3d:Horses3DResiduals',
+})
 
 __all__ = ['BaseResiduals', 'RESIDUALS_REGISTRY']

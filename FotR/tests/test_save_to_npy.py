@@ -7,9 +7,10 @@ Tests for the fixed ``CODASets.save_to_npy()``.
 ``FotR.characters.sam.SAM`` and ``FotR.characters.sets.base.BaseSets``)
 exactly like the other test modules in this suite do for ``readers/coda.py``
 and ``characters/frodo.py``, so the fix can be exercised without any of
-FRODO's optional heavy dependencies beyond ``numpy``/``torch``/``h5py``
-(which ``sets/coda.py`` itself imports at module level) and a trivial
-``pyLOM`` stand-in (only imported, never actually used by ``save_to_npy``).
+FRODO's optional heavy dependencies. ``sets/coda.py`` now binds ``torch``,
+``h5py`` and ``pyLOM`` through ``lazy_module``, so none of them is imported
+unless a method reaches for it; the ``pyLOM`` stand-in below is kept because
+the stub must answer if something does.
 
 Run with::
 
@@ -76,9 +77,9 @@ def _install_stub_modules():
                 self.db = db
         base_mod.BaseSets = _BaseSets
 
-    # Trivial pyLOM stand-in: sets/coda.py does `import pyLOM as SMEAGOL`
-    # at module level (used by create_pylom_mesh / create_NN_pylom, never
-    # by save_to_npy), so it only needs to exist, not do anything.
+    # Trivial pyLOM stand-in: sets/coda.py binds `SMEAGOL = lazy_module('pyLOM')`,
+    # used by create_pylom_mesh / create_NN_pylom and never by save_to_npy, so
+    # it only needs to exist, not do anything.
     if 'pyLOM' not in sys.modules:
         pylom_mod = types.ModuleType('pyLOM')
 

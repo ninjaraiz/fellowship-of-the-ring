@@ -13,23 +13,17 @@ Adding a new Stats class
 2. The import block below picks it up automatically on next restart.
 """
 
-from .base import BaseStats   # always available
+from ..._lazy import LazyRegistry
+from .base import BaseStats   # always available, and cheap
 
-# ── Formats with no Stats implementation ──────────────────────────────────
-STATS_REGISTRY: dict = {}
-
-# ── Progressive imports ───────────────────────────────────────────────────────
-try:
-    from .coda import CODAStats
-    STATS_REGISTRY['CODA'] = CODAStats
-    STATS_REGISTRY['NUMPY'] = CODAStats # Use the same data_dict format
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .coda_single import CODASingleStats
-    STATS_REGISTRY['CODA_SINGLE'] = CODASingleStats
-except ModuleNotFoundError:
-    pass
+#: Declared formats. Each class is imported the first time its format is
+#: looked up, so using one format does not import the others. ``None`` means
+#: "format known, no implementation"; a missing optional dependency resolves
+#: to ``None`` too, exactly as the old try/except blocks did.
+STATS_REGISTRY = LazyRegistry(__name__, {
+    'CODA': '.coda:CODAStats',
+    'NUMPY': '.coda:CODAStats',
+    'CODA_SINGLE': '.coda_single:CODASingleStats',
+})
 
 __all__ = ['BaseStats', 'STATS_REGISTRY']

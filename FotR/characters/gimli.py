@@ -90,17 +90,15 @@ import pandas as pd
 from typing import Any
 from typing import Optional
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+from .._lazy import lazy_module
 
-from sklearn.mixture import GaussianMixture
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
-from sklearn.metrics import (
-    silhouette_score,
-    calinski_harabasz_score,
-    davies_bouldin_score,
-)
+# Deferred heavy imports; see ``FotR/_lazy.py``. scikit-learn alone costs
+# ~0.85 s and seaborn ~1.3 s, and a GIMLI that is merely imported needs
+# neither. The sklearn names below are bound inside the methods that use
+# them, because ``from X import Y`` cannot be deferred this way.
+plt = lazy_module('matplotlib.pyplot')
+sns = lazy_module('seaborn')
+
 
 
 # ============================================================================
@@ -117,11 +115,27 @@ from sklearn.metrics import (
 
 MODEL_REGISTRY: dict[str, type["BaseClusterModel"]] = {}
 
-_SCALER_REGISTRY: dict[str, type] = {
-    "standard": StandardScaler,
-    "robust": RobustScaler,
-    "minmax": MinMaxScaler,
+# Scaler classes are named rather than imported: resolving them on first use
+# keeps scikit-learn out of the import path of a GIMLI that never scales.
+_SCALER_REGISTRY: dict[str, str] = {
+    "standard": "StandardScaler",
+    "robust": "RobustScaler",
+    "minmax": "MinMaxScaler",
 }
+
+
+def _resolve_scaler(name: Optional[str]):
+    """Return the scikit-learn scaler class for *name*, or ``None``.
+
+    ``None`` is returned both for an unknown name and for the explicit
+    ``"none"`` setting, which is what the caller already expected from
+    ``_SCALER_REGISTRY.get()``.
+    """
+    attr = _SCALER_REGISTRY.get(name)
+    if attr is None:
+        return None
+    import sklearn.preprocessing as _preprocessing   # deferred
+    return getattr(_preprocessing, attr)
 
 # Direction in which each model-selection metric improves. Used by
 # GIMLI.select_model() to decide whether to take the row with the minimum
@@ -401,7 +415,7 @@ class GIMLI:
         else:
             group_indices = {(): np.arange(len(self.df))}
 
-        scaler_cls = _SCALER_REGISTRY.get(self.config.scaler)
+        scaler_cls = _resolve_scaler(self.config.scaler)
 
         X_scaled = np.full_like(X_full, np.nan, dtype=float)
         scalers: dict[tuple, Any] = {}
@@ -1592,6 +1606,9 @@ class BaseClusterModel(ABC):
                 "davies_bouldin": np.nan,
             }
 
+        from sklearn.metrics import (   # deferred
+            silhouette_score, calinski_harabasz_score, davies_bouldin_score,
+        )
         return {
             "silhouette": silhouette_score(X, labels),
             "calinski_harabasz": calinski_harabasz_score(X, labels),
@@ -1621,6 +1638,7 @@ class GMMModel(BaseClusterModel):
         self, n_components: int, covariance_type: str, config: "ClusterConfig"
     ) -> GaussianMixture:
         """Construct a configured (unfitted) GaussianMixture instance."""
+        from sklearn.mixture import GaussianMixture   # deferred
         return GaussianMixture(
             n_components=n_components,
             covariance_type=covariance_type,
@@ -2000,6 +2018,7 @@ class ClusterPlotter:
 
         feature_names = gimli.dataset.feature_names
         if X.shape[1] > 2:
+            from sklearn.decomposition import PCA   # deferred
             pca = PCA(n_components=2, random_state=gimli.config.random_state)
             proj = pca.fit_transform(X)
             var = pca.explained_variance_ratio_

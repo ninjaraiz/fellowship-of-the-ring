@@ -62,9 +62,13 @@ from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
-import pyvista as pv
-import matplotlib.pyplot as plt
-from matplotlib.colors import BoundaryNorm
+
+from ..._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+# ``BoundaryNorm`` is used by plot_state() alone and is imported there.
+pv  = lazy_module('pyvista')
+plt = lazy_module('matplotlib.pyplot')
 
 from ..sam import SAM
 from .base import BaseReader
@@ -1274,6 +1278,7 @@ class CODAReader(BaseReader):
             db = FRODO(root_dir='/data/sim', format='CODA')
             db.plot_state()
         """
+        from matplotlib.colors import BoundaryNorm   # deferred
         num_stages  = self.metadata['num_stages']
         design_vars = self.metadata['design_vars']
         df_state    = self.df_state

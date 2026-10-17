@@ -13,41 +13,23 @@ Adding a new Sets class
 2. The import block below picks it up automatically on next restart.
 """
 
-from .base import BaseSets   # always available
-
-# ── Formats with no Sets implementation ──────────────────────────────────────
-# Explicit None entries make the registry self-documenting.
-SETS_REGISTRY: dict = {
-    'Airfoil': None,   # Airfoil format has no Sets class
-}
-
-# ── Progressive imports ───────────────────────────────────────────────────────
-try:
-    from .coda import CODASets
-    SETS_REGISTRY['CODA'] = CODASets
-    SETS_REGISTRY['NUMPY'] = CODASets # Use the same data_dict format
-except ModuleNotFoundError:
-    pass
+from ..._lazy import LazyRegistry
+from .base import BaseSets   # always available, and cheap
 
 # CODA_SINGLE keeps its own Sets: one mesh per case is a different data
-# contract, and CODASets imports pyLOM at module level (so it disappears
-# from the registry when pyLOM is absent). This one must not.
-try:
-    from .coda_single import CODASingleSets
-    SETS_REGISTRY['CODA_SINGLE'] = CODASingleSets
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .numpy_file import NUMPYFILESets
-    SETS_REGISTRY['NUMPYFILE'] = NUMPYFILESets
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .pylom import PYLOMSets
-    SETS_REGISTRY['PYLOM'] = PYLOMSets
-except ModuleNotFoundError:
-    pass
+# contract. CODASets is shared by CODA and NUMPY, which use the same
+# data_dict layout.
+#: Declared formats. Each class is imported the first time its format is
+#: looked up, so using one format does not import the others. ``None`` means
+#: "format known, no implementation"; a missing optional dependency resolves
+#: to ``None`` too, exactly as the old try/except blocks did.
+SETS_REGISTRY = LazyRegistry(__name__, {
+    'Airfoil': None,
+    'CODA': '.coda:CODASets',
+    'NUMPY': '.coda:CODASets',
+    'CODA_SINGLE': '.coda_single:CODASingleSets',
+    'NUMPYFILE': '.numpy_file:NUMPYFILESets',
+    'PYLOM': '.pylom:PYLOMSets',
+})
 
 __all__ = ['BaseSets', 'SETS_REGISTRY']

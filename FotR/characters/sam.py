@@ -35,11 +35,21 @@ DictVisualizer
 
 Import cost
 -----------
-This module imports ``torch``, ``pyvista``, ``scikit-learn``, ``seaborn``
-and ``matplotlib`` **at module level**, and ``frodo.py`` imports it
-unconditionally. Importing anything from ``FotR`` therefore pays for the
-whole stack. This is why the test-suite files stub ``SAM`` out instead of
-importing it, and why that stubbing is order-sensitive.
+The heavy dependencies are **deferred**: ``torch``, ``pyvista``, ``h5py``,
+``matplotlib`` and ``seaborn`` are bound through :func:`FotR._lazy.lazy_module`
+and only imported the first time a method actually touches them, while
+``scikit-learn`` and ``scipy.spatial.Delaunay`` are imported inside the single
+method that needs each. Importing this module therefore costs little more than
+numpy and pandas; a call to :meth:`SAM.Weapons.GMM` is what pays for seaborn.
+
+Two rules follow for anyone adding code here. Annotations are strings
+(``from __future__ import annotations``), so a signature may name a deferred
+module without triggering it when the ``def`` runs. And ``from library import
+Name`` cannot be deferred by the proxy — the name is bound at import time — so
+such an import belongs inside the function that uses it.
+
+The test suite still stubs ``SAM`` out instead of importing it, and that
+stubbing remains order-sensitive.
 
 Who calls what
 --------------
@@ -49,30 +59,46 @@ depends on (readers and sets call them constantly). ``Gardener``,
 code, downstream of a FRODO database.
 """
 
+# Annotations stay strings (PEP 563) so that a signature mentioning a
+# deferred module does not import it when the ``def`` runs.
+from __future__ import annotations
+
 import os
 import re
 
 import numpy as np
-import torch
 import pandas as pd
 from typing import Literal, Optional, Union
 from collections.abc import Iterable
 
-import h5py
-import pyvista as pv
 from datetime import datetime
 
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-
-import matplotlib.ticker as mticker
-from scipy.spatial import Delaunay
-
-import seaborn as sns
-from sklearn.preprocessing import StandardScaler
-
+from .._lazy import lazy_module
 from ..EarendilsLight import EarendilsLight
 from dataclasses import dataclass, field
+
+# ── Deferred heavy dependencies ─────────────────────────────────────────────
+# Each of these costs between 0.1 s and 1.3 s to import and is needed by only
+# a handful of the methods below, so they are imported on first use instead of
+# on ``import FotR``. See ``FotR/_lazy.py``.
+#
+#   torch       12 methods (Gardener, Weapons, DifferentialOperators)
+#   pyvista      6 methods (Backpack mesh helpers, Weapons)
+#   h5py         6 methods (HDF5reader, Backpack)
+#   matplotlib   3 methods (DictVisualizer, Gardener, Weapons.GMM)
+#   seaborn      1 method  (Weapons.GMM)
+torch     = lazy_module('torch')
+h5py      = lazy_module('h5py')
+pv        = lazy_module('pyvista')
+plt       = lazy_module('matplotlib.pyplot')
+mcolors   = lazy_module('matplotlib.colors')
+mticker   = lazy_module('matplotlib.ticker')
+sns       = lazy_module('seaborn')
+
+# ``from scipy.spatial import Delaunay`` and ``from sklearn.preprocessing
+# import StandardScaler`` cannot be deferred this way — the name is bound at
+# import time — and each is used by exactly one method, so both are imported
+# inside the method that needs them.
 
 class SAM:
     """
@@ -2837,6 +2863,8 @@ class SAM:
             ordered_points : np.ndarray, shape (N, 2)
             order : np.ndarray[int], shape (N,)
             """
+            from scipy.spatial import Delaunay   # deferred: only used here
+
             def _concave_hull_indices(pts: np.ndarray, a: float) -> np.ndarray:
                 tri = Delaunay(pts)
                 edge_count = {}
@@ -3510,6 +3538,10 @@ class SAM:
                 if groupby is not None
                 else [(None, df_result)]
             )
+
+            # Deferred: scikit-learn costs ~0.85 s and GMM is the only
+            # method in SAM that needs it.
+            from sklearn.preprocessing import StandardScaler
 
             metrics_records = []
 

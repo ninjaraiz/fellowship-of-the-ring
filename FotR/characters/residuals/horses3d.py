@@ -33,9 +33,12 @@ from typing import Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+from ..._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+# ``make_axes_locatable`` is imported by the methods that need it.
+plt     = lazy_module('matplotlib.pyplot')
+mcolors = lazy_module('matplotlib.colors')
 
 from .base import BaseResiduals
 
@@ -483,6 +486,7 @@ class Horses3DResiduals(BaseResiduals):
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', markerscale=3)
 
         if 'Solver_elapsed_Time(s)' in df_res.columns:
+            from mpl_toolkits.axes_grid1 import make_axes_locatable   # deferred
             divider = make_axes_locatable(ax)
             ax_time = divider.append_axes(
                 "bottom", size="35%", pad=0.1, sharex=ax

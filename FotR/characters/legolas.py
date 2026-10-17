@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import numpy as np
-import torch
 from typing import Literal, Union
-import matplotlib.pyplot as plt
-import seaborn as sns
 import pandas as pd
+
+from .._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+torch = lazy_module('torch')
+plt   = lazy_module('matplotlib.pyplot')
+sns   = lazy_module('seaborn')
 import warnings
 
 

@@ -25,22 +25,31 @@ Determined at runtime by the registries, currently:
 
 The registry mechanism
 ----------------------
-Each subpackage ``__init__.py`` exposes a plain dict (``READER_REGISTRY``,
-``SETS_REGISTRY``, ``STATS_REGISTRY``, ``RESIDUALS_REGISTRY``) populated
-through ``try: ... except ModuleNotFoundError: pass`` blocks, so that a
-missing optional dependency removes an entry instead of breaking the
-import. Three outcomes are possible when FRODO looks a format up:
+Each subpackage ``__init__.py`` exposes a ``LazyRegistry``
+(``READER_REGISTRY``, ``SETS_REGISTRY``, ``STATS_REGISTRY``,
+``RESIDUALS_REGISTRY``) that maps a format to ``'.module:ClassName'`` and
+imports that class the first time the format is looked up. Opening a CODA
+database therefore does not import the HORSES3D, NUMPY, NUMPYFILE or PYLOM
+readers, nor the libraries they pull in. Three outcomes are possible when
+FRODO looks a format up:
 
   * class found              → the piece is instantiated;
-  * key present but ``None`` → format known, submodule not implemented:
-    the attribute is set to ``None`` and a ``UserWarning`` is emitted;
+  * ``None``, or an optional
+    dependency missing       → format known, piece unavailable: the
+    attribute is set to ``None`` and a ``UserWarning`` is emitted;
   * key absent from
     ``READER_REGISTRY``      → ``ValueError`` (unsupported format).
 
-Because only ``ModuleNotFoundError`` is swallowed, an optional dependency
-that is absent makes a piece disappear *silently apart from the warning*.
-The known instance of this is pyLOM: ``sets/coda.py`` imports it at module
-level, so without pyLOM installed CODA and NUMPY lose their Sets class.
+Only ``ModuleNotFoundError`` is turned into ``None``; any other import
+error still propagates, as it did when the registries were eager.
+
+A note on pyLOM: ``sets/coda.py`` now imports it lazily, because pyLOM is
+needed only by the pyLOM-export methods while ``CODASets`` itself serves
+CODA and NUMPY. Without pyLOM installed those two formats keep their Sets
+class and only the export methods fail, instead of losing Sets entirely.
+``readers/pylom.py`` still imports pyLOM eagerly on purpose — there, pyLOM
+is the format — so ``format='PYLOM'`` resolves to ``None`` when it is
+absent, and FRODO reports an unsupported format as before.
 
 Adding a new format only requires:
   1. A reader in readers/<format>.py  (subclass of BaseReader).
@@ -106,7 +115,8 @@ class FRODO:
         Format-specific parser. Always present.
     sets : BaseSets or None
         Tensor/mesh/IO helper, or ``None`` when the format registers no
-        Sets class (HORSES3D; also CODA and NUMPY when pyLOM is missing).
+        Sets class (HORSES3D). CODA and NUMPY keep theirs even without
+        pyLOM installed; only the pyLOM-export methods fail.
     residuals : BaseResiduals or None
         Convergence helper, or ``None`` (NUMPY, NUMPYFILE, PYLOM).
     stats : BaseStats or None

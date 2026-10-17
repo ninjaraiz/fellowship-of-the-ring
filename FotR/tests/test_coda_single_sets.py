@@ -136,11 +136,13 @@ def test_sets_and_stats_are_registered(db):
 
 
 def test_sets_imports_without_pylom(monkeypatch):
-    """CODASets vanishes from the registry without pyLOM; this must not.
+    """CODASingleSets must survive a missing pyLOM.
 
-    ``sets/coda.py`` imports pyLOM at module level, so the registry's
-    ``except ModuleNotFoundError`` silently drops CODA. CODASingleSets
-    imports it inside ``to_pylom`` precisely to avoid that.
+    It imports pyLOM inside ``to_pylom`` rather than at module level, so
+    a missing pyLOM costs the export method and nothing else. Since the
+    lazy-import cleanup ``sets/coda.py`` does the same, and CODA keeps
+    its Sets class too (this used to be bug B12); the guarantee is
+    asserted here for CODA_SINGLE, which never depended on it.
     """
     import importlib
     import FotR.characters.sets.coda_single as mod

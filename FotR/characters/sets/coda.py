@@ -21,13 +21,19 @@ import re
 import warnings
 from typing import Literal, Optional, Union, TYPE_CHECKING
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import h5py
-from scipy.spatial import cKDTree
 
-import pyLOM as SMEAGOL
+from ..._lazy import lazy_module
+
+# Deferred heavy imports; see ``FotR/_lazy.py``.
+# pyLOM is only needed by the pyLOM-export methods, so importing it lazily
+# also means that a missing pyLOM no longer removes CODASets from the registry
+# and silently leaves CODA and NUMPY without a Sets class (bug B12).
+# ``cKDTree`` is imported by the two interpolation methods that use it.
+plt     = lazy_module('matplotlib.pyplot')
+h5py    = lazy_module('h5py')
+SMEAGOL = lazy_module('pyLOM')
 
 from ..sam import SAM
 from .base import BaseSets
@@ -946,6 +952,7 @@ class CODASets(BaseSets):
             # Access result:
             cp_interp = db.data_dict['CADGroup_3']['Vars']['0']['Pressure_interp']
         """
+        from scipy.spatial import cKDTree   # deferred
         vol  = self.db.data_dict[f'CADGroup_{vol_group}']
         surf = self.db.data_dict[f'CADGroup_{surf_group}']
 
@@ -1045,6 +1052,7 @@ class CODASets(BaseSets):
                 k=6,
             )
         """
+        from scipy.spatial import cKDTree   # deferred
         src       = self.db.data_dict[f'CADGroup_{id_group_src}']
         coord_src = src["Coord"]
         vars_src  = src["Vars"]

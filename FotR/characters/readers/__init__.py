@@ -20,54 +20,20 @@ A missing key means the format is unknown; FRODO raises ValueError.
 A value of None is not used here – every registered entry must be a class.
 """
 
-from .base import BaseReader   # always available
+from ..._lazy import LazyRegistry
+from .base import BaseReader   # always available, and cheap
 
-# ── Progressive imports ───────────────────────────────────────────────────────
-# Only ModuleNotFoundError is caught so that real import errors inside the
-# individual modules (syntax errors, missing dependencies, …) still propagate.
-
-READER_REGISTRY: dict = {}
-
-try:
-    from .coda import CODAReader
-    READER_REGISTRY['CODA'] = CODAReader
-except ModuleNotFoundError:
-    pass
-
-# try:
-#     from .airfoil import AIRFOILReader
-#     READER_REGISTRY['Airfoil'] = AIRFOILReader
-# except ModuleNotFoundError:
-#     pass
-
-try:
-    from .numpy_file import NUMPYFILEReader
-    READER_REGISTRY['NUMPYFILE'] = NUMPYFILEReader
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .numpy import NUMPYReader
-    READER_REGISTRY['NUMPY'] = NUMPYReader
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .pylom import PYLOMReader
-    READER_REGISTRY['PYLOM'] = PYLOMReader
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .horses3d import Horses3DReader
-    READER_REGISTRY['HORSES3D'] = Horses3DReader
-except ModuleNotFoundError:
-    pass
-
-try:
-    from .coda_single import CODASingleReader
-    READER_REGISTRY['CODA_SINGLE'] = CODASingleReader
-except ModuleNotFoundError:
-    pass
+#: Declared formats. Each class is imported the first time its format is
+#: looked up, so using one format does not import the others. ``None`` means
+#: "format known, no implementation"; a missing optional dependency resolves
+#: to ``None`` too, exactly as the old try/except blocks did.
+READER_REGISTRY = LazyRegistry(__name__, {
+    'CODA': '.coda:CODAReader',
+    'CODA_SINGLE': '.coda_single:CODASingleReader',
+    'NUMPY': '.numpy:NUMPYReader',
+    'NUMPYFILE': '.numpy_file:NUMPYFILEReader',
+    'PYLOM': '.pylom:PYLOMReader',
+    'HORSES3D': '.horses3d:Horses3DReader',
+})
 
 __all__ = ['BaseReader', 'READER_REGISTRY']
