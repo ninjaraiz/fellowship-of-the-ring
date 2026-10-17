@@ -490,23 +490,20 @@ Detalle y reglas para añadir código: §8 del HANDOFF.
   vivo en `sam.py:2985` y es lo que siguen llamando los examples. No hay ni un ejemplo
   que use `GIMLI`.
 
-### `EarendilsLight`: el sistema de ayuda no funciona donde más haría falta
+### `EarendilsLight`: resuelto el 17/10/2026 — esta sección describe el estado anterior
 
-Patrón `light = EarendilsLight(__name__)` + `some_light()` en FRODO (`frodo.py:56`),
-SAM (`sam.py:46`), GANDALF, `BaseRing` y `xgboost_preliminar`. No lo tienen LEGOLAS,
-ARAGORN ni GIMLI.
+Lo que había: `_render_docstring` devolvía un objeto `rich.Syntax` mientras
+`_print_class` y `_print_callable` hacían `"\n\n".join(body)` con él dentro, así que
+**toda consulta que encontrase un docstring lanzaba `TypeError`**. De diez llamadas
+típicas, siete reventaban, dos no encontraban nada y una funcionaba: el panel que solo
+explica cómo usar la clase. Sin tests, nunca se ejecutó. Los imports perezosos lo
+empeoraron de rebote, porque `_search_by_name` recorría `inspect.getmembers` y ya no veía
+los submódulos sin cargar.
 
-Estado real: **sin uso en el repo** (ni una llamada a `.some_light(...)`), sin tests
-(siempre stubeado), y el propio README lo describe como «de momento va a pilas y no
-funciona muy bien». La razón técnica concreta: `_render_signature`
-(`EarendilsLight.py:229-231`) llama `get_type_hints(fn)` dentro de un `try/except`
-amplio que devuelve `"⚠️ Firma no disponible"` al fallar. Las anotaciones en string tipo
-`db: 'FRODO'` bajo `if TYPE_CHECKING` — que son exactamente las de `sets/base.py`,
-`stats/base.py`, `residuals/base.py` y `legolas.py` — **no resuelven**, así que la ayuda
-se rinde justo en las clases que más interesan.
-
-Además `_render_signature` mezcla render y valor de retorno: imprime en consola y
-devuelve `""`.
+Lo que hay: 19 tests y un alcance deliberadamente estrecho, porque `help()` cubre bien
+todo lo demás. Quedan las dos preguntas que `help()` no puede contestar — cuál de las
+implementaciones del cuarteto te ha tocado en un objeto vivo, y dónde vive un nombre sin
+importar medio paquete para averiguarlo. Render en texto plano, sin `rich`.
 
 ---
 

@@ -53,6 +53,11 @@ def _install_stub_modules():
 
             def help(self, *a, **k):
                 pass
+
+            def shortcut(self):
+                # Real EarendilsLight returns a descriptor here; the stubbed
+                # classes never call some_light, so None is enough.
+                return None
         el.EarendilsLight = _EL
 
     sam_mod = mk('FotR.characters.sam')

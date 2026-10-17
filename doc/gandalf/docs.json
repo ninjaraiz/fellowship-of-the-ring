@@ -86,26 +86,6 @@
           },
           "methods": [
             {
-              "id": "GANDALF.some_light",
-              "class": "GANDALF",
-              "name": "some_light",
-              "signature": "some_light(name=None)",
-              "returns": "",
-              "kind": "classmethod",
-              "is_private": false,
-              "doc": {
-                "summary": "Shortcut to Earendil's Light help system.",
-                "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
-                "attributes": [],
-                "methods": [],
-                "text_sections": [],
-                "has_doc": true
-              }
-            },
-            {
               "id": "GANDALF.__init__",
               "class": "GANDALF",
               "name": "__init__",
@@ -240,26 +220,6 @@
             "has_doc": true
           },
           "methods": [
-            {
-              "id": "BaseRing.some_light",
-              "class": "BaseRing",
-              "name": "some_light",
-              "signature": "some_light(name=None)",
-              "returns": "",
-              "kind": "classmethod",
-              "is_private": false,
-              "doc": {
-                "summary": "Shortcut to Earendil's Light help system.",
-                "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
-                "attributes": [],
-                "methods": [],
-                "text_sections": [],
-                "has_doc": true
-              }
-            },
             {
               "id": "BaseRing.__init__",
               "class": "BaseRing",

@@ -19,10 +19,7 @@ class GANDALF(XGBClassifier):
 
     light = EarendilsLight(__name__)
 
-    @classmethod
-    def some_light(cls, name=None):
-        """Atajo a Eärendil's Light."""
-        return cls.light.help(name)
+    some_light = light.shortcut()
 
     def __init__(self, **kwargs):
         super().__init__(

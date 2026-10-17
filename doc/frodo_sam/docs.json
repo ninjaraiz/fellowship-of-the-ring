@@ -39,6 +39,270 @@
   },
   "modules": [
     {
+      "file": "FotR/EarendilsLight.py",
+      "classes": [
+        {
+          "id": "EarendilsLight",
+          "file": "FotR/EarendilsLight.py",
+          "parent": null,
+          "bases": [],
+          "doc": {
+            "summary": "A prompt for the two questions ``help()`` cannot answer.",
+            "description": "",
+            "params": [
+              {
+                "name": "root",
+                "type": "str or module or type, optional",
+                "desc": "Only used to label the output. Kept for the historical ``EarendilsLight(__name__)`` spelling."
+              }
+            ],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    class FRODO:\n        light = EarendilsLight(__name__)\n        some_light = light.shortcut()"
+              },
+              {
+                "title": "See Also",
+                "text": "help : the built-in, which is the right tool nearly all of the time."
+              }
+            ],
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "EarendilsLight.__init__",
+              "class": "EarendilsLight",
+              "name": "__init__",
+              "signature": "__init__(root=None)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Store the label used in the overview header.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "root",
+                    "type": "str or module or type, optional",
+                    "desc": "Only used for display. Kept so that the historical ``EarendilsLight(__name__)`` spelling keeps working."
+                  }
+                ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "EarendilsLight.shortcut",
+              "class": "EarendilsLight",
+              "name": "shortcut",
+              "signature": "shortcut()",
+              "returns": "_Shortcut",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Return the descriptor to assign to a class's ``some_light``.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "EarendilsLight.help",
+              "class": "EarendilsLight",
+              "name": "help",
+              "signature": "help(target: str = None, *, owner=None, show: bool = True)",
+              "returns": "str",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Explain *target*, resolving delegation when *owner* is live.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "target",
+                    "type": "str, optional",
+                    "desc": "Name to look up, e.g. ``'extract_inputs'`` or ``'CODAReader.extract_inputs'``. With ``None`` a short reminder of what this does is printed instead."
+                  },
+                  {
+                    "name": "owner",
+                    "type": "object, optional",
+                    "desc": "Supplied automatically by ``some_light``. When it is an instance rather than a class, its delegation chain is walked first, so the answer is about the object you actually hold."
+                  },
+                  {
+                    "name": "show",
+                    "type": "bool, optional",
+                    "desc": "Print the result. Default ``True``. The text is returned either way."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "str",
+                    "desc": "The rendered text."
+                  }
+                ],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "EarendilsLight._live",
+              "class": "EarendilsLight",
+              "name": "_live",
+              "signature": "_live(owner, name: str)",
+              "returns": "list",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Resolve *name* through a live object's delegation chain.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "EarendilsLight._render_live",
+              "class": "EarendilsLight",
+              "name": "_render_live",
+              "signature": "_render_live(owner, name, slot, fn, own)",
+              "returns": "str",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Render one resolved delegation, saying where it was reached.",
+                "description": "",
+                "params": [
+                  {
+                    "name": "owner",
+                    "type": "object",
+                    "desc": "The live instance the lookup started from."
+                  },
+                  {
+                    "name": "name",
+                    "type": "str",
+                    "desc": "Attribute that was looked up."
+                  },
+                  {
+                    "name": "slot",
+                    "type": "str",
+                    "desc": "Entry of ``_LIGHT_DELEGATES`` that provided it."
+                  },
+                  {
+                    "name": "cls",
+                    "type": "type",
+                    "desc": "Class of the sub-object that actually defines it."
+                  },
+                  {
+                    "name": "fn",
+                    "type": "callable",
+                    "desc": "The implementation, unbound."
+                  },
+                  {
+                    "name": "own",
+                    "type": "callable or None",
+                    "desc": "The owner's own version, if it has one. When that version merely forwards, a line says so."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "str",
+                    "desc": "Header, signature and docstring."
+                  }
+                ],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "EarendilsLight._static",
+              "class": "EarendilsLight",
+              "name": "_static",
+              "signature": "_static(target: str, name: str)",
+              "returns": "list",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Find *name* in the index and render every match.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "EarendilsLight._missing",
+              "class": "EarendilsLight",
+              "name": "_missing",
+              "signature": "_missing(target: str)",
+              "returns": "str",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Explain that *target* is nowhere, and where to look instead.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "EarendilsLight._overview",
+              "class": "EarendilsLight",
+              "name": "_overview",
+              "signature": "_overview(owner)",
+              "returns": "str",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "The reminder printed when no target is given.",
+                "description": "Mentions the live resolution only when *owner* is an instance\nthat actually declares a delegation chain, so the hint is never\nadvice the reader cannot follow.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "file": "FotR/characters/frodo.py",
       "classes": [
         {
@@ -132,26 +396,6 @@
             "has_doc": true
           },
           "methods": [
-            {
-              "id": "FRODO.some_light",
-              "class": "FRODO",
-              "name": "some_light",
-              "signature": "some_light(name=None)",
-              "returns": "",
-              "kind": "classmethod",
-              "is_private": false,
-              "doc": {
-                "summary": "Shortcut to Eärendil's Light help system.",
-                "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
-                "attributes": [],
-                "methods": [],
-                "text_sections": [],
-                "has_doc": true
-              }
-            },
             {
               "id": "FRODO.__getattr__",
               "class": "FRODO",
@@ -779,26 +1023,6 @@
           },
           "methods": [
             {
-              "id": "GANDALF.some_light",
-              "class": "GANDALF",
-              "name": "some_light",
-              "signature": "some_light(name=None)",
-              "returns": "",
-              "kind": "classmethod",
-              "is_private": false,
-              "doc": {
-                "summary": "Shortcut to Earendil's Light help system.",
-                "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
-                "attributes": [],
-                "methods": [],
-                "text_sections": [],
-                "has_doc": true
-              }
-            },
-            {
               "id": "GANDALF.__init__",
               "class": "GANDALF",
               "name": "__init__",
@@ -933,26 +1157,6 @@
             "has_doc": true
           },
           "methods": [
-            {
-              "id": "BaseRing.some_light",
-              "class": "BaseRing",
-              "name": "some_light",
-              "signature": "some_light(name=None)",
-              "returns": "",
-              "kind": "classmethod",
-              "is_private": false,
-              "doc": {
-                "summary": "Shortcut to Earendil's Light help system.",
-                "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
-                "attributes": [],
-                "methods": [],
-                "text_sections": [],
-                "has_doc": true
-              }
-            },
             {
               "id": "BaseRing.__init__",
               "class": "BaseRing",
@@ -1616,28 +1820,7 @@
             ],
             "has_doc": true
           },
-          "methods": [
-            {
-              "id": "SAM.some_light",
-              "class": "SAM",
-              "name": "some_light",
-              "signature": "some_light(name=None)",
-              "returns": "",
-              "kind": "classmethod",
-              "is_private": false,
-              "doc": {
-                "summary": "Shortcut to Eärendil's Light help system.",
-                "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
-                "attributes": [],
-                "methods": [],
-                "text_sections": [],
-                "has_doc": true
-              }
-            }
-          ]
+          "methods": []
         },
         {
           "id": "SAM.Gardener",

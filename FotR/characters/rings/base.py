@@ -46,10 +46,7 @@ class BaseRing:
 
     light = EarendilsLight(__name__)
 
-    @classmethod
-    def some_light(cls, name=None):
-        """Shortcut to Earendil's Light help system."""
-        return cls.light.help(name)
+    some_light = light.shortcut()
 
     def __init__(
         self, root_dir: str,

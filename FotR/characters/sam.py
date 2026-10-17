@@ -142,10 +142,7 @@ class SAM:
 
     light = EarendilsLight(__name__)
 
-    @classmethod
-    def some_light(cls, name=None):
-        """Shortcut to Eärendil's Light help system."""
-        return cls.light.help(name)
+    some_light = light.shortcut()
 
     # =========================================================================
     # GARDENER
@@ -1225,7 +1222,7 @@ class SAM:
                 sort: bool = True,
                 verbose: bool = True,
             ) -> list[str]:
-                """
+                r"""
                 Return files inside a directory whose filenames satisfy one or more
                 filtering criteria.
 
@@ -1651,7 +1648,7 @@ class SAM:
                 sort: bool = True,
                 verbose: bool = True,
             ) -> list[str]:
-                """
+                r"""
                 Return files inside a directory whose filenames satisfy one or more
                 filtering criteria.
 

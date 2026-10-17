@@ -48,12 +48,13 @@ class GANDALF:
     #: Attributes never served from the ring (stay on BaseRing only).
     _NON_DELEGATED = frozenset({'Backpack'})
 
+    #: The single sub-object everything is forwarded to; Eärendil's Light
+    #: walks it so ``gdf.some_light('define_cases')`` names the real ring.
+    _LIGHT_DELEGATES = ('_ring',)
+
     light = EarendilsLight(__name__)
 
-    @classmethod
-    def some_light(cls, name=None):
-        """Shortcut to Earendil's Light help system."""
-        return cls.light.help(name)
+    some_light = light.shortcut()
 
     def __init__(
         self,

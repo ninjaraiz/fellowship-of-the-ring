@@ -165,12 +165,14 @@ class FRODO:
         db.add_aux(...)        # same call, resolved by __getattr__
     """
 
+    #: Sub-objects searched by :meth:`__getattr__`, in order. Eärendil's
+    #: Light reads the same tuple, so a live ``db.some_light('name')``
+    #: reports exactly what an attribute lookup would have reached.
+    _LIGHT_DELEGATES = ('sets', 'reader', 'residuals', 'stats')
+
     light = EarendilsLight(__name__)
 
-    @classmethod
-    def some_light(cls, name=None):
-        """Shortcut to Eärendil's Light help system."""
-        return cls.light.help(name)
+    some_light = light.shortcut()
 
     def __str__(self):
         return (
@@ -225,7 +227,7 @@ class FRODO:
           anything of FRODO's own. Address the sub-object explicitly
           (``db.reader.summary``) when the distinction matters.
         """
-        for sub in ('sets', 'reader', 'residuals', 'stats'):
+        for sub in type(self)._LIGHT_DELEGATES:
             try:
                 obj = object.__getattribute__(self, sub)
             except AttributeError:

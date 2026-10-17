@@ -439,7 +439,28 @@
       },
       {
         "t": "p",
-        "x": "Galadriel se la entregó a Frodo diciendo: *«May it be a light to you in dark places, when all other lights go out»*. En el repositorio, el frasco no enciende: `EarendilsLight` no funciona sobre FRODO ni sobre SAM, porque las anotaciones `db: 'FRODO'` viven bajo `TYPE_CHECKING` y no se resuelven en tiempo de ejecución. Una luz para los lugares oscuros que, de momento, va a pilas. Está en el ANÁLISIS §7."
+        "x": "Galadriel se la entregó a Frodo diciendo: *«May it be a light to you in dark places, when all other lights go out»*. Conviene leer la condición entera, porque es literal: **para casi todo, la luz que no se ha apagado es `help(objeto)`** — gratis, siempre al día, y mejor de lo que esto va a ser nunca. El frasco se guarda para los dos sitios a oscuras."
+      },
+      {
+        "t": "table",
+        "head": [
+          "la pregunta",
+          "por qué `help()` no puede"
+        ],
+        "rows": [
+          [
+            "`db.some_light('extract_inputs')`",
+            "FRODO reenvía esa llamada y su firma es `(*args, **kwargs)`. La buena vive en el reader de tu formato, y cuál sea depende del objeto que tengas en la mano: nada estático lo sabe."
+          ],
+          [
+            "`FRODO.some_light('compute_param')`",
+            "`help()` necesita el objeto; tú solo recuerdas el nombre. El índice se construye leyendo el código con `ast`, **sin importar nada**, así que buscar no te cuesta ni torch ni pyvista."
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Reescrito en octubre de 2026 y por fin con tests. Antes lanzaba `TypeError` en cualquier consulta que encontrase un docstring: nunca había funcionado. De paso salió `rich` del arranque, unos 49 ms por cada FRODO."
       }
     ]
   },
@@ -883,7 +904,28 @@
       },
       {
         "t": "p",
-        "x": "Galadriel handed it to Frodo saying: *«May it be a light to you in dark places, when all other lights go out»*. In this repository the phial does not light up: `EarendilsLight` does not work on FRODO or SAM, because the `db: 'FRODO'` annotations live under `TYPE_CHECKING` and never resolve at runtime. A light for dark places that currently runs on batteries. It is in ANALYSIS §7."
+        "x": "Galadriel handed it to Frodo saying: *«May it be a light to you in dark places, when all other lights go out»*. Read the whole condition, because it is meant literally: **for almost everything the light that has not gone out is `help(obj)`** — free, always current, and better than this will ever be. The phial is kept for the two dark corners."
+      },
+      {
+        "t": "table",
+        "head": [
+          "the question",
+          "why `help()` cannot"
+        ],
+        "rows": [
+          [
+            "`db.some_light('extract_inputs')`",
+            "FRODO forwards that call and its signature is `(*args, **kwargs)`. The real one lives on your format's reader, and which reader that is depends on the object in your hands: nothing static knows."
+          ],
+          [
+            "`FRODO.some_light('compute_param')`",
+            "`help()` needs the object; you only remember the name. The index is built by reading the source with `ast`, **importing nothing**, so searching costs you neither torch nor pyvista."
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Rewritten in October 2026 and finally tested. It used to raise `TypeError` on any query that found a docstring: it had never worked. Dropping `rich` took about 49 ms off every FRODO import."
       }
     ]
   }

@@ -89,9 +89,12 @@ del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fich
   `FlCc` ya extraído) y los subsets solo viven en el global → ANÁLISIS §3.4.
 * **SAM no tiene ni un test.** De FRODO solo se testea `merge_datasets`.
   `stats/coda.py` está a cero → ANÁLISIS §6.
-* `EarendilsLight` no funciona sobre FRODO ni SAM: `some_light()` lanza
-  `TypeError: sequence item 0: expected str instance, Syntax found`. **Es anterior a
-  los imports perezosos** (verificado con `git stash` el 10/10/2026), no una regresión.
+* `EarendilsLight` **reescrito el 17/10/2026** y ya con tests (19). Antes lanzaba
+  `TypeError: expected str instance, Syntax found` en toda consulta que encontrase un
+  docstring. Ahora hace dos cosas y solo dos: resolver la cadena de delegación sobre un
+  objeto vivo (`db.some_light('extract_inputs')` → qué reader te tocó y su firma real) y
+  buscar un nombre en el paquete con `ast`, sin importar nada. Render en texto plano:
+  `rich` fuera, y con él ~49 ms de cada arranque de FRODO.
 * `SAM.Backpack` y `BaseRing.Backpack` **no son la misma cosa** y no comparten un solo
   método: la primera lleva ficheros y mallas, la segunda atmósfera, viscosidad y Slurm.
 * `BaseRing.Backpack.normalize_airfoil` **muta el array de entrada** si es `float64`
