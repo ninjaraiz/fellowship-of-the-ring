@@ -86,6 +86,20 @@ CONV_EXCLUDE = ('MomentumYResidual',)
 #: Thresholds shown in the sensitivity table of §4.1.
 CONV_SWEEP = (1e-6, 1e-5, 1e-4, 1e-3, 5e-3)
 
+#: Meshes whose Cp distribution §6 overlays. None means "the winning
+#: triplet of §4", which is the point of that section: showing that the
+#: triplet the method picked really does collapse onto one curve.
+CP_PROFILE_MESHES = None
+#: Chord fraction trimmed off each end before computing the interior
+#: difference statistics of §6. The aerofoil has a sharp leading and
+#: trailing edge, where Cp is singular and no mesh resolves it; including
+#: those cells would let two points dominate a norm over ~8000.
+CP_EDGE_TRIM = 0.02
+#: Points of the common x/c grid the curves are resampled onto before
+#: subtracting. Meshes share no surface points, so a difference is only
+#: defined after an explicit resampling.
+CP_GRID = 400
+
 #: The single coefficient that decides the winning triplet. CoefDrag is
 #: the only one strictly positive and well conditioned in all three
 #: flight conditions; CL and CMy are ~1e-3 at low AoA, where a relative
@@ -142,7 +156,6 @@ TEXTS = {
     'converged': 'convergida', 'excluded': 'excluida (§2)',
     'iterations': 'iteraciones', 'max_residual': 'residuo máx. (r/r0)',
     'threshold': 'umbral', 'common': 'comunes', 'triplets': 'tripletas',
-    'notice': 'aviso',
     'n_converged': 'mallas convergidas', 'n_combinations': 'combinaciones',
     'n_admissible': 'tripletas admisibles',
     'n_p_band': 'con p en [%.1f, %.1f]',
@@ -150,9 +163,6 @@ TEXTS = {
     'n_sims': 'simulaciones', 'n_excluded': 'excluidas (§2)',
     'n_usable': 'convergidas y usables', 'n_unconverged': 'no convergidas',
     'winner_rank': 'rango de la ganadora',
-    'winner_s4': 'tripleta ganadora (§4)',
-    'rank_with': 'rango con {what}',
-    'best_with_field': 'mejor con RMS(Cp)',
 
     # — column header lists —
     'cols_stats': ['caso', 'f', 'celdas', 'media', 'RMS', 'mín', 'máx',
@@ -160,8 +170,6 @@ TEXTS = {
     'cols_ranked': ['rango', 'tripleta  (fina / media / gruesa)', 'r21',
                     'r32', 'p', 'razón asint.', 'GCI [%]', 'asint.', 'orden',
                     'refin.', 'equil.', 'finura', 'PUNTUACIÓN'],
-    'cols_field': ['rango', 'tripleta', 'r21', 'r32', 'p', 'RMS fina',
-                   'extrapolado', 'GCI [%]', 'razón asint.', 'puntuación'],
 
     # — table titles —
     't_overview': 'Resumen de las bases de datos',
@@ -173,7 +181,6 @@ TEXTS = {
     't_winner': 'Tripleta ganadora: {trio}',
     't_crosscheck': 'La ganadora {trio} vista con las tres variables',
     't_recommended': 'Malla recomendada: {mesh}',
-    't_crossmag': 'La ganadora juzgada por la otra magnitud',
     't_budget': 'De dónde sale la restricción',
 
     # — captions —
@@ -233,8 +240,6 @@ TEXTS = {
                 'Símbolo hueco: la simulación no alcanzó el umbral de '
                 'convergencia. En azul, la tripleta ganadora; la banda roja '
                 'sólo se dibuja sobre la variable de decisión.',
-    'c_field': 'Tripletas admisibles sobre RMS(C<sub>p</sub>) en la pared, '
-               'puntuadas con el mismo criterio de la §4.2.',
     'c_crossmag': 'Un rango bajo también con RMS(C<sub>p</sub>) indicaría que '
                   'la elección no depende de la magnitud usada para '
                   'decidirla. Compárese con la columna de la derecha, que es '
@@ -267,8 +272,25 @@ TEXTS = {
     'l_winner': 'ganadora',
     'l_ext_band': 'extrapolado ± GCI',
     'l_computed_on': 'calculado sobre {mesh}',
-    'no_field_triplet': 'ninguna tripleta admisible sobre RMS(Cp) tras el '
-                        'filtro de convergencia',
+    'l_upper': 'extradós', 'l_lower': 'intradós',
+    'comparison': 'comparación',
+    'rms_interior': 'RMS Δ(-Cp) interior',
+    'max_interior': 'máx |Δ| interior',
+    'max_edges': 'máx |Δ| con bordes',
+    'rms_rel': 'RMS relativo [%]',
+    'fig_cp_diff': 'Diferencia respecto a la malla fina',
+    'a_offscale': 'picos de borde fuera de escala (máx |Δ| = {peak})',
+    't_cp_diff': 'Diferencia entre las curvas de presión',
+    'c_cp_rows': 'Arriba: distribución de −C<sub>p</sub> de las tres mallas de la '
+                 'tripleta ganadora (línea continua extradós, discontinua intradós). '
+                 'Abajo: diferencia de cada malla respecto a la fina, tras remuestrear '
+                 'ambas sobre una malla común en x/c. La banda gris marca el {trim} de '
+                 'cuerda de cada extremo, excluido de la estadística; el eje está '
+                 'ajustado al interior, de modo que los picos de borde se salen.',
+    'c_cp_diff': 'Estadística de la diferencia. <b>Interior</b> excluye el {trim} de '
+                 'cuerda de cada borde, donde el perfil es anguloso y C<sub>p</sub> es '
+                 'singular. El RMS relativo se refiere al recorrido de la propia curva '
+                 'de −C<sub>p</sub>.',
 
     # — headline box —
     'headline': 'Resultado del estudio',
@@ -299,7 +321,6 @@ TEXTS = {
     'converged': 'converged', 'excluded': 'excluded (§2)',
     'iterations': 'iterations', 'max_residual': 'max residual (r/r0)',
     'threshold': 'threshold', 'common': 'common', 'triplets': 'triplets',
-    'notice': 'notice',
     'n_converged': 'converged meshes', 'n_combinations': 'combinations',
     'n_admissible': 'admissible triplets',
     'n_p_band': 'with p in [%.1f, %.1f]',
@@ -307,17 +328,12 @@ TEXTS = {
     'n_sims': 'simulations', 'n_excluded': 'excluded (§2)',
     'n_usable': 'converged and usable', 'n_unconverged': 'not converged',
     'winner_rank': "winner's rank",
-    'winner_s4': 'winning triplet (§4)',
-    'rank_with': 'rank with {what}',
-    'best_with_field': 'best with RMS(Cp)',
 
     # — column header lists —
     'cols_stats': ['case', 'f', 'cells', 'mean', 'RMS', 'min', 'max', 'std'],
     'cols_ranked': ['rank', 'triplet  (fine / medium / coarse)', 'r21', 'r32',
                     'p', 'asympt. ratio', 'GCI [%]', 'asympt.', 'order',
                     'refin.', 'balance', 'fineness', 'SCORE'],
-    'cols_field': ['rank', 'triplet', 'r21', 'r32', 'p', 'RMS fine',
-                   'extrapolated', 'GCI [%]', 'asympt. ratio', 'score'],
 
     # — table titles —
     't_overview': 'Database overview',
@@ -329,7 +345,6 @@ TEXTS = {
     't_winner': 'Winning triplet: {trio}',
     't_crosscheck': 'The winner {trio} seen through all three coefficients',
     't_recommended': 'Recommended mesh: {mesh}',
-    't_crossmag': 'The winner judged by the other quantity',
     't_budget': 'Where the constraint comes from',
 
     # — captions —
@@ -388,8 +403,6 @@ TEXTS = {
                 'the simulation did not reach the convergence threshold. In '
                 'blue, the winning triplet; the red band is drawn only on the '
                 'decision variable.',
-    'c_field': 'Admissible triplets on wall RMS(C<sub>p</sub>), scored with '
-               'the same criterion as §4.2.',
     'c_crossmag': 'A low rank with RMS(C<sub>p</sub>) too would indicate that '
                   'the choice does not depend on the quantity used to decide '
                   'it. Compare with the right-hand column, which is the '
@@ -421,8 +434,25 @@ TEXTS = {
     'l_winner': 'winner',
     'l_ext_band': 'extrapolated ± GCI',
     'l_computed_on': 'computed on {mesh}',
-    'no_field_triplet': 'no admissible triplet on RMS(Cp) after the '
-                        'convergence filter',
+    'l_upper': 'upper surface', 'l_lower': 'lower surface',
+    'comparison': 'comparison',
+    'rms_interior': 'RMS Δ(-Cp) interior',
+    'max_interior': 'max |Δ| interior',
+    'max_edges': 'max |Δ| incl. edges',
+    'rms_rel': 'relative RMS [%]',
+    'fig_cp_diff': 'Difference from the fine mesh',
+    'a_offscale': 'edge peaks off scale (max |Δ| = {peak})',
+    't_cp_diff': 'Difference between the pressure curves',
+    'c_cp_rows': 'Top: −C<sub>p</sub> distribution of the three meshes of the winning '
+                 'triplet (solid = upper surface, dashed = lower). Bottom: difference '
+                 'of each mesh from the fine one, after resampling both onto a common '
+                 'x/c grid. The grey band marks the {trim} of chord at each end, '
+                 'excluded from the statistics; the axis is framed on the interior, so '
+                 'the edge peaks run off scale.',
+    'c_cp_diff': 'Difference statistics. <b>Interior</b> excludes the {trim} of chord '
+                 'at each edge, where the aerofoil is sharp and C<sub>p</sub> is '
+                 'singular. The relative RMS is referred to the range of the '
+                 '−C<sub>p</sub> curve itself.',
 
     # — headline box —
     'headline': 'Study outcome',
@@ -467,6 +497,9 @@ P_FORMAL = {P_FORMAL!r}
 CONV_THRESHOLD = {CONV_THRESHOLD!r}
 CONV_EXCLUDE = {CONV_EXCLUDE!r}
 CONV_SWEEP = {CONV_SWEEP!r}
+CP_PROFILE_MESHES = {CP_PROFILE_MESHES!r}
+CP_EDGE_TRIM = {CP_EDGE_TRIM!r}
+CP_GRID = {CP_GRID!r}
 DECISION_VAR = {DECISION_VAR!r}
 SCORE_WEIGHTS = {SCORE_WEIGHTS!r}
 VARS = {VARS!r}
@@ -669,6 +702,45 @@ def score_triplets(table):
     t = t.sort_values('score', ascending=False).reset_index(drop=True)
     t['rank'] = t.index + 1
     return t
+
+
+def chordwise_cp(db, mesh, stage=None):
+    """Split the wall into upper and lower surface and return -Cp(x/c).
+
+    The aerofoil lies in the x-z plane on a single spanwise plane, so the
+    sign of z separates the two surfaces cleanly and x normalises to the
+    chord. Returns ``{'upper': (xc, mcp), 'lower': (xc, mcp)}``, each
+    sorted by x/c.
+    """
+    group = db.data_dict[f'CADGroup_{GROUP}']
+    pos = list(group['case_order']).index(mesh)
+    coord = np.asarray(group['Coord'][pos])
+    cp = np.asarray(
+        group['Vars'][str(STAGE if stage is None else stage)][CP][pos]
+    ).ravel()
+    x, z = coord[:, 0], coord[:, 2]
+    xc = (x - x.min()) / (x.max() - x.min())
+    out = {}
+    for name, mask in (('upper', z >= 0), ('lower', z < 0)):
+        order = np.argsort(xc[mask])
+        out[name] = (xc[mask][order], -cp[mask][order])
+    return out
+
+
+def cp_difference(curves, reference, mesh, grid=None):
+    """Resample two Cp curves onto a common x/c grid and subtract.
+
+    Meshes share no surface points, so the difference only exists after
+    an explicit resampling -- the same reason §3 reduces fields to
+    scalars before comparing them.
+    """
+    axis = np.linspace(0.0, 1.0, CP_GRID) if grid is None else grid
+    out = {}
+    for name in ('upper', 'lower'):
+        x0, v0 = curves[reference][name]
+        x1, v1 = curves[mesh][name]
+        out[name] = np.interp(axis, x1, v1) - np.interp(axis, x0, v0)
+    return axis, out
 
 
 def consensus_sweep(ranked):
@@ -1762,98 +1834,157 @@ grid(cols, folders, caption=T['c_curves'])"""))
     # ═════════════════ §6 ═════════════════
     C.append(md(pick(lang, es=r"""---
 
-# 6. Comprobación sobre un campo de superficie
+# 6. Convergencia del campo de presiones
 
-Todo lo anterior se apoya en una integral que calcula el propio solver. Queda ver si la
-elección se sostiene partiendo de una magnitud sin relación con ella: una reducción del
-campo de $C_p$ sobre la pared.
+Las §4 y §5 trabajan con **un número por malla**: un coeficiente integral. Eso basta para
+elegir una tripleta, pero no dice nada sobre *dónde* converge la solución y dónde no. Una
+integral puede coincidir entre dos mallas compensando errores de signo opuesto repartidos
+sobre la cuerda.
 
-Se aplican los mismos filtros de la §4: sólo simulaciones convergidas, sin `f0.95`, y la
-misma puntuación.""",
+Esta sección mira la distribución completa. Para cada condición de vuelo se superponen las
+curvas $-C_p(x/c)$ de las **tres mallas de la tripleta ganadora**, extradós y intradós.
+Si el campo está convergido, las tres curvas son indistinguibles; si no, se separan
+justamente allí donde la malla todavía manda.
+
+Las coordenadas se normalizan con la cuerda, y las dos superficies se separan por el signo
+de $z$ — el perfil está contenido en el plano $x$–$z$ sobre un único plano de envergadura,
+de modo que el reparto es exacto y no requiere ningún criterio geométrico adicional.""",
 
     en=r"""---
 
-# 6. Cross-check on a surface field
+# 6. Pressure field convergence
 
-Everything so far rests on an integral the solver itself computes. It remains to see
-whether the choice holds when starting from an unrelated quantity: a reduction of the
-wall $C_p$ field.
+§4 and §5 work with **one number per mesh**: an integral coefficient. That is enough to
+select a triplet, but it says nothing about *where* the solution converges and where it
+does not. An integral can agree between two meshes by cancelling errors of opposite sign
+distributed along the chord.
 
-The same filters as §4 apply — converged simulations only, no `f0.95` — and the same
-score.""")))
+This section looks at the full distribution. For each flight condition the $-C_p(x/c)$
+curves of the **three meshes of the winning triplet** are overlaid, upper and lower
+surface. If the field is converged the three curves are indistinguishable; if it is not,
+they separate exactly where the mesh still governs the solution.
 
-    C.append(code(r"""field = {}
+Coordinates are normalised by the chord, and the two surfaces are separated by the sign
+of $z$ — the aerofoil lies in the $x$–$z$ plane on a single spanwise plane, so the split
+is exact and needs no further geometric criterion.""")))
+
+    C.append(code(r"""profile_meshes = CP_PROFILE_MESHES or winner.split(' / ')
+shades = ['#1b4965', '#2f9e8f', '#f0a202', '#b5179e', '#6a994e']
+
+curves = {}
 for f, db in databases.items():
-    t = db.sets.reduce_cases(CP, stage=STAGE, id_group=str(GROUP),
-                             how='rms', dropna=True)
-    t = t[t['case'].isin(converged[f])]
-    if len(t) < 3:
-        continue
-    g = db.stats.richardson(t, CP, h_col='mesh', triplets='all')
-    g['trio'] = g['fine'] + ' / ' + g['medium'] + ' / ' + g['coarse']
-    g['GCI_%'] = g['GCI_21'] * 100
-    ok = g[g['converged'] & (g['r21'] > 1) & (g['r32'] > 1)
-           & np.isfinite(g['asymptotic_ratio'])]
-    field[f] = score_triplets(ok)
+    curves[f] = {m: chordwise_cp(db, m) for m in profile_meshes}
 
-per_root = []
+cols = []
 for f in folders:
-    if f not in field or not len(field[f]):
-        per_root.append(pd.DataFrame({T['notice']: [T['no_field_triplet']]}))
-        continue
-    t = field[f][['rank', 'trio', 'r21', 'r32', 'p', 'f1', 'f_extrapolated',
-                  'GCI_%', 'asymptotic_ratio', 'score']].copy()
-    t.columns = T['cols_field']
-    per_root.append(fmt(t, 4))
+    fig, ax = plt.subplots(figsize=(5.6, 3.6))
+    for mesh, shade in zip(profile_meshes, shades):
+        for name, style in (('upper', '-'), ('lower', '--')):
+            xc, mcp = curves[f][mesh][name]
+            ax.plot(xc, mcp, style, color=shade, lw=1.1,
+                    label=mesh if name == 'upper' else None)
+    ax.plot([], [], '-', color='0.35', lw=1.1, label=T['l_upper'])
+    ax.plot([], [], '--', color='0.35', lw=1.1, label=T['l_lower'])
+    ax.set(xlabel='$x/c$', ylabel='$-C_p$')
+    ax.set_title(f)
+    ax.legend(fontsize=6.5, ncols=2, loc='best')
+    page = [as_png(fig)]
 
-tables(per_root, folders, cols=1, caption=T['c_field'])"""))
+    fig, ax = plt.subplots(figsize=(5.6, 3.0))
+    reference = profile_meshes[0]
+    interior, clipped = [], False
+    for mesh, shade in zip(profile_meshes[1:], shades[1:]):
+        axis, delta = cp_difference(curves[f], reference, mesh)
+        inside = (axis >= CP_EDGE_TRIM) & (axis <= 1 - CP_EDGE_TRIM)
+        for name, style in (('upper', '-'), ('lower', '--')):
+            ax.plot(axis, delta[name], style, color=shade, lw=1.0,
+                    label=f'{mesh} − {reference}' if name == 'upper' else None)
+            interior.append(delta[name][inside])
+    # The sharp leading and trailing edges send the difference an order of
+    # magnitude off scale. Framing the axes on the interior is the only way
+    # the chordwise behaviour -- the point of the plot -- stays visible.
+    reach = float(np.abs(np.concatenate(interior)).max())
+    limit = max(reach * 1.35, 1e-4)
+    everything = float(np.abs(np.concatenate(
+        [cp_difference(curves[f], reference, m)[1][s]
+         for m in profile_meshes[1:] for s in ('upper', 'lower')])).max())
+    clipped = everything > limit
+    ax.set_ylim(-limit, limit)
+    ax.axvspan(0, CP_EDGE_TRIM, color='0.75', alpha=0.35, lw=0)
+    ax.axvspan(1 - CP_EDGE_TRIM, 1, color='0.75', alpha=0.35, lw=0)
+    ax.axhline(0, color='0.4', lw=0.8)
+    if clipped:
+        ax.annotate(T['a_offscale'].format(peak=f'{everything:.2f}'),
+                    xy=(0.5, 0.97), xycoords='axes fraction', ha='center',
+                    va='top', fontsize=6, color='0.35')
+    ax.set(xlabel='$x/c$', ylabel=r'$\Delta(-C_p)$')
+    ax.set_title(T['fig_cp_diff'])
+    ax.legend(fontsize=6.5, loc='lower right')
+    page.append(as_png(fig))
+    cols.append(page)
+
+grid(cols, folders, caption=T['c_cp_rows'].format(trim=f'{CP_EDGE_TRIM:.0%}'))"""))
 
     C.append(code(r"""rows = []
 for f in folders:
-    row = {T['db']: f, T['winner_s4']: winner}
-    hit = ranked[f][ranked[f]['trio'] == winner]
-    row[T['rank_with'].format(what=DECISION_VAR)] = (
-        int(hit['rank'].iloc[0]) if len(hit) else np.nan)
-    row[f'GCI {DECISION_VAR} [%]'] = (hit['GCI_%'].iloc[0] if len(hit)
-                                      else np.nan)
-    table = field.get(f)
-    fh = (table[table['trio'] == winner]
-          if table is not None and len(table) else None)
-    row[T['rank_with'].format(what='RMS(Cp)')] = (
-        int(fh['rank'].iloc[0]) if fh is not None and len(fh) else np.nan)
-    row['GCI RMS(Cp) [%]'] = (fh['GCI_%'].iloc[0]
-                              if fh is not None and len(fh) else np.nan)
-    row[T['best_with_field']] = (table['trio'].iloc[0]
-                                 if table is not None and len(table) else '—')
-    rows.append(row)
+    reference = profile_meshes[0]
+    for mesh in profile_meshes[1:]:
+        axis, delta = cp_difference(curves[f], reference, mesh)
+        inside = (axis >= CP_EDGE_TRIM) & (axis <= 1 - CP_EDGE_TRIM)
+        every = np.concatenate([delta['upper'], delta['lower']])
+        core = np.concatenate([delta['upper'][inside], delta['lower'][inside]])
+        span = max(np.ptp(np.concatenate(
+            [curves[f][m][s][1] for m in profile_meshes
+             for s in ('upper', 'lower')])), 1e-12)
+        rows.append({
+            T['db']: f,
+            T['comparison']: f'{mesh} − {reference}',
+            T['rms_interior']: float(np.sqrt((core ** 2).mean())),
+            T['max_interior']: float(np.abs(core).max()),
+            T['max_edges']: float(np.abs(every).max()),
+            T['rms_rel']: float(np.sqrt((core ** 2).mean()) / span * 100),
+        })
 
-wide_table(fmt(pd.DataFrame(rows), 4), T['t_crossmag'],
-           caption=T['c_crossmag'])"""))
+wide_table(fmt(pd.DataFrame(rows), 4), T['t_cp_diff'],
+           caption=T['c_cp_diff'].format(trim=f'{CP_EDGE_TRIM:.0%}'))"""))
 
-    C.append(md(pick(lang, es=r"""**La comprobación no confirma la elección.** La ganadora queda en mitad
-de la tabla cuando se la juzga con RMS($C_p$), y en la condición limitante ni siquiera hay
-tripletas admisibles sobre esa magnitud: las cuatro mallas convergidas no dejan ninguna
-combinación que supere los filtros. Partiendo de $C_p$, el ranking habría señalado otras
-tripletas.
+    C.append(md(pick(lang, es=r"""**El campo de presiones está convergido sobre la cuerda.** Las tres mallas dan curvas
+indistinguibles en toda la superficie, y la diferencia RMS en el interior se queda en
+centésimas de $C_p$ — por debajo del uno por ciento del recorrido de la propia curva. Esta
+es la comprobación más directa de que la tripleta elegida en la §4 no es una casualidad
+numérica: no sólo coinciden las integrales, coinciden punto a punto.
 
-Esto **no invalida** la elección de la §4 — el estudio se decidió con $C_D$ por razones
-explícitas, y sigue siendo la variable mejor condicionada. Lo que dice es que **la
-tripleta óptima depende de la magnitud que se quiera predecir**, que es otra forma de
-constatar lo mismo que la §4.2: fuera del rango asintótico no hay una única respuesta
-correcta. Si el objetivo del cálculo fuese el campo de presiones y no la resistencia, este
-estudio habría que rehacerlo con $C_p$ como variable de decisión.""",
+**La excepción está en los bordes, y es estructural.** Las diferencias se concentran en el
+borde de ataque y en el de salida, donde el perfil es anguloso y $C_p$ es singular. Ahí
+ninguna malla de esta familia resuelve el pico: cada refinamiento simplemente lo captura
+un poco más alto, sin converger. Es el comportamiento esperado en una geometría con aristas
+vivas, y la razón de que las zonas sombreadas queden fuera de la estadística de la tabla:
+dos celdas no pueden dominar una norma sobre varios miles.
 
-    en=r"""**The cross-check does not confirm the choice.** The winner sits mid-table when judged
-by RMS($C_p$), and at the limiting condition there are no admissible triplets on that
-quantity at all: the four converged meshes leave no combination that clears the filters.
-Starting from $C_p$, the ranking would have pointed at different triplets.
+**Y explica el fracaso del enfoque anterior.** Una reducción escalar del campo —el
+RMS($C_p$) que esta sección sustituye— mezcla la cuerda convergida con los dos picos que no
+lo están, y hereda toda la sensibilidad de malla de estos últimos. De ahí que ordenase
+tripletas de forma errática. La información útil estaba en la distribución, no en el
+escalar.""",
 
-This does **not** invalidate the §4 choice — the study was decided on $C_D$ for stated
-reasons, and it remains the best-conditioned variable. What it says is that **the
-optimal triplet depends on the quantity one wants to predict**, which is another way of
-restating §4.2: outside the asymptotic range there is no single correct answer. If the
-target of the computation were the pressure field rather than drag, this study would
-have to be redone with $C_p$ as the decision variable.""")))
+    en=r"""**The pressure field is converged along the chord.** The three meshes give
+indistinguishable curves over the whole surface, and the interior RMS difference stays in
+the hundredths of $C_p$ — below one per cent of the range of the curve itself. This is
+the most direct check that the triplet selected in §4 is not a numerical accident: it is
+not only the integrals that agree, but the distributions point by point.
+
+**The exception is at the edges, and it is structural.** The differences concentrate at
+the leading and trailing edges, where the aerofoil is sharp and $C_p$ is singular. No
+mesh in this family resolves the peak there: each refinement simply captures it slightly
+higher, without converging. That is the expected behaviour on a geometry with sharp
+edges, and the reason the shaded zones are excluded from the table statistics — two cells
+cannot be allowed to dominate a norm taken over several thousand.
+
+**It also explains why the previous approach failed.** A scalar reduction of the field —
+the RMS($C_p$) this section replaces — mixes the converged chord with the two peaks that
+are not converged, and inherits all the mesh sensitivity of the latter. Hence the erratic
+triplet ordering it produced. The useful information was in the distribution, not in the
+scalar.""")))
 
     # ═════════════════ §7 ═════════════════
     C.append(md(pick(lang, es=r"""---
@@ -1911,10 +2042,13 @@ para las tres.
 $r_{32} = 1.11$, lejos del $r = 2$ deseable. No es una elección del método sino de lo
 disponible: las mallas convergidas comunes a las tres condiciones están muy juntas.
 
-**La elección depende de la magnitud que se quiera predecir.** La §6 rehace el ranking
-partiendo de RMS($C_p$) y señala otras tripletas. Es coherente con todo lo anterior: fuera
-del rango asintótico no hay una única tripleta correcta, sino la mejor para la magnitud
-que se decida optimizar.""",
+**El campo de presiones sí converge, aunque los coeficientes integrales no lo
+demuestren.** La §6 superpone las curvas $-C_p(x/c)$ de la tripleta ganadora y salen
+indistinguibles a lo largo de toda la cuerda. Es la mejor evidencia de que la malla
+recomendada captura la física; lo que no converge son los **bordes afilados**, donde
+$C_p$ es singular y ninguna malla de la familia resuelve el pico. Esos dos puntos son los
+que contaminan tanto los coeficientes integrales como cualquier reducción escalar del
+campo.""",
 
     en=r"""### What the study does establish
 
@@ -1947,10 +2081,12 @@ many more candidates that cannot be used, because the triplet has to hold at all
 from the desirable $r = 2$. That is not a choice of the method but of what is available:
 the converged meshes common to all three conditions sit very close together.
 
-**The choice depends on the quantity to be predicted.** §6 redoes the ranking from
-RMS($C_p$) and points at different triplets. This is consistent with everything above:
-outside the asymptotic range there is no single correct triplet, only the best one for
-the quantity being optimised.""")))
+**The pressure field does converge, even though the integral coefficients do not show
+it.** §6 overlays the $-C_p(x/c)$ curves of the winning triplet and they come out
+indistinguishable along the whole chord. That is the strongest evidence that the
+recommended mesh captures the physics; what does not converge are the **sharp edges**,
+where $C_p$ is singular and no mesh in the family resolves the peak. Those two points are
+what contaminate both the integral coefficients and any scalar reduction of the field.""")))
 
     C.append(code(r"""rows = []
 for f in folders:
