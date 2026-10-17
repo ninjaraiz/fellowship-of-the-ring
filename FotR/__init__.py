@@ -23,7 +23,7 @@ _EXPORTS = {
     'ARAGORN':        '.characters.aragorn',
     'RunResult':      '.characters.aragorn',
     'GIMLI':          '.characters.gimli',
-    'EarendilsLight': '.EarendilsLight',
+    'EarendilsLight': '.earendils_light',
 }
 
 __all__ = sorted(_EXPORTS)
@@ -51,4 +51,4 @@ if TYPE_CHECKING:   # so that editors and type checkers still resolve them
     from .characters.legolas import LEGOLAS
     from .characters.aragorn import ARAGORN, RunResult
     from .characters.gimli import GIMLI
-    from .EarendilsLight import EarendilsLight
+    from .earendils_light import EarendilsLight

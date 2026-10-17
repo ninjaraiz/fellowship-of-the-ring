@@ -3,7 +3,7 @@ tests/test_save_to_npy.py
 ===========================
 Tests for the fixed ``CODASets.save_to_npy()``.
 
-``sets/coda.py`` is loaded in isolation (stubbing ``FotR.EarendilsLight``,
+``sets/coda.py`` is loaded in isolation (stubbing ``FotR.earendils_light``,
 ``FotR.characters.sam.SAM`` and ``FotR.characters.sets.base.BaseSets``)
 exactly like the other test modules in this suite do for ``readers/coda.py``
 and ``characters/frodo.py``, so the fix can be exercised without any of
@@ -45,7 +45,7 @@ def _install_stub_modules():
     chars = mk('FotR.characters')
     chars.__path__ = [os.path.join(root, 'characters')]
 
-    el = mk('FotR.EarendilsLight')
+    el = mk('FotR.earendils_light')
     if not hasattr(el, 'EarendilsLight'):
         class _EL:
             def __init__(self, *a, **k):

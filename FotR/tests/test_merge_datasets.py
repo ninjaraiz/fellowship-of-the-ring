@@ -57,7 +57,7 @@ def _install_stub_modules():
     chars = mk('FotR.characters')
     chars.__path__ = [os.path.join(root, 'characters')]
 
-    el = mk('FotR.EarendilsLight')
+    el = mk('FotR.earendils_light')
     if not hasattr(el, 'EarendilsLight'):
         class _EL:
             def __init__(self, *a, **k):
@@ -75,7 +75,7 @@ def _install_stub_modules():
     sam_mod = mk('FotR.characters.sam')
     if not hasattr(sam_mod, 'SAM'):
         class _SAM:
-            light = sys.modules['FotR.EarendilsLight'].EarendilsLight('x')
+            light = sys.modules['FotR.earendils_light'].EarendilsLight('x')
 
             class DictVisualizer:
                 @staticmethod

@@ -14,7 +14,7 @@ import sys
 
 import pytest
 
-from FotR.EarendilsLight import EarendilsLight, _is_opaque, _name_index, _signature
+from FotR.earendils_light import EarendilsLight, _is_opaque, _name_index, _signature
 
 
 # ── fakes: a delegation chain without any of FRODO's dependencies ───────
@@ -170,7 +170,7 @@ def test_help_returns_the_text_it_prints(capsys):
 def test_importing_costs_no_third_party_module():
     """rich used to be imported here, and cost ~49 ms on every FRODO import."""
     code = (
-        'import sys, FotR.EarendilsLight;'
+        'import sys, FotR.earendils_light;'
         "heavy = [m for m in ('rich', 'torch', 'pyvista', 'seaborn', 'sklearn',"
         " 'matplotlib', 'pandas') if m in sys.modules];"
         'print(heavy)'
@@ -178,6 +178,23 @@ def test_importing_costs_no_third_party_module():
     out = subprocess.run([sys.executable, '-c', code],
                          capture_output=True, text=True, check=True)
     assert out.stdout.strip() == '[]', out.stdout
+
+
+def test_from_fotr_import_gives_the_class_whatever_was_imported_first():
+    """The module must not shadow the class in the package namespace.
+
+    While the module was called ``EarendilsLight.py``, importing any
+    character bound the submodule as ``FotR.EarendilsLight`` and so
+    shadowed the lazy ``__getattr__``: ``from FotR import FRODO,
+    EarendilsLight`` handed back the module, and only the second name
+    was affected because it is the one whose module and class share a
+    name. Renaming the module to ``earendils_light`` removed the clash.
+    """
+    code = ('from FotR import FRODO, EarendilsLight;'
+            'print(type(EarendilsLight).__name__)')
+    out = subprocess.run([sys.executable, '-c', code],
+                         capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == 'type', out.stdout
 
 
 def test_every_character_exposes_the_shortcut():

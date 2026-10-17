@@ -71,7 +71,7 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 
-from ..EarendilsLight import EarendilsLight
+from ..earendils_light import EarendilsLight
 from .sam import SAM
 from .readers import READER_REGISTRY
 from .sets import SETS_REGISTRY

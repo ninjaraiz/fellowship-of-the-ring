@@ -74,7 +74,7 @@ from collections.abc import Iterable
 from datetime import datetime
 
 from .._lazy import lazy_module
-from ..EarendilsLight import EarendilsLight
+from ..earendils_light import EarendilsLight
 from dataclasses import dataclass, field
 
 # ── Deferred heavy dependencies ─────────────────────────────────────────────

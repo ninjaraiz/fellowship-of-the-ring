@@ -34,7 +34,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 
 # (fichero relativo al repo, clases de interes; None = todas las de nivel superior)
 TARGETS = [
-    ("FotR/EarendilsLight.py", ["EarendilsLight"]),
+    ("FotR/earendils_light.py", ["EarendilsLight"]),
     ("FotR/characters/frodo.py", ["FRODO"]),
     ("FotR/characters/gandalf.py", ["GANDALF"]),
     ("FotR/characters/rings/base.py", ["BaseRing"]),

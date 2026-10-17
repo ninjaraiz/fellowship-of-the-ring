@@ -25,7 +25,7 @@ import pandas as pd
 # ``truncnorm`` and ``qmc`` are imported by the two methods that use them,
 # so that building a ring does not pay for SciPy.
 
-from ...EarendilsLight import EarendilsLight
+from ...earendils_light import EarendilsLight
 
 log = logging.getLogger(__name__)
 

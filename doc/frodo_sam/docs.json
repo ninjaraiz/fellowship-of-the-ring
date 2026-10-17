@@ -39,11 +39,11 @@
   },
   "modules": [
     {
-      "file": "FotR/EarendilsLight.py",
+      "file": "FotR/earendils_light.py",
       "classes": [
         {
           "id": "EarendilsLight",
-          "file": "FotR/EarendilsLight.py",
+          "file": "FotR/earendils_light.py",
           "parent": null,
           "bases": [],
           "doc": {

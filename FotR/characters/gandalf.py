@@ -13,7 +13,7 @@ working unchanged by delegating every attribute to the selected ring
 import copy
 from typing import Optional
 
-from ..EarendilsLight import EarendilsLight
+from ..earendils_light import EarendilsLight
 from .rings import RING_REGISTRY
 
 
