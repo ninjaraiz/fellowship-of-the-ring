@@ -179,6 +179,26 @@
                 ],
                 "has_doc": true
               }
+            },
+            {
+              "id": "GANDALF.some_light",
+              "class": "GANDALF",
+              "name": "some_light",
+              "signature": "some_light(target: str = None, *, show: bool = True) -> str",
+              "returns": "str",
+              "kind": "descriptor",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light: where a name lives and its real signature.",
+                "description": "Bound to the instance when reached through one, so a live object resolves its own delegation chain. See ``EarendilsLight.help``.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
             }
           ]
         }
@@ -654,6 +674,26 @@
                     "desc": "If True, only display the proposed operations. If False, actually cancel, modify and resubmit the jobs."
                   }
                 ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "BaseRing.some_light",
+              "class": "BaseRing",
+              "name": "some_light",
+              "signature": "some_light(target: str = None, *, show: bool = True) -> str",
+              "returns": "str",
+              "kind": "descriptor",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light: where a name lives and its real signature.",
+                "description": "Bound to the instance when reached through one, so a live object resolves its own delegation chain. See ``EarendilsLight.help``.",
+                "params": [],
                 "returns": [],
                 "raises": [],
                 "attributes": [],

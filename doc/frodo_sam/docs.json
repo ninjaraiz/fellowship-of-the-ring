@@ -936,6 +936,26 @@
                 ],
                 "has_doc": true
               }
+            },
+            {
+              "id": "FRODO.some_light",
+              "class": "FRODO",
+              "name": "some_light",
+              "signature": "some_light(target: str = None, *, show: bool = True) -> str",
+              "returns": "str",
+              "kind": "descriptor",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light: where a name lives and its real signature.",
+                "description": "Bound to the instance when reached through one, so a live object resolves its own delegation chain. See ``EarendilsLight.help``.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
             }
           ]
         }
@@ -1114,6 +1134,26 @@
                     "text": "``_NON_DELEGATED`` currently holds exactly one name,\n``'Backpack'``, so ``gdf.Backpack`` raises ``AttributeError``\nby design — reach it as ``BaseRing.Backpack`` instead. Note\nthat ``GANDALF.Backpack`` (on the **class**) fails for a\ndifferent reason: ``__getattr__`` only runs for instances, so\nthat lookup never reaches this method and Python reports\n``type object 'GANDALF' has no attribute 'Backpack'``."
                   }
                 ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "GANDALF.some_light",
+              "class": "GANDALF",
+              "name": "some_light",
+              "signature": "some_light(target: str = None, *, show: bool = True) -> str",
+              "returns": "str",
+              "kind": "descriptor",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light: where a name lives and its real signature.",
+                "description": "Bound to the instance when reached through one, so a live object resolves its own delegation chain. See ``EarendilsLight.help``.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
                 "has_doc": true
               }
             }
@@ -1477,6 +1517,26 @@
                 "text_sections": [],
                 "has_doc": true
               }
+            },
+            {
+              "id": "BaseRing.some_light",
+              "class": "BaseRing",
+              "name": "some_light",
+              "signature": "some_light(target: str = None, *, show: bool = True) -> str",
+              "returns": "str",
+              "kind": "descriptor",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light: where a name lives and its real signature.",
+                "description": "Bound to the instance when reached through one, so a live object resolves its own delegation chain. See ``EarendilsLight.help``.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
             }
           ]
         },
@@ -1820,7 +1880,28 @@
             ],
             "has_doc": true
           },
-          "methods": []
+          "methods": [
+            {
+              "id": "SAM.some_light",
+              "class": "SAM",
+              "name": "some_light",
+              "signature": "some_light(target: str = None, *, show: bool = True) -> str",
+              "returns": "str",
+              "kind": "descriptor",
+              "is_private": false,
+              "doc": {
+                "summary": "Shortcut to Earendil's Light: where a name lives and its real signature.",
+                "description": "Bound to the instance when reached through one, so a live object resolves its own delegation chain. See ``EarendilsLight.help``.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            }
+          ]
         },
         {
           "id": "SAM.Gardener",

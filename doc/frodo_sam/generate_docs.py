@@ -351,6 +351,54 @@ def _decorators(fn) -> list:
     return names
 
 
+#: Class-body assignments that bind a descriptor rather than a ``def``.
+#: ``some_light = light.shortcut()`` is a real, documented entry point;
+#: without this it would vanish from the reference, because the AST sees
+#: an assignment and not a function.
+_DESCRIPTOR_FACTORIES = {
+    'shortcut': {
+        'signature': 'some_light(target: str = None, *, show: bool = True) -> str',
+        'returns': 'str',
+        'summary': ("Shortcut to Earendil's Light: where a name lives and its "
+                    "real signature."),
+        'description': ("Bound to the instance when reached through one, so a "
+                        "live object resolves its own delegation chain. See "
+                        "``EarendilsLight.help``."),
+    },
+}
+
+
+def _descriptor_methods(classdef: ast.ClassDef, class_id: str) -> list:
+    """Emit entries for ``name = <expr>.<factory>()`` class attributes."""
+    out = []
+    for node in classdef.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target, value = node.targets[0], node.value
+        if not isinstance(target, ast.Name) or not isinstance(value, ast.Call):
+            continue
+        func = value.func
+        if not isinstance(func, ast.Attribute):
+            continue
+        spec = _DESCRIPTOR_FACTORIES.get(func.attr)
+        if spec is None:
+            continue
+        doc = _doc_info(None)
+        doc.update(summary=spec['summary'], description=spec['description'],
+                   has_doc=True)
+        out.append({
+            "id": f"{class_id}.{target.id}",
+            "class": class_id,
+            "name": target.id,
+            "signature": spec['signature'],
+            "returns": spec['returns'],
+            "kind": "descriptor",
+            "is_private": target.id.startswith('_'),
+            "doc": doc,
+        })
+    return out
+
+
 def _methods(classdef: ast.ClassDef, class_id: str) -> list:
     """Collect the methods defined directly on *classdef*."""
     out = []
@@ -379,7 +427,7 @@ def _methods(classdef: ast.ClassDef, class_id: str) -> list:
                 "doc": _doc_info(ast.get_docstring(node)),
             }
         )
-    return out
+    return out + _descriptor_methods(classdef, class_id)
 
 
 def _collect_classes(classdef: ast.ClassDef, relpath: str, parent=None) -> list:
