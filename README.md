@@ -39,10 +39,32 @@ pyvista, h5py) se instalan solas. `requirements.txt` añade las de visualizació
 interactiva y utilidades.
 
 > **pyLOM no se instala con el paquete** y no está declarado como dependencia.
-> Si no está presente, `FotR/characters/sets/coda.py` falla al importar y los
-> formatos **CODA y NUMPY se quedan sin su clase Sets en silencio** (solo verás
-> un `UserWarning` diciendo que no hay Sets). Si trabajas con esos formatos,
-> instálalo aparte.
+> Sin él, el formato `PYLOM` se reporta como no soportado y los métodos de
+> exportación a pyLOM de `CODASets` fallan al llamarlos. El resto de CODA y
+> NUMPY funciona con normalidad. Si lo necesitas, instálalo aparte.
+
+## Qué cuesta importar esto
+
+Nada, a propósito. Cada personaje y cada formato se cargan la primera vez que
+los nombras, y las librerías pesadas la primera vez que alguien las usa de
+verdad:
+
+| | |
+|---|---:|
+| `import FotR` | 3 ms |
+| `from FotR import FRODO` | 292 ms |
+| Flujo CODA completo (abrir, extraer, estadísticos) | 1,6 s |
+
+Un flujo CODA no llega a cargar `torch`, `seaborn`, `scikit-learn` ni
+`plotly` en ningún momento. Antes de la limpieza del 10/10/2026, `import FotR`
+costaba 3362 ms porque cargaba los seis personajes, los cinco readers y toda
+esa pila.
+
+El mecanismo está en [`FotR/_lazy.py`](FotR/_lazy.py). **Si añades código
+pesado**, hay tres reglas: usa `lazy_module('libreria')` a nivel de módulo en
+vez de `import libreria`; un `from libreria import Nombre` no se puede diferir
+así, ponlo dentro de la función que lo use; y si una anotación menciona una
+librería diferida, el módulo necesita `from __future__ import annotations`.
 
 ## Formatos soportados
 
@@ -85,11 +107,14 @@ la misma llamada puede tener firma distinta según el formato.
 | `doc/HANDOFF.md` | Estado del repositorio entre sesiones de trabajo |
 | `examples/` | Notebooks por formato y base de datos |
 
-El visor usa `fetch`, así que necesita servidor HTTP — con `file://` falla por
-CORS:
+Los visores usan `fetch`, así que necesitan servidor HTTP — con `file://` fallan
+por CORS. **Sirve desde `doc/`, no desde cada subcarpeta**: los dos visores se
+enlazan entre sí y, con la raíz puesta en uno de ellos, el enlace cruzado da 404.
 
 ```bash
-python3 -m http.server -d doc/frodo_sam 8000   # y abrir http://localhost:8000
+python3 -m http.server -d doc 8000
+#   http://localhost:8000/frodo_sam/   → FRODO y SAM
+#   http://localhost:8000/gandalf/     → GANDALF y los rings
 ```
 
 Para regenerar la referencia de métodos tras tocar un docstring:

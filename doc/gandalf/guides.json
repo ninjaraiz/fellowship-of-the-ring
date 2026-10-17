@@ -3,7 +3,11 @@
     "map": [
       {
         "t": "p",
-        "x": "**GANDALF** es quien prepara la campaña *antes* de que exista ningún resultado: define el espacio de casos, escribe las carpetas de simulación y las manda al clúster. Cuando el solver termina, es **FRODO** quien lee lo que GANDALF sembró."
+        "x": "Todo esto empieza con Gandalf llamando a una puerta. Antes de que haya Comunidad, antes de que haya Anillo que llevar, alguien tiene que decidir quién va, a dónde y con qué. **GANDALF** hace exactamente eso: prepara la campaña *antes* de que exista un solo resultado — define el espacio de casos, escribe las carpetas de simulación y las manda al clúster."
+      },
+      {
+        "t": "p",
+        "x": "Cuando el solver termina y hay algo que recoger, el trabajo pasa a [FRODO](../frodo_sam/index.html). GANDALF siembra; FRODO carga con la cosecha."
       },
       {
         "t": "code",
@@ -11,21 +15,21 @@
       },
       {
         "t": "note",
-        "x": "Todo lo que llamas como `gdf.loquesea(...)` lo sirve el ring, **menos `Backpack`**. Ésa es la excepción, y la causa del error más común. Mira la pestaña *Problemas*."
+        "x": "Todo lo que llamas como `gdf.loquesea(...)` lo sirve el ring, **menos `Backpack`**. Ésa es la excepción, está puesta a mano y es la causa del error más común de todo el personaje. Pestaña *Problemas*, primera entrada."
       }
     ],
     "facade": [
       {
         "t": "h",
-        "x": "Una fachada, no una clase con lógica"
+        "x": "El Gris y el Blanco"
       },
       {
         "t": "p",
-        "x": "`GANDALF` guarda un único atributo propio, `_ring`, y reenvía todo lo demás. Eso incluye las **escrituras**: `gdf.df_cases = otro` acaba en el ring, no en la fachada, así que las dos vistas nunca se separan."
+        "x": "Gandalf cae en Moria y vuelve siendo otra cosa: mismo nombre, mismo papel, poderes reordenados. Aquí pasó literalmente lo mismo — hay un commit en este repositorio que se llama *«Birth of Gandalf The White»*. La lógica se partió en *rings*, y para que el código de todo el mundo siguiera funcionando se dejó la clase `GANDALF` como fachada."
       },
       {
         "t": "p",
-        "x": "La razón de que exista es histórica: la API `GANDALF(root_dir, eq_type, num_stages, ...)` ya estaba en uso cuando la lógica se partió en rings. La fachada la mantiene intacta y añade `ring=` como keyword opcional."
+        "x": "Así que `GANDALF` guarda un único atributo propio, `_ring`, y reenvía todo lo demás. Eso incluye las **escrituras**: `gdf.df_cases = otro` acaba en el ring, no en la fachada, así que las dos vistas nunca se separan."
       },
       {
         "t": "h",
@@ -52,11 +56,11 @@
           ],
           [
             "`__dir__`",
-            "Añade los atributos del ring, para que funcione el autocompletado y `help()`."
+            "Añade los atributos del ring, para que funcionen el autocompletado y `help()`."
           ],
           [
             "`__copy__` / `__deepcopy__`",
-            "Copian el ring en vez de compartirlo, para que dos GANDALF nunca aliasen el mismo estado."
+            "Copian el ring en vez de compartirlo. Dos GANDALF nunca aliasan el mismo estado: no queremos dos magos discutiendo sobre el mismo `df_cases`."
           ],
           [
             "`__getstate__` / `__setstate__`",
@@ -70,11 +74,11 @@
       },
       {
         "t": "p",
-        "x": "`_NON_DELEGATED` es un `frozenset` con un solo nombre: `'Backpack'`. No es un descuido — está puesto a propósito para que las utilidades vivan en un sitio único, `BaseRing.Backpack`, y no parezca que cada GANDALF tiene las suyas."
+        "x": "`_NON_DELEGATED` es un `frozenset` con un solo nombre: `'Backpack'`. No es un descuido ni una tarea pendiente — está puesto a propósito para que las utilidades vivan en un sitio único, `BaseRing.Backpack`, y no parezca que cada GANDALF lleva las suyas en el bolsillo."
       },
       {
         "t": "note",
-        "x": "Ojo a la diferencia: `gdf.Backpack` falla por `_NON_DELEGATED`, pero `GANDALF.Backpack` falla por otro motivo distinto — `__getattr__` solo se ejecuta sobre instancias, nunca sobre la clase."
+        "x": "Ojo a la diferencia, porque son dos fallos distintos con la misma víctima: `gdf.Backpack` falla por `_NON_DELEGATED`, pero `GANDALF.Backpack` falla porque `__getattr__` solo se ejecuta sobre instancias, nunca sobre la clase. Por eso el mensaje dice `type object`."
       }
     ],
     "rings": [
@@ -84,7 +88,11 @@
       },
       {
         "t": "p",
-        "x": "Un ring es la política de mallas de la campaña. Es lo **único** que cambia entre uno y otro: todo lo demás —casos, geometría, parámetros, SLURM— vive en `BaseRing` y se comparte."
+        "x": "Tres anillos para los Reyes Elfos, siete para los Señores Enanos, nueve para los Hombres Mortales. Aquí hay dos, y la diferencia entre ellos es bastante menos épica: **la política de mallas**."
+      },
+      {
+        "t": "p",
+        "x": "Es lo *único* que cambia de uno a otro. Todo lo demás —casos, geometría, parámetros, SLURM— vive en `BaseRing` y se comparte. Por eso en las pestañas de abajo verás que casi todos los métodos están etiquetados como heredados: lo propio de cada ring es un solo método."
       },
       {
         "t": "table",
@@ -111,7 +119,7 @@
       },
       {
         "t": "p",
-        "x": "Se elige con `ring=` en el constructor. Por defecto es `'coda'`, que es el comportamiento histórico."
+        "x": "Se elige con `ring=` en el constructor. Por defecto es `'coda'`, que es el comportamiento histórico — el anillo que ya llevabas puesto antes de que nadie hablara de rings."
       },
       {
         "t": "h",
@@ -119,7 +127,7 @@
       },
       {
         "t": "p",
-        "x": "Los métodos no son independientes: cada uno comprueba que el anterior dejó su parte hecha y, si no, lanza `RuntimeError`. Las subpestañas de cada ring siguen ese orden."
+        "x": "Los métodos no son independientes: cada uno comprueba que el anterior dejó su parte hecha y, si no, lanza `RuntimeError`. No hay atajos. Las subpestañas de cada ring siguen ese orden, de izquierda a derecha."
       },
       {
         "t": "code",
@@ -127,7 +135,11 @@
       },
       {
         "t": "note",
-        "x": "`define_geom_file` y los parámetros son opcionales, pero si vas a usar una columna en `compute_param` o en `folder_fmt`, tiene que existir ya."
+        "x": "`define_geom_file` y los parámetros son opcionales, pero si vas a usar una columna en `compute_param` o en `folder_fmt`, tiene que existir ya. Aquí nadie adivina lo que querías decir."
+      },
+      {
+        "t": "note",
+        "x": "Desde el 10/10/2026 los rings se cargan solos: `RING_REGISTRY` mapea `ring → '.modulo:Clase'` e importa la clase en el primer `.get()`, así que construir un GANDALF con `ring='coda'` no carga `coda_single`. Dentro de `rings/base.py`, `scipy.stats` tampoco se importa hasta que llamas a `define_cases` (que usa `qmc`) o al warp de `Backpack` (que usa `truncnorm`). Si añades código pesado aquí, lee las reglas en `FotR/_lazy.py`."
       }
     ],
     "trouble": [
@@ -137,7 +149,7 @@
       },
       {
         "t": "p",
-        "x": "**Es el error de la celda 5 de `TIFON2.ipynb`.** `Backpack` es el único nombre de `GANDALF._NON_DELEGATED`: la fachada no lo pasa al ring, a propósito. Y como lo estás pidiendo sobre la *clase* y no sobre una instancia, `__getattr__` ni siquiera llega a ejecutarse, de ahí el mensaje `type object`."
+        "x": "El clásico de la casa. `Backpack` es el único nombre de `GANDALF._NON_DELEGATED`: la fachada no lo pasa al ring, a propósito. Y como lo estás pidiendo sobre la *clase* y no sobre una instancia, `__getattr__` ni siquiera llega a ejecutarse — de ahí el `type object` del mensaje. Dos cerrojos distintos en la misma puerta."
       },
       {
         "t": "code",
@@ -153,7 +165,7 @@
       },
       {
         "t": "p",
-        "x": "`num_stages` no tiene valor por defecto útil: la firma dice `None` y el constructor lo rechaza. Pásalo siempre."
+        "x": "`num_stages` no tiene valor por defecto útil: la firma dice `None` y el constructor lo rechaza con un `ValueError` seco. No es un despiste del autor, es una barrera a propósito — un stage mal contado se nota tres horas después, en el clúster."
       },
       {
         "t": "h",
@@ -161,7 +173,7 @@
       },
       {
         "t": "p",
-        "x": "Llamaste a `compute_param`, `add_param` o `generate_folders` sin haber ejecutado `define_cases` antes. El orden está en la pestaña *Rings*."
+        "x": "Llamaste a `compute_param`, `add_param` o `generate_folders` sin haber ejecutado `define_cases` antes. Aquí no se puede empezar la casa por el tejado: cada método comprueba al entrar que el anterior dejó su parte hecha. El orden está en la pestaña *Rings*."
       },
       {
         "t": "h",
@@ -169,7 +181,7 @@
       },
       {
         "t": "p",
-        "x": "La fórmula se evalúa con un parser propio, no con `eval`. Solo reconoce columnas de `df_cases`, claves de `externals`, números, `+ - * / ** %`, `sin cos exp log sqrt`, `pi` y `np.*`. Un nombre fuera de esa lista es error explícito."
+        "x": "La fórmula se evalúa con un parser propio, no con `eval` — detalle que agradecerás el día que alguien pase una cadena rara. Solo reconoce columnas de `df_cases`, claves de `externals`, números, `+ - * / ** %`, `sin cos exp log sqrt`, `pi` y `np.*`. Un nombre fuera de esa lista es error explícito, no un `NaN` silencioso."
       },
       {
         "t": "note",
@@ -181,7 +193,7 @@
       },
       {
         "t": "p",
-        "x": "Las llaves de `folder_fmt` tienen que ser nombres de design vars tal y como los creó `define_cases`. Con `'aoa_{AoA:.4f}'` y una columna llamada `aoa`, falla."
+        "x": "Las llaves de `folder_fmt` tienen que ser nombres de design vars tal y como los creó `define_cases`. Con `'aoa_{AoA:.4f}'` y una columna llamada `aoa`, falla. El formateador de Python no hace concesiones."
       },
       {
         "t": "h",
@@ -189,7 +201,7 @@
       },
       {
         "t": "p",
-        "x": "Es lo esperado. `assign_jobs` solo **escribe** el nodo y las CPUs dentro de cada script; el `sbatch` lo hace `submit_cases()`. El nombre del argumento induce a error."
+        "x": "Es lo esperado, aunque el nombre del argumento sugiera lo contrario. `assign_jobs` solo **escribe** el nodo y las CPUs dentro de cada script; el `sbatch` lo hace `submit_cases()`. Dicho de otro modo: Gandalf reparte los papeles en Rivendel, pero nadie sale por la puerta hasta que lo dice."
       },
       {
         "t": "h",
@@ -197,7 +209,7 @@
       },
       {
         "t": "p",
-        "x": "`submit_cases()` lanza procesos reales. Fuera de un nodo con Slurm no hay forma de probarlo; genera las carpetas y deja la última llamada para el clúster."
+        "x": "`submit_cases()` lanza procesos reales. Fuera de un nodo con Slurm no hay forma de probarlo, y tampoco de fingirlo: genera las carpetas y deja la última llamada para el clúster."
       },
       {
         "t": "h",
@@ -205,7 +217,67 @@
       },
       {
         "t": "p",
-        "x": "Es un defecto real: el docstring original decía que trabajaba sobre una copia, pero `np.asarray` solo copia cuando tiene que convertir el dtype. Con un array `float64` modifica el tuyo en sitio; con uno de enteros, no. Pasa `.copy()`."
+        "x": "Es un defecto real, no una peculiaridad. El docstring original prometía que trabajaba sobre una copia, pero `np.asarray` solo copia cuando tiene que convertir el dtype. Con un array `float64` modifica el tuyo en sitio; con uno de enteros, no — lo cual es peor, porque falla de forma intermitente. Pasa `.copy()`."
+      }
+    ],
+    "backpack": [
+      {
+        "t": "h",
+        "x": "Cuidado: hay dos mochilas en este repositorio"
+      },
+      {
+        "t": "p",
+        "x": "Y no son la misma, ni se parecen. Si vienes de la documentación de FRODO y SAM, esto te va a morder antes o después:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "",
+          "`SAM.Backpack`",
+          "`BaseRing.Backpack`"
+        ],
+        "rows": [
+          [
+            "dónde",
+            "`characters/sam.py`",
+            "`characters/rings/base.py`"
+          ],
+          [
+            "de quién",
+            "De Sam, el jardinero",
+            "De los rings de GANDALF"
+          ],
+          [
+            "qué lleva",
+            "Ficheros, patrones de nombre, mallas PyVista, `.hsol` de HORSES3D, logs de CODA",
+            "Atmósfera ISA, viscosidad, normalizado de perfiles, consultas a Slurm"
+          ],
+          [
+            "cómo se llega",
+            "`SAM.Backpack.…` y funciona",
+            "`BaseRing.Backpack.…`, nunca desde GANDALF"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "Comparten nombre porque ambas son «la bolsa de cosas sueltas», pero no tienen un solo método en común. Si buscas `isa_atmosphere` en SAM no lo vas a encontrar, y si buscas `find_files` aquí tampoco."
+      },
+      {
+        "t": "h",
+        "x": "Cómo se llega a ésta"
+      },
+      {
+        "t": "p",
+        "x": "Por `BaseRing`, y solo por ahí. `GANDALF.Backpack` y `gdf.Backpack` fallan los dos, por motivos distintos, y encima `BaseRing` **no se re-exporta** en `FotR/__init__.py`, así que `from FotR import BaseRing` tampoco vale. Tres puertas cerradas y una abierta:"
+      },
+      {
+        "t": "code",
+        "x": "from FotR.characters.rings import BaseRing\n\nT, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\nmu = BaseRing.Backpack.Sutherland_law(mu0=1.716e-5, T=T, Treference=255.55)"
+      },
+      {
+        "t": "note",
+        "x": "`CODARing.Backpack` también funciona: hereda exactamente el mismo objeto. Pero `BaseRing` es el nombre honesto, porque ahí es donde vive."
       }
     ]
   },
@@ -213,7 +285,11 @@
     "map": [
       {
         "t": "p",
-        "x": "**GANDALF** prepares the campaign *before* any result exists: it defines the case space, writes the simulation folders and sends them to the cluster. When the solver finishes, it is **FRODO** that reads what GANDALF sowed."
+        "x": "All of this starts with Gandalf knocking at a door. Before there is a Fellowship, before there is a Ring to carry, somebody has to decide who goes, where and with what. **GANDALF** does exactly that: it prepares the campaign *before* a single result exists — it defines the case space, writes the simulation folders and sends them to the cluster."
+      },
+      {
+        "t": "p",
+        "x": "When the solver finishes and there is something to gather, the work passes to [FRODO](../frodo_sam/index.html). GANDALF sows; FRODO carries the harvest."
       },
       {
         "t": "code",
@@ -221,21 +297,21 @@
       },
       {
         "t": "note",
-        "x": "Everything you call as `gdf.whatever(...)` is served by the ring, **except `Backpack`**. That is the exception, and the cause of the most common error. See the *Troubleshooting* tab."
+        "x": "Everything you call as `gdf.whatever(...)` is served by the ring, **except `Backpack`**. That exception is hand-written and it is the single most common error in this character. *Troubleshooting* tab, first entry."
       }
     ],
     "facade": [
       {
         "t": "h",
-        "x": "A facade, not a class with logic"
+        "x": "The Grey and the White"
       },
       {
         "t": "p",
-        "x": "`GANDALF` keeps a single attribute of its own, `_ring`, and forwards everything else. That includes **writes**: `gdf.df_cases = other` ends up on the ring, not the facade, so the two views never drift apart."
+        "x": "Gandalf falls in Moria and comes back as something else: same name, same role, powers rearranged. The same thing happened here, literally — there is a commit in this repository called *«Birth of Gandalf The White»*. The logic was split into *rings*, and to keep everyone's code working the `GANDALF` class was left in place as a facade."
       },
       {
         "t": "p",
-        "x": "It exists for historical reasons: the `GANDALF(root_dir, eq_type, num_stages, ...)` API was already in use when the logic was split into rings. The facade keeps it intact and adds `ring=` as an optional keyword."
+        "x": "So `GANDALF` keeps a single attribute of its own, `_ring`, and forwards everything else. That includes **writes**: `gdf.df_cases = other` ends up on the ring, not the facade, so the two views never drift apart."
       },
       {
         "t": "h",
@@ -266,7 +342,7 @@
           ],
           [
             "`__copy__` / `__deepcopy__`",
-            "Copy the ring instead of sharing it, so two GANDALFs never alias the same state."
+            "Copy the ring instead of sharing it. Two GANDALFs never alias the same state: we do not want two wizards arguing over one `df_cases`."
           ],
           [
             "`__getstate__` / `__setstate__`",
@@ -280,11 +356,11 @@
       },
       {
         "t": "p",
-        "x": "`_NON_DELEGATED` is a `frozenset` holding one name: `'Backpack'`. It is not an oversight — it is there so the utilities live in exactly one place, `BaseRing.Backpack`, rather than looking as though each GANDALF had its own."
+        "x": "`_NON_DELEGATED` is a `frozenset` holding one name: `'Backpack'`. It is neither an oversight nor a to-do — it is there so the utilities live in exactly one place, `BaseRing.Backpack`, rather than looking as though every GANDALF carried his own in a pocket."
       },
       {
         "t": "note",
-        "x": "Mind the difference: `gdf.Backpack` fails because of `_NON_DELEGATED`, but `GANDALF.Backpack` fails for a different reason — `__getattr__` only runs on instances, never on the class."
+        "x": "Mind the difference, because they are two distinct failures with the same victim: `gdf.Backpack` fails because of `_NON_DELEGATED`, but `GANDALF.Backpack` fails because `__getattr__` only runs on instances, never on the class. Hence the `type object` wording."
       }
     ],
     "rings": [
@@ -294,7 +370,11 @@
       },
       {
         "t": "p",
-        "x": "A ring is the campaign's mesh policy. It is the **only** thing that differs between them: everything else — cases, geometry, parameters, SLURM — lives on `BaseRing` and is shared."
+        "x": "Three Rings for the Elven-kings, seven for the Dwarf-lords, nine for Mortal Men. Here there are two, and the difference between them is considerably less epic: **the mesh policy**."
+      },
+      {
+        "t": "p",
+        "x": "That is the *only* thing that changes between them. Everything else — cases, geometry, parameters, SLURM — lives on `BaseRing` and is shared. That is why in the tabs below almost every method is tagged as inherited: each ring owns exactly one method."
       },
       {
         "t": "table",
@@ -321,7 +401,7 @@
       },
       {
         "t": "p",
-        "x": "It is chosen with `ring=` in the constructor. The default is `'coda'`, the historical behaviour."
+        "x": "It is chosen with `ring=` in the constructor. The default is `'coda'`, the historical behaviour — the ring you were already wearing before anyone mentioned rings."
       },
       {
         "t": "h",
@@ -329,7 +409,7 @@
       },
       {
         "t": "p",
-        "x": "The methods are not independent: each checks that the previous one did its part and raises `RuntimeError` otherwise. Each ring's sub-tabs follow that order."
+        "x": "The methods are not independent: each checks that the previous one did its part and raises `RuntimeError` otherwise. There are no shortcuts. Each ring's sub-tabs follow that order, left to right."
       },
       {
         "t": "code",
@@ -337,7 +417,11 @@
       },
       {
         "t": "note",
-        "x": "`define_geom_file` and the parameters are optional, but if you are going to use a column in `compute_param` or in `folder_fmt`, it must already exist."
+        "x": "`define_geom_file` and the parameters are optional, but if you are going to use a column in `compute_param` or in `folder_fmt`, it must already exist. Nothing here guesses what you meant."
+      },
+      {
+        "t": "note",
+        "x": "Since 10/10/2026 the rings load themselves: `RING_REGISTRY` maps `ring → '.module:Class'` and imports the class on the first `.get()`, so building a GANDALF with `ring='coda'` does not load `coda_single`. Inside `rings/base.py`, `scipy.stats` is not imported either until you call `define_cases` (which uses `qmc`) or the `Backpack` warp (which uses `truncnorm`). If you add heavy code here, read the rules in `FotR/_lazy.py`."
       }
     ],
     "trouble": [
@@ -347,7 +431,7 @@
       },
       {
         "t": "p",
-        "x": "**This is the error in cell 5 of `TIFON2.ipynb`.** `Backpack` is the single name in `GANDALF._NON_DELEGATED`: the facade does not forward it to the ring, on purpose. And because you are asking for it on the *class* rather than an instance, `__getattr__` never even runs — hence the `type object` wording."
+        "x": "The house classic. `Backpack` is the single name in `GANDALF._NON_DELEGATED`: the facade does not forward it to the ring, on purpose. And because you are asking for it on the *class* rather than an instance, `__getattr__` never even runs — hence the `type object` wording. Two different locks on the same door."
       },
       {
         "t": "code",
@@ -363,7 +447,7 @@
       },
       {
         "t": "p",
-        "x": "`num_stages` has no usable default: the signature says `None` and the constructor rejects it. Always pass it."
+        "x": "`num_stages` has no usable default: the signature says `None` and the constructor rejects it with a blunt `ValueError`. That is not an author's slip, it is a deliberate barrier — a miscounted stage shows up three hours later, on the cluster."
       },
       {
         "t": "h",
@@ -371,7 +455,7 @@
       },
       {
         "t": "p",
-        "x": "You called `compute_param`, `add_param` or `generate_folders` without running `define_cases` first. The order is in the *Rings* tab."
+        "x": "You called `compute_param`, `add_param` or `generate_folders` without running `define_cases` first. You cannot start the house at the roof here: every method checks on entry that the previous one did its part. The order is in the *Rings* tab."
       },
       {
         "t": "h",
@@ -379,7 +463,7 @@
       },
       {
         "t": "p",
-        "x": "The formula is evaluated by a bespoke parser, not by `eval`. It only recognises `df_cases` columns, `externals` keys, numbers, `+ - * / ** %`, `sin cos exp log sqrt`, `pi` and `np.*`. A name outside that list is an explicit error."
+        "x": "The formula is evaluated by a bespoke parser, not by `eval` — a detail you will appreciate the day someone passes an odd string. It only recognises `df_cases` columns, `externals` keys, numbers, `+ - * / ** %`, `sin cos exp log sqrt`, `pi` and `np.*`. A name outside that list is an explicit error, not a silent `NaN`."
       },
       {
         "t": "note",
@@ -391,7 +475,7 @@
       },
       {
         "t": "p",
-        "x": "The braces in `folder_fmt` must be design-var names exactly as `define_cases` created them. With `'aoa_{AoA:.4f}'` and a column called `aoa`, it fails."
+        "x": "The braces in `folder_fmt` must be design-var names exactly as `define_cases` created them. With `'aoa_{AoA:.4f}'` and a column called `aoa`, it fails. Python's formatter makes no concessions."
       },
       {
         "t": "h",
@@ -399,7 +483,7 @@
       },
       {
         "t": "p",
-        "x": "That is expected. `assign_jobs` only **writes** the node and CPU count into each script; the `sbatch` is done by `submit_cases()`. The argument name is misleading."
+        "x": "That is expected, however much the argument name suggests otherwise. `assign_jobs` only **writes** the node and CPU count into each script; the `sbatch` is done by `submit_cases()`. Put another way: Gandalf hands out the roles at Rivendell, but nobody walks out of the door until he says so."
       },
       {
         "t": "h",
@@ -407,7 +491,7 @@
       },
       {
         "t": "p",
-        "x": "`submit_cases()` spawns real processes. Off a Slurm node there is no way to exercise it; generate the folders and leave the last call for the cluster."
+        "x": "`submit_cases()` spawns real processes. Off a Slurm node there is no way to exercise it, and no way to fake it either: generate the folders and leave the last call for the cluster."
       },
       {
         "t": "h",
@@ -415,7 +499,67 @@
       },
       {
         "t": "p",
-        "x": "That is a real defect: the original docstring claimed it worked on a copy, but `np.asarray` only copies when it has to convert the dtype. With a `float64` array it modifies yours in place; with an integer one it does not. Pass `.copy()`."
+        "x": "That is a real defect, not a quirk. The original docstring promised it worked on a copy, but `np.asarray` only copies when it has to convert the dtype. With a `float64` array it modifies yours in place; with an integer one it does not — which is worse, because it fails intermittently. Pass `.copy()`."
+      }
+    ],
+    "backpack": [
+      {
+        "t": "h",
+        "x": "Careful: there are two packs in this repository"
+      },
+      {
+        "t": "p",
+        "x": "And they are not the same, nor are they alike. If you are coming from the FRODO and SAM documentation, this will bite you sooner or later:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "",
+          "`SAM.Backpack`",
+          "`BaseRing.Backpack`"
+        ],
+        "rows": [
+          [
+            "where",
+            "`characters/sam.py`",
+            "`characters/rings/base.py`"
+          ],
+          [
+            "whose",
+            "Sam's, the gardener's",
+            "The GANDALF rings'"
+          ],
+          [
+            "what it carries",
+            "Files, filename patterns, PyVista meshes, HORSES3D `.hsol`, CODA logs",
+            "ISA atmosphere, viscosity, aerofoil normalisation, Slurm queries"
+          ],
+          [
+            "how to reach it",
+            "`SAM.Backpack.…` and it works",
+            "`BaseRing.Backpack.…`, never through GANDALF"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "They share a name because both are «the bag of odds and ends», but they have not one method in common. Look for `isa_atmosphere` in SAM and you will not find it; look for `find_files` here and you will not either."
+      },
+      {
+        "t": "h",
+        "x": "How to reach this one"
+      },
+      {
+        "t": "p",
+        "x": "Through `BaseRing`, and only there. `GANDALF.Backpack` and `gdf.Backpack` both fail, for different reasons, and on top of that `BaseRing` is **not re-exported** in `FotR/__init__.py`, so `from FotR import BaseRing` does not work either. Three closed doors and one open:"
+      },
+      {
+        "t": "code",
+        "x": "from FotR.characters.rings import BaseRing\n\nT, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\nmu = BaseRing.Backpack.Sutherland_law(mu0=1.716e-5, T=T, Treference=255.55)"
+      },
+      {
+        "t": "note",
+        "x": "`CODARing.Backpack` works too: it inherits exactly the same object. But `BaseRing` is the honest name, because that is where it lives."
       }
     ]
   }

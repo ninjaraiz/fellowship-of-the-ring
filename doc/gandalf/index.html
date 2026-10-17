@@ -137,8 +137,12 @@ let VIEW={pane:'home', sub:null, phase:null};
 let SHOW_PRIV=false;
 
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const inline=s=>esc(s).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
-                      .replace(/`([^`]+)`/g,'<code>$1</code>');
+/* Markdown mínimo, a propósito: **negrita**, `código` y [texto](url).
+   El href solo admite rutas relativas o http(s): nada de javascript:. */
+const inline=s=>esc(s)
+  .replace(/\[([^\]]+)\]\((?!javascript:)([^)\s]+)\)/g,'<a href="$2">$1</a>')
+  .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+  .replace(/`([^`]+)`/g,'<code>$1</code>');
 const el=(tag,cls,h)=>{const e=document.createElement(tag);
   if(cls)e.className=cls; if(h!=null)e.innerHTML=h; return e;};
 const T=()=>I18N[LANG];
@@ -365,6 +369,7 @@ function renderBackpack(){
  const t=T(), p=document.getElementById('pane-backpack');p.innerHTML='';
  p.appendChild(el('h1',null,esc(t.backpack_title)));
  p.appendChild(el('p','lead',esc(t.backpack_note)));
+ p.appendChild(guideBlocks('backpack'));
  p.appendChild(examplesBlock('backpack'));
  p.appendChild(privToggle());
  p.appendChild(classCard(BACKPACK));

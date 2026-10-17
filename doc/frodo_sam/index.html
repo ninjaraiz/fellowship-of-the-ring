@@ -123,8 +123,12 @@ let SHOW_PRIV=false;
 
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 /* Markdown mínimo, a propósito: **negrita** y `código`. */
-const inline=s=>esc(s).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
-                      .replace(/`([^`]+)`/g,'<code>$1</code>');
+/* Markdown mínimo, a propósito: **negrita**, `código` y [texto](url).
+   El href solo admite rutas relativas o http(s): nada de javascript:. */
+const inline=s=>esc(s)
+  .replace(/\[([^\]]+)\]\((?!javascript:)([^)\s]+)\)/g,'<a href="$2">$1</a>')
+  .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+  .replace(/`([^`]+)`/g,'<code>$1</code>');
 const el=(tag,cls,html)=>{const e=document.createElement(tag);
   if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e;};
 const T=()=>I18N[LANG];
@@ -313,6 +317,8 @@ function renderHome(){
  p.appendChild(el('h1',null,esc(t.home_title)));
  p.appendChild(el('p','lead',esc(t.home_intro)));
  p.appendChild(guideBlocks('map'));
+ p.appendChild(el('h2',null,esc(t.fellowship_title)));
+ p.appendChild(guideBlocks('fellowship'));
  p.appendChild(el('h2',null,esc(t.matrix_title)));
  const rows=Object.entries(FORMATS).map(([f,row])=>
   `<tr><td><b>${esc(f)}</b></td>`+EXT.map(k=>row[k]

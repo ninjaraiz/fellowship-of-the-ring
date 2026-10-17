@@ -1,6 +1,6 @@
 {
  "es": {
-  "tagline": "GANDALF siembra la campaña; FRODO recoge la cosecha.",
+  "tagline": "Un mago nunca llega tarde: llega cuando la cola de SLURM se lo permite.",
   "nav": {
    "home": "Inicio",
    "gandalf": "GANDALF",
@@ -8,18 +8,18 @@
    "backpack": "Backpack",
    "trouble": "Problemas"
   },
-  "home_title": "GANDALF, el que organiza la aventura",
-  "home_intro": "GANDALF prepara la campaña antes de que exista ningún resultado: define el espacio de casos, escribe las carpetas de simulación y las manda al clúster. Usa las pestañas: en Rings hay una por cada política de mallas y, dentro, una por cada fase del flujo de trabajo.",
-  "rings_table_title": "Los rings disponibles",
+  "home_title": "GANDALF, el que convoca la Comunidad",
+  "home_intro": "Antes de que haya Anillo que llevar, alguien decide quién va, a dónde y con qué. GANDALF prepara la campaña antes de que exista un solo resultado: define el espacio de casos, escribe las carpetas y las manda al clúster. Usa las pestañas: en Rings hay una por política de mallas y, dentro, una por cada fase del flujo, en el orden en que hay que ejecutarlas.",
+  "rings_table_title": "Los dos anillos",
   "rings_table_note": "Tabla construida leyendo RING_REGISTRY del código, no escrita a mano.",
   "gandalf_title": "La fachada GANDALF",
-  "gandalf_note": "Una clase sin lógica propia que reenvía todo al ring. Aquí están sus métodos y las reglas de la delegación.",
+  "gandalf_note": "Una clase sin lógica propia que reenvía todo al ring. Aquí están sus métodos y las reglas de la delegación, incluida la excepción.",
   "rings_title": "Rings",
-  "rings_note": "Una pestaña por ring; dentro, una subpestaña por cada fase de la campaña, en el orden en que hay que ejecutarlas.",
+  "rings_note": "Una pestaña por ring; dentro, una subpestaña por fase de la campaña. No se puede empezar por el tejado: cada fase comprueba la anterior.",
   "backpack_title": "BaseRing.Backpack",
-  "backpack_note": "Las utilidades sueltas: atmósfera, viscosidad, geometría y Slurm. Es lo único que la fachada NO delega.",
+  "backpack_note": "Atmósfera, viscosidad, geometría y Slurm. Es lo único que la fachada NO delega, y hay otra mochila distinta en SAM que no tiene nada que ver.",
   "trouble_title": "Problemas frecuentes",
-  "trouble_note": "Los errores que de verdad salen al montar una campaña, con el arreglo al lado.",
+  "trouble_note": "Los errores que de verdad salen al montar una campaña, con el arreglo al lado. Ordenados por probabilidad de que te pase.",
   "tab_guide": "Guía",
   "tab_class": "La clase GANDALF",
   "phase": {
@@ -55,7 +55,7 @@
   "search_results": "Resultados",
   "search_empty": "Ningún método coincide con la búsqueda.",
   "search_back": "Cerrar la búsqueda",
-  "ref_nodoc": "Sin docstring propio: ver la ficha de la clase base.",
+  "ref_nodoc": "Sin docstring propio: mira la ficha de la clase base.",
   "ref_private": "privado",
   "ref_show_private": "Mostrar métodos privados",
   "ref_params": "Parámetros",
@@ -66,7 +66,7 @@
   "ref_lang_note": "La referencia se genera desde los docstrings del código y se muestra en inglés en ambos idiomas."
  },
  "en": {
-  "tagline": "GANDALF sows the campaign; FRODO reaps the harvest.",
+  "tagline": "A wizard is never late: he arrives when the SLURM queue lets him.",
   "nav": {
    "home": "Home",
    "gandalf": "GANDALF",
@@ -74,18 +74,18 @@
    "backpack": "Backpack",
    "trouble": "Troubleshooting"
   },
-  "home_title": "GANDALF, who organises the quest",
-  "home_intro": "GANDALF prepares the campaign before any result exists: it defines the case space, writes the simulation folders and sends them to the cluster. Use the tabs: Rings has one per mesh policy and, inside, one per workflow phase.",
-  "rings_table_title": "Available rings",
+  "home_title": "GANDALF, who summons the Fellowship",
+  "home_intro": "Before there is a Ring to carry, somebody decides who goes, where and with what. GANDALF prepares the campaign before a single result exists: it defines the case space, writes the folders and sends them to the cluster. Use the tabs: Rings has one per mesh policy and, inside, one per workflow phase, in the order you must run them.",
+  "rings_table_title": "The two rings",
   "rings_table_note": "Table built by reading RING_REGISTRY from the code, not written by hand.",
   "gandalf_title": "The GANDALF facade",
-  "gandalf_note": "A class with no logic of its own that forwards everything to the ring. Here are its methods and the delegation rules.",
+  "gandalf_note": "A class with no logic of its own that forwards everything to the ring. Here are its methods and the delegation rules, exception included.",
   "rings_title": "Rings",
-  "rings_note": "One tab per ring; inside, one sub-tab per campaign phase, in the order you must run them.",
+  "rings_note": "One tab per ring; inside, one sub-tab per campaign phase. You cannot start at the roof: each phase checks the previous one.",
   "backpack_title": "BaseRing.Backpack",
-  "backpack_note": "The standalone helpers: atmosphere, viscosity, geometry and Slurm. It is the one thing the facade does NOT delegate.",
+  "backpack_note": "Atmosphere, viscosity, geometry and Slurm. It is the one thing the facade does NOT delegate, and there is a different pack in SAM with nothing to do with it.",
   "trouble_title": "Common problems",
-  "trouble_note": "The errors that actually come up when building a campaign, with the fix next to them.",
+  "trouble_note": "The errors that actually come up when building a campaign, with the fix beside them. Ordered by how likely they are to happen to you.",
   "tab_guide": "Guide",
   "tab_class": "The GANDALF class",
   "phase": {

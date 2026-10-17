@@ -71,7 +71,7 @@
               {
                 "name": "sets",
                 "type": "BaseSets or None",
-                "desc": "Tensor/mesh/IO helper, or ``None`` when the format registers no Sets class (HORSES3D; also CODA and NUMPY when pyLOM is missing)."
+                "desc": "Tensor/mesh/IO helper, or ``None`` when the format registers no Sets class (HORSES3D). CODA and NUMPY keep theirs even without pyLOM installed; only the pyLOM-export methods fail."
               },
               {
                 "name": "residuals",
@@ -809,12 +809,44 @@
               "doc": {
                 "summary": "Create the facade over the selected ring (default ``'coda'``).",
                 "description": "",
-                "params": [],
+                "params": [
+                  {
+                    "name": "root_dir",
+                    "type": "str",
+                    "desc": "Dataset root directory, forwarded to the ring."
+                  },
+                  {
+                    "name": "eq_type",
+                    "type": "str, optional",
+                    "desc": "``'euler'`` or ``'rans'``. Default ``'rans'``."
+                  },
+                  {
+                    "name": "num_stages",
+                    "type": "int",
+                    "desc": "Number of solver stages. Required by the ring."
+                  },
+                  {
+                    "name": "**kwargs",
+                    "type": "",
+                    "desc": "``ring`` selects the generation policy: ``'coda'`` (one shared mesh, the default) or ``'coda_single'`` (one mesh per case). It is popped here; **everything else is forwarded verbatim to the ring constructor**, where only ``version`` is read."
+                  }
+                ],
                 "returns": [],
-                "raises": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *ring* is not a key of ``RING_REGISTRY``, if *eq_type* is invalid, or if *num_stages* is missing."
+                  }
+                ],
                 "attributes": [],
                 "methods": [],
-                "text_sections": [],
+                "text_sections": [
+                  {
+                    "title": "Examples",
+                    "text": "::\n\n    from FotR import GANDALF\n\n    gdf = GANDALF(\n        '/data/TIFON/rans5',\n        eq_type='rans', num_stages=2,\n        version='flowsimulator2024', ring='coda',\n    )"
+                  }
+                ],
                 "has_doc": true
               }
             },
@@ -828,13 +860,36 @@
               "is_private": false,
               "doc": {
                 "summary": "Delegate everything (except dunders and Backpack) to the ring.",
-                "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
+                "description": "The facade owns almost nothing: ``define_cases``,\n``define_geom_file``, ``add_param``, ``compute_param``,\n``generate_folders``, ``assign_jobs``, ``submit_cases``,\n``recover_pending_jobs`` and every data attribute\n(``df_cases``, ``case_tensor``, ``array_ptos``, ``root_dir``, …)\nare served by the ring, so a GANDALF behaves like the ring it\nwraps.",
+                "params": [
+                  {
+                    "name": "name",
+                    "type": "str",
+                    "desc": "Attribute being looked up."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "object",
+                    "desc": "The attribute taken from the active ring."
+                  }
+                ],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "AttributeError",
+                    "desc": "If *name* is a dunder, if it is listed in ``_NON_DELEGATED``, if there is no active ring, or if the ring itself does not have it."
+                  }
+                ],
                 "attributes": [],
                 "methods": [],
-                "text_sections": [],
+                "text_sections": [
+                  {
+                    "title": "Notes",
+                    "text": "``_NON_DELEGATED`` currently holds exactly one name,\n``'Backpack'``, so ``gdf.Backpack`` raises ``AttributeError``\nby design — reach it as ``BaseRing.Backpack`` instead. Note\nthat ``GANDALF.Backpack`` (on the **class**) fails for a\ndifferent reason: ``__getattr__`` only runs for instances, so\nthat lookup never reaches this method and Python reports\n``type object 'GANDALF' has no attribute 'Backpack'``."
+                  }
+                ],
                 "has_doc": true
               }
             }
@@ -907,12 +962,60 @@
               "kind": "method",
               "is_private": false,
               "doc": {
-                "summary": "Initializes the CFD case manager.",
-                "description": "",
-                "params": [],
+                "summary": "Create the ring and lay out ``root_dir`` on disk.",
+                "description": "``root_dir`` and ``root_dir/metadata`` are created immediately;\n``outputs/`` is created later, by ``generate_folders``.",
+                "params": [
+                  {
+                    "name": "root_dir",
+                    "type": "str",
+                    "desc": "Dataset root directory."
+                  },
+                  {
+                    "name": "eq_type",
+                    "type": "str, optional",
+                    "desc": "``'euler'`` or ``'rans'`` (case-insensitive). Default ``'rans'``."
+                  },
+                  {
+                    "name": "num_stages",
+                    "type": "int",
+                    "desc": "Number of solver stages. **Required**: there is no default, and omitting it raises ``ValueError``."
+                  },
+                  {
+                    "name": "**kwargs",
+                    "type": "",
+                    "desc": "Only ``version`` is read (stored as :attr:`version` and written into ``cases_metadata.json``); anything else is ignored silently."
+                  }
+                ],
                 "returns": [],
-                "raises": [],
-                "attributes": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *eq_type* is not ``'euler'`` or ``'rans'``, or if *num_stages* is left as ``None``."
+                  }
+                ],
+                "attributes": [
+                  {
+                    "name": "case_tensor",
+                    "type": "numpy.ndarray or None",
+                    "desc": "``(n_cases, n_design_vars)``. Filled by ``define_cases``."
+                  },
+                  {
+                    "name": "design_vars",
+                    "type": "list or None",
+                    "desc": "Column names of ``case_tensor``, in order."
+                  },
+                  {
+                    "name": "df_cases",
+                    "type": "pandas.DataFrame or None",
+                    "desc": "One row per case. ``define_cases`` creates it; ``add_param``/``compute_param`` add columns; ``generate_folders`` adds ``folder`` and ``exist``."
+                  },
+                  {
+                    "name": "df_geom, array_ptos",
+                    "type": "",
+                    "desc": "Geometry read by ``define_geom_file``. ``array_ptos`` is the ``(N, 2)`` array of the selected columns."
+                  }
+                ],
                 "methods": [],
                 "text_sections": [],
                 "has_doc": true
@@ -967,11 +1070,33 @@
               "kind": "method",
               "is_private": false,
               "doc": {
-                "summary": "Add a new parameter to the cases DataFrame. The data must be provided as a external numpy array. For calculated data, use compute_param().",
-                "description": "",
-                "params": [],
+                "summary": "Add a column to ``df_cases`` from an array you already have.",
+                "description": "For a value derived from existing columns use\n:meth:`compute_param` instead, which takes a formula.",
+                "params": [
+                  {
+                    "name": "name",
+                    "type": "str, optional",
+                    "desc": "Name of the new column. Default ``'param'``."
+                  },
+                  {
+                    "name": "data",
+                    "type": "numpy.ndarray",
+                    "desc": "Values, one per case. Flattened with ``ravel()`` and cast to float, so its length must equal ``len(df_cases)``."
+                  }
+                ],
                 "returns": [],
-                "raises": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "RuntimeError",
+                    "desc": "If ``define_cases`` has not run yet."
+                  },
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *data* is ``None``, or its length does not match the number of cases."
+                  }
+                ],
                 "attributes": [],
                 "methods": [],
                 "text_sections": [],
@@ -1107,14 +1232,25 @@
               "kind": "method",
               "is_private": false,
               "doc": {
-                "summary": "Submit all case jobs using their respective shell scripts.",
-                "description": "",
+                "summary": "Run ``sbatch`` on every case folder, in case order.",
+                "description": "Each job is submitted from inside its own case directory, so\nrelative paths in the shell script resolve as the solver\nexpects. A case whose script is missing is logged and skipped\nrather than aborting the batch.",
                 "params": [],
                 "returns": [],
-                "raises": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "RuntimeError",
+                    "desc": "If ``generate_folders`` has not run (no folders), if ``assign_jobs`` has not run (no ``file_sh`` selected), or if ``sbatch`` is not on PATH — i.e. you are not on a Slurm cluster."
+                  }
+                ],
                 "attributes": [],
                 "methods": [],
-                "text_sections": [],
+                "text_sections": [
+                  {
+                    "title": "Notes",
+                    "text": "This actually launches the campaign. ``assign_jobs(submit=True)``\nonly writes the node and CPU count into each script; nothing\nreaches the queue until this call."
+                  }
+                ],
                 "has_doc": true
               }
             },
@@ -1146,15 +1282,24 @@
           "parent": "BaseRing",
           "bases": [],
           "doc": {
-            "summary": "",
-            "description": "",
+            "summary": "Standalone helpers for building a case campaign.",
+            "description": "Atmosphere and fluid properties (:meth:`isa_atmosphere`,\n:meth:`Sutherland_law`), geometry conditioning\n(:meth:`normalize_airfoil`), Slurm inspection\n(:meth:`squeue_terminal`, :meth:`sinfocpu_terminal`) and the\nsampling warp used by :meth:`BaseRing.define_cases`\n(``_warp_variable``). Everything is a ``@staticmethod``: the\nBackpack is never instantiated and holds no state.",
             "params": [],
             "returns": [],
             "raises": [],
             "attributes": [],
             "methods": [],
-            "text_sections": [],
-            "has_doc": false
+            "text_sections": [
+              {
+                "title": "Notes",
+                "text": "**This is reachable as ``BaseRing.Backpack``, never as\n``GANDALF.Backpack``.** The GANDALF facade forwards attribute\nlookups to its ring, but ``'Backpack'`` is listed in\n``GANDALF._NON_DELEGATED`` and is deliberately excluded, so both\n``GANDALF.Backpack`` (on the class) and ``gdf.Backpack`` (on an\ninstance) raise ``AttributeError``. Import the ring instead::\n\n    from FotR.characters.rings import BaseRing\n    T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\n\n``BaseRing`` is not re-exported by ``FotR``, so\n``from FotR import BaseRing`` does not work either. A concrete\nring also inherits it (``CODARing.Backpack`` is the same object)."
+              },
+              {
+                "title": "Examples",
+                "text": "::\n\n    from FotR.characters.rings import BaseRing\n\n    T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\n    mu = BaseRing.Backpack.Sutherland_law(\n        mu0=1.716e-5, T=T, Treference=255.55,\n    )"
+              }
+            ],
+            "has_doc": true
           },
           "methods": [
             {
@@ -1226,14 +1371,37 @@
               "kind": "staticmethod",
               "is_private": false,
               "doc": {
-                "summary": "Normalise an Nx2 airfoil to chord 1 with the leading edge at x = 0. Works on a copy: the input array is never modified.",
+                "summary": "Normalise an Nx2 airfoil to chord 1, leading edge at x = 0.",
                 "description": "",
-                "params": [],
-                "returns": [],
-                "raises": [],
+                "params": [
+                  {
+                    "name": "coords",
+                    "type": "numpy.ndarray or torch.Tensor",
+                    "desc": "``(N, 2)`` array of x, y coordinates."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "numpy.ndarray or torch.Tensor",
+                    "desc": "Same type as the input, scaled by the chord."
+                  }
+                ],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If *coords* is not two-dimensional with two columns."
+                  }
+                ],
                 "attributes": [],
                 "methods": [],
-                "text_sections": [],
+                "text_sections": [
+                  {
+                    "title": "Warnings",
+                    "text": "**The input is modified in place when it is already a float\narray.** ``np.asarray`` only copies when it has to change\nthe dtype, so passing a ``float64`` array leaves the\ncaller's array shifted and scaled; passing an integer array\nhappens to copy. Pass ``coords.copy()`` if you need to keep\nthe original."
+                  }
+                ],
                 "has_doc": true
               }
             },
@@ -1266,14 +1434,45 @@
               "kind": "staticmethod",
               "is_private": false,
               "doc": {
-                "summary": "Sutherland viscosity law with reference values.",
+                "summary": "Dynamic viscosity from Sutherland's law.",
                 "description": "",
-                "params": [],
-                "returns": [],
+                "params": [
+                  {
+                    "name": "mu0",
+                    "type": "float",
+                    "desc": "Reference viscosity [Pa·s], e.g. ``1.716e-5`` for air."
+                  },
+                  {
+                    "name": "T",
+                    "type": "float or numpy.ndarray",
+                    "desc": "Temperature [K] at which to evaluate the viscosity."
+                  },
+                  {
+                    "name": "Treference",
+                    "type": "float",
+                    "desc": "Reference temperature [K] matching *mu0*, e.g. ``255.55``."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "float or numpy.ndarray",
+                    "desc": "Dynamic viscosity [Pa·s], same shape as *T*."
+                  }
+                ],
                 "raises": [],
                 "attributes": [],
                 "methods": [],
-                "text_sections": [],
+                "text_sections": [
+                  {
+                    "title": "Notes",
+                    "text": "The Sutherland constant is hard-coded to 110.4 K (air)."
+                  },
+                  {
+                    "title": "Examples",
+                    "text": "::\n\n    T, P, rho = BaseRing.Backpack.isa_atmosphere(h=11000)\n    mu = BaseRing.Backpack.Sutherland_law(\n        mu0=1.716e-5, T=T, Treference=255.55,\n    )"
+                  }
+                ],
                 "has_doc": true
               }
             }

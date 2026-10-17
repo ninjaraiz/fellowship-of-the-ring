@@ -3,11 +3,11 @@
 > Auditoría de `readers/`, `sets/`, `stats/` y `residuals/` para el formato
 > `CODA_SINGLE`.
 >
-> **Estado: todos los bugs están arreglados salvo B12** (dependencia pyLOM no
-> declarada, que es de entorno). Los apartados describen el defecto tal y como
-> estaba, porque es lo que explica la corrección y lo que hay que evitar
-> reintroducir. B10 se resolvió con clases propias — ver
-> [`DISENO_SETS_CODA_SINGLE.md`](DISENO_SETS_CODA_SINGLE.md).
+> **Estado: los 14 bugs están arreglados.** B12 era el último que quedaba y se
+> resolvió el 10/10/2026 al hacer perezosos los imports (ver su apartado). Los
+> apartados describen el defecto tal y como estaba, porque es lo que explica la
+> corrección y lo que hay que evitar reintroducir. B10 se resolvió con clases
+> propias — ver [`DISENO_SETS_CODA_SINGLE.md`](DISENO_SETS_CODA_SINGLE.md).
 >
 > Cada bug lleva etiqueta de origen:
 > **`[ESPECÍFICO]`** vive en `readers/coda_single.py` · **`[HEREDADO]`** vive en
@@ -72,7 +72,7 @@ aparece abajo.
 | **B9** | `merge_datasets` inusable | DISEÑO | `AttributeError` | **acotado**: error explícito |
 | **B10** | `CODASets`/`CODAStats` no aceptan el layout | DISEÑO | los 7 puntos de entrada fallan | **resuelto**: `CODASingleSets`/`CODASingleStats` propios |
 | **B11** | `sort_values` por design var constante | HEREDADO | latente: permuta filas con ≳80 casos | **arreglado** |
-| **B12** | dependencia ausente reportada como formato no soportado | ENTORNO | enmascara el diagnóstico | sin tocar |
+| **B12** | dependencia ausente reportada como formato no soportado | ENTORNO | enmascara el diagnóstico | **arreglado** (imports perezosos) |
 | **B13** | `extract_outputs` no valida `stage` | ESPECÍFICO | error tardío y confuso | **arreglado** |
 | **B14** | `df_cases` con columna desfasada mata al lector | HEREDADO | `ValueError` opaco de pandas al añadir un caso | **arreglado** |
 
@@ -583,6 +583,26 @@ pyLOM NO disponible -> No module named 'pyLOM'
 CODA y NUMPY **pierden Sets**; `PYLOM` pierde el *reader* (porque `readers/pylom.py` sí
 importa pyLOM a nivel de módulo) mientras conserva el *sets*, dejando el formato
 inconsistente.
+
+**Corrección (10/10/2026).** `sets/coda.py` importa pyLOM de forma perezosa
+(`SMEAGOL = lazy_module('pyLOM')`), porque pyLOM solo lo necesitan los métodos de
+exportación mientras que `CODASets` sirve a CODA y NUMPY. Sin pyLOM instalado, esos
+dos formatos **conservan su clase Sets** y solo fallan los métodos de exportación, con
+un `ModuleNotFoundError` que dice exactamente qué falta. `readers/pylom.py` mantiene el
+import eager a propósito —ahí pyLOM *es* el formato—, y el `LazyRegistry` sigue
+convirtiendo su ausencia en `None`, así que `format='PYLOM'` se reporta como no
+soportado igual que antes. El formato ya no queda inconsistente: o está entero, o no
+está.
+
+Verificado en `envkan_nvidia`, que sigue sin pyLOM:
+
+```
+SETS_REGISTRY['CODA']   -> <class 'FotR.characters.sets.coda.CODASets'>
+READER_REGISTRY['PYLOM'] -> None
+```
+
+Lo que **no** cambia: pyLOM sigue sin estar declarado en `requirements.txt` ni en
+`setup.py`. Si vas a usar el formato PYLOM o a exportar a pyLOM, instálalo aparte.
 
 **Por qué importa en esta auditoría.** Hace indistinguible «CODA_SINGLE no tiene Sets por
 diseño» de «falta una dependencia». Al depurar B9/B10 conviene tenerlo presente: en este

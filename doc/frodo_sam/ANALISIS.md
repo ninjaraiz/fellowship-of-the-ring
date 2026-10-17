@@ -4,6 +4,11 @@
 > `sam.py` y los subpaquetes `readers/`, `sets/`, `stats/`, `residuals/`.
 > El resumen operativo está en [`doc/HANDOFF.md`](../HANDOFF.md); aquí está el detalle.
 >
+> **Aviso de vigencia**: este análisis se escribió sobre `663e3d1`. Dos apartados han
+> quedado resueltos desde entonces y están marcados como tales en el propio texto: los
+> imports pesados (§7) y B12 (pyLOM). El resto sigue siendo válido, pero contrasta los
+> números de línea antes de fiarte de ellos.
+>
 > **Base**: lectura completa del código en el árbol de trabajo sobre `663e3d1`
 > (develop) **más los cambios sin commitear** de `residuals/coda.py`, `sets/coda.py`
 > y `test_coda_residuals_plot.py`. Los números de línea se moverán cuando eso se
@@ -460,11 +465,21 @@ como alias del primer grupo, «por compatibilidad». El problema es que `save_to
 `merge_datasets` recorren `data_dict.items()` asumiendo que **todo** valor es un dict de
 CADGroup: se encontrarán un `ndarray` y una `list` mezclados con los grupos.
 
-### Imports pesados a nivel de módulo
+### Imports pesados a nivel de módulo — **RESUELTO (10/10/2026)**
 
-`sam.py` importa torch, pyvista, seaborn, sklearn, h5py y matplotlib en el import.
-Cualquier `from FotR import FRODO` arrastra todo el stack. Es la razón directa de que
-los tests tengan que stubear SAM en vez de importarlo.
+> Se describe aquí el defecto original porque explica por qué los tests están
+> montados como están. **Ya no es el estado del repositorio.**
+
+`sam.py` importaba torch, pyvista, seaborn, sklearn, h5py y matplotlib en el import, y
+`FotR/__init__.py` cargaba los seis personajes, y los cuatro registries importaban los
+cinco readers. Cualquier `from FotR import FRODO` arrastraba todo el stack: **3362 ms**
+medidos. Era la razón directa de que los tests tengan que stubear SAM en vez de
+importarlo — y ese motivo ya no existe, aunque los stubs siguen ahí.
+
+Hoy: `import FotR` cuesta **3 ms** y `from FotR import FRODO` **292 ms**, con torch,
+seaborn, scikit-learn y plotly sin cargar. El mecanismo está en `FotR/_lazy.py`
+(`lazy_module`, `LazyRegistry`) y en el `__getattr__` de `FotR/__init__.py` (PEP 562).
+Detalle y reglas para añadir código: §8 del HANDOFF.
 
 ### Duplicaciones funcionales vivas
 

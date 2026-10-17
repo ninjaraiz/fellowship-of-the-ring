@@ -108,10 +108,29 @@ REGISTRY_FILES = {
 
 
 def _registry_entries(relpath: str, regname: str) -> dict:
-    """Read one registry __init__.py: {format: class name, or None}."""
+    """Read a registry __init__.py: {key: class name, or None}.
+
+    The registries are ``NAME = LazyRegistry(__name__, {...})`` where the
+    values are ``'.module:ClassName'`` strings (or ``None`` for a declared
+    but unimplemented piece). Older eager forms —a dict literal, or
+    ``NAME['KEY'] = ClassName``— are still understood, so the generator
+    keeps working if a registry is ever written by hand again.
+    """
     path = os.path.join(REPO, relpath)
     with open(path, "r", encoding="utf-8") as fh:
         tree = ast.parse(fh.read(), filename=path)
+
+    def value_of(node):
+        if isinstance(node, ast.Name):                 # NAME = Class
+            return node.id
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value.partition(':')[2] or None   # '.mod:Class'
+        return None
+
+    def entries_from_dict(d, out):
+        for k, v in zip(d.keys, d.values):
+            if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                out[k.value] = value_of(v)
 
     out = {}
     for node in ast.walk(tree):
@@ -124,23 +143,21 @@ def _registry_entries(relpath: str, regname: str) -> dict:
         if value is None:
             continue
         for t in targets:
-            # REG = {'Airfoil': None, ...}
-            if (isinstance(t, ast.Name) and t.id == regname
-                    and isinstance(value, ast.Dict)):
-                for k, v in zip(value.keys, value.values):
-                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
-                        out[k.value] = v.id if isinstance(v, ast.Name) else None
-            # REG['CODA'] = CODAReader
+            if isinstance(t, ast.Name) and t.id == regname:
+                if isinstance(value, ast.Dict):                 # forma antigua
+                    entries_from_dict(value, out)
+                elif isinstance(value, ast.Call):               # LazyRegistry(...)
+                    for arg in value.args:
+                        if isinstance(arg, ast.Dict):
+                            entries_from_dict(arg, out)
             elif (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
                   and t.value.id == regname):
                 key = t.slice
-                if key.__class__.__name__ == "Index":   # Python < 3.9
+                if key.__class__.__name__ == "Index":           # Python < 3.9
                     key = key.value
                 if isinstance(key, ast.Constant) and isinstance(key.value, str):
-                    out[key.value] = value.id if isinstance(value, ast.Name) else None
+                    out[key.value] = value_of(value)
     return out
-
-
 def _formats() -> dict:
     """Build {format: {reader, sets, stats, residuals}} from the registries.
 

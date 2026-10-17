@@ -1,6 +1,6 @@
 {
  "es": {
-  "tagline": "FRODO gobierna los datos, SAM los hace utilizables.",
+  "tagline": "Un anillo para gobernarlos a todos… y un jardinero que carga con la mochila.",
   "nav": {
    "home": "Inicio",
    "frodo": "FRODO",
@@ -8,18 +8,18 @@
    "dict": "data_dict",
    "flows": "Flujos"
   },
-  "home_title": "Mapa FRODO ↔ SAM",
-  "home_intro": "FRODO coordina cuatro piezas por formato (reader, sets, stats y residuals) que elige de unos registros. SAM aporta el cálculo y las utilidades que no dependen de ningún formato. Usa las pestañas de arriba: en FRODO hay una pestaña por formato y, dentro, una por cada pieza que ese formato tenga.",
-  "matrix_title": "Qué tiene cada formato",
-  "matrix_note": "Tabla generada desde los registros del código, no escrita a mano. Aviso de entorno: sets/coda.py importa pyLOM en la cabecera, así que sin pyLOM instalado CODA y NUMPY pierden su Sets en silencio.",
+  "home_title": "La Comunidad del Anillo",
+  "home_intro": "FRODO coordina cuatro piezas por formato (reader, sets, stats y residuals) que elige de unos registros; SAM aporta el cálculo que no depende de ningún formato. Usa las pestañas: en FRODO hay una por formato y, dentro, una por cada pieza que ese formato tenga. Nadie ha dicho que fuera un camino corto.",
+  "matrix_title": "Qué lleva cada anillo",
+  "matrix_note": "Tabla generada desde los registros del código, no escrita a mano. Cada clase se importa la primera vez que se pide su formato, así que abrir una base CODA no carga los readers de los demás.",
   "frodo_title": "FRODO",
-  "frodo_note": "El coordinador. Una pestaña por formato; dentro de cada una, sus piezas y los métodos que puedes llamar.",
+  "frodo_note": "El Portador. Una pestaña por formato; dentro de cada una, sus piezas y los métodos que de verdad puedes llamar.",
   "sam_title": "SAM",
-  "sam_note": "La caja de herramientas. Una pestaña por área; nunca se instancia, salvo HDF5reader.",
+  "sam_note": "La mochila. Una pestaña por área; nunca se instancia, salvo HDF5reader, que es el raro de la familia.",
   "dict_title": "Explorador de data_dict",
-  "dict_note": "La estructura de data_dict no es única: depende del formato.",
+  "dict_note": "El Anillo cambia de forma según quién lo lleve. data_dict también: depende del formato.",
   "flows_title": "Flujos guiados (re-ejecutados en esta máquina)",
-  "flows_note": "Cada flujo muestra solo salidas obtenidas de verdad al re-ejecutar. Los textos son bilingües dentro del propio fichero. El flujo HORSES3D es parcial.",
+  "flows_note": "Cada flujo muestra solo salidas obtenidas de verdad al re-ejecutar: aquí no se inventa nada. Los textos son bilingües dentro del propio fichero. El de HORSES3D es parcial.",
   "tab_guide": "Guía",
   "tab_class": "La clase FRODO",
   "ext": {
@@ -48,7 +48,7 @@
   "search_results": "Resultados",
   "search_empty": "Ningún método coincide con la búsqueda.",
   "search_back": "Cerrar la búsqueda",
-  "ref_nodoc": "Contrato heredado: este método delega o replica la pieza base; ver ficha de la clase base.",
+  "ref_nodoc": "Sin docstring propio: delega o replica la pieza base. Mira la ficha de la clase base.",
   "ref_private": "privado",
   "ref_show_private": "Mostrar métodos privados",
   "ref_params": "Parámetros",
@@ -62,10 +62,12 @@
    "partial": "parcial",
    "none": "no disponible",
    "obsolete": "obsoleto"
-  }
+  },
+  "ref_note": "Generada desde los docstrings del código, en inglés. Pulsa un método para ver parámetros, retorno, excepciones y ejemplos.",
+  "fellowship_title": "Quién es quién"
  },
  "en": {
-  "tagline": "FRODO rules the data, SAM makes it usable.",
+  "tagline": "One ring to rule them all… and a gardener carrying the pack.",
   "nav": {
    "home": "Home",
    "frodo": "FRODO",
@@ -73,18 +75,18 @@
    "dict": "data_dict",
    "flows": "Flows"
   },
-  "home_title": "FRODO ↔ SAM map",
-  "home_intro": "FRODO coordinates four per-format pieces (reader, sets, stats and residuals) that it picks from registries. SAM provides the computation and utilities that depend on no format. Use the tabs above: FRODO has one tab per format and, inside it, one per piece that format provides.",
-  "matrix_title": "What each format provides",
-  "matrix_note": "Table generated from the registries in the code, not written by hand. Environment warning: sets/coda.py imports pyLOM at the top, so without pyLOM installed CODA and NUMPY lose their Sets silently.",
+  "home_title": "The Fellowship of the Ring",
+  "home_intro": "FRODO coordinates four per-format pieces (reader, sets, stats and residuals) picked from registries; SAM provides the computation that depends on no format. Use the tabs: FRODO has one per format and, inside, one per piece that format provides. Nobody said the road was short.",
+  "matrix_title": "What each ring carries",
+  "matrix_note": "Table generated from the registries in the code, not written by hand. Each class is imported the first time its format is asked for, so opening a CODA database does not load the other readers.",
   "frodo_title": "FRODO",
-  "frodo_note": "The coordinator. One tab per format; inside each, its pieces and the methods you can call.",
+  "frodo_note": "The Bearer. One tab per format; inside each, its pieces and the methods you can actually call.",
   "sam_title": "SAM",
-  "sam_note": "The toolbox. One tab per area; never instantiated, except HDF5reader.",
+  "sam_note": "The pack. One tab per area; never instantiated, except HDF5reader, the odd one out.",
   "dict_title": "data_dict explorer",
-  "dict_note": "The structure of data_dict is not unique: it depends on the format.",
+  "dict_note": "The Ring changes shape depending on who bears it. So does data_dict: it depends on the format.",
   "flows_title": "Guided flows (re-run on this machine)",
-  "flows_note": "Each flow shows only outputs truly obtained by re-running. The texts are bilingual inside the file itself. The HORSES3D flow is partial.",
+  "flows_note": "Each flow shows only outputs truly obtained by re-running: nothing is invented here. The texts are bilingual inside the file itself. The HORSES3D one is partial.",
   "tab_guide": "Guide",
   "tab_class": "The FRODO class",
   "ext": {
@@ -113,7 +115,7 @@
   "search_results": "Results",
   "search_empty": "No method matches the search.",
   "search_back": "Close the search",
-  "ref_nodoc": "Inherited contract: this method delegates to or mirrors the base piece; see the base-class card.",
+  "ref_nodoc": "No docstring of its own: it delegates to or mirrors the base piece. See the base-class card.",
   "ref_private": "private",
   "ref_show_private": "Show private methods",
   "ref_params": "Parameters",
@@ -127,6 +129,8 @@
    "partial": "partial",
    "none": "unavailable",
    "obsolete": "obsolete"
-  }
+  },
+  "ref_note": "Generated from the docstrings in the code, in English. Click a method for parameters, return value, exceptions and examples.",
+  "fellowship_title": "Who is who"
  }
 }

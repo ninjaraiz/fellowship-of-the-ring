@@ -3,29 +3,41 @@
     "map": [
       {
         "t": "p",
-        "x": "**FRODO** es la base de datos: abre un directorio de simulaciones, lo parsea y deja los resultados en `data_dict`. **SAM** es la caja de herramientas: cálculo y utilidades que no dependen de ningún formato. FRODO importa SAM; SAM no sabe nada de FRODO."
+        "x": "**FRODO** es el Portador. No porque sea el más fuerte ni el más listo —no lo es—, sino porque alguien tenía que cargar con los datos y el resto miró para otro lado. Abre un directorio de simulaciones, lo parsea y deja el botín en `data_dict`."
+      },
+      {
+        "t": "p",
+        "x": "**SAM** es quien lleva la mochila. Frodo se lleva el mérito; Sam lleva la cuerda, la sal, el cazo y, llegado el momento, a Frodo. Aquí es todo el cálculo que no depende del formato: tensores, mallas, derivadas, clustering e inspección."
       },
       {
         "t": "code",
         "x": "FRODO(root_dir, format)\n  ├─ reader      parsea carpetas, extrae inputs/outputs\n  ├─ sets        tensores ML, operaciones de malla, exportación\n  ├─ residuals   convergencia y métricas integrales\n  └─ stats       estadísticos entre casos, stages y mallas\n\nSAM  (namespace estático, nunca se instancia)\n  ├─ Gardener               tensores de entrenamiento\n  ├─ HDF5reader             lectura de .h5\n  ├─ Backpack               ficheros, mallas, parsers\n  ├─ Weapons                orden, derivadas, clustering, interpolación\n  ├─ DifferentialOperators  gradiente / jacobiano / divergencia (MLS)\n  └─ DictVisualizer         inspección de diccionarios anidados"
       },
       {
+        "t": "p",
+        "x": "La dependencia va en un solo sentido: `frodo.py` importa a SAM, y SAM no sabe que FRODO existe. Como debe ser — Sam seguiría siendo jardinero en Bolsón Cerrado aunque a Frodo no le hubiera caído encima ningún anillo."
+      },
+      {
         "t": "note",
-        "x": "Casi nada de lo que llamas como `db.algo(...)` vive en FRODO: se resuelve en uno de los cuatro sub-objetos. Cómo y en qué orden, en la guía de FRODO."
+        "x": "Casi nada de lo que llamas como `db.algo(...)` vive en FRODO: se resuelve en uno de los cuatro sub-objetos. El Portador delega. Cómo y en qué orden, en la guía de FRODO."
       }
     ],
     "frodo": [
       {
         "t": "h",
-        "x": "El modelo mental"
+        "x": "El Portador no hace casi nada, y es a propósito"
       },
       {
         "t": "p",
-        "x": "Una instancia de FRODO es un coordinador delgado. En el constructor elige, según `format`, un *cuarteto* de ayudantes específicos de formato —`reader`, `sets`, `residuals` y `stats`— y a partir de ahí reenvía a ellos casi todo. La única lógica pesada que FRODO tiene en propiedad es `merge_datasets`."
+        "x": "Frodo no gana batallas. No rastrea como Aragorn, no dispara como Legolas y no sabe forzar una puerta enana. Lo suyo es cargar con el Anillo y llegar al final. FRODO va igual: es un coordinador delgado que, al construirse, elige según `format` un *cuarteto* de ayudantes —`reader`, `sets`, `residuals` y `stats`— y a partir de ahí les pasa el trabajo a ellos."
       },
       {
         "t": "p",
-        "x": "El `reader` es obligatorio: si el formato no está registrado, el constructor lanza `ValueError`. Los otros tres son opcionales; cuando faltan, el atributo queda a `None` y se emite un `UserWarning`."
+        "x": "Lo único pesado que hace con sus propias manos es `merge_datasets`. Todo lo demás lo delega. Que no te sorprenda: es el 50 % de las líneas de la clase y el otro 50 % es fontanería."
+      },
+      {
+        "t": "p",
+        "x": "El `reader` es obligatorio: si el formato no está registrado, el constructor lanza `ValueError` y no hay viaje. Los otros tres son opcionales; cuando faltan, el atributo queda a `None` y se emite un `UserWarning` — es decir, la Comunidad sale de Rivendel con menos miembros de los previstos y a nadie le parece grave hasta Moria."
       },
       {
         "t": "h",
@@ -37,7 +49,7 @@
       },
       {
         "t": "p",
-        "x": "`extract_inputs` siempre va primero: los readers escriben las variables de solución dentro del grupo CAD que creó `extract_inputs`."
+        "x": "`extract_inputs` siempre va primero: los readers escriben las variables de solución dentro del grupo CAD que aquél creó. Si lo haces al revés no te avisa con elegancia, simplemente no encuentra dónde dejar las cosas."
       },
       {
         "t": "h",
@@ -45,7 +57,7 @@
       },
       {
         "t": "p",
-        "x": "FRODO consume dos claves y reenvía **todas las demás tal cual al constructor del reader**. Las dos suyas son `name` (por defecto `'FRODO Database'`) y `update_df_state` (por defecto `False`). De ahí que lo que acepte el constructor dependa del formato:"
+        "x": "FRODO se queda con dos claves y reenvía **todas las demás tal cual al constructor del reader**. Las suyas son `name` (por defecto `'FRODO Database'`) y `update_df_state` (por defecto `False`). De ahí que lo que acepte el constructor dependa del anillo que lleve puesto:"
       },
       {
         "t": "table",
@@ -73,12 +85,12 @@
           [
             "NUMPYFILE",
             "`file=`",
-            "formato heredado"
+            "el anillo de Bilbo: funciona, pero ya nadie lo quiere"
           ],
           [
             "PYLOM",
             "`file=`",
-            "dataset pyLOM"
+            "dataset pyLOM, con Sméagol de por medio"
           ],
           [
             "HORSES3D",
@@ -89,15 +101,15 @@
       },
       {
         "t": "note",
-        "x": "Si omites un kwarg obligatorio, el error viene del reader, no de FRODO: verás un `TypeError` sobre un argumento que el constructor de FRODO ni menciona."
+        "x": "Si omites un kwarg obligatorio, el error viene del reader, no de FRODO: verás un `TypeError` quejándose de un argumento que el constructor de FRODO ni menciona. Es confuso la primera vez y solo la primera vez."
       },
       {
         "t": "h",
-        "x": "Delegación: por qué `db.add_aux()` funciona"
+        "x": "Delegación: por qué `db.add_aux()` funciona sin existir"
       },
       {
         "t": "p",
-        "x": "`add_aux` no existe en FRODO. Cuando Python no encuentra un atributo, llama a `__getattr__`, que busca en los cuatro sub-objetos **en este orden fijo**: `sets` → `reader` → `residuals` → `stats`. Gana el primero que lo tenga."
+        "x": "`add_aux` no está en FRODO. Cuando Python no encuentra un atributo llama a `__getattr__`, que recorre los cuatro sub-objetos **en este orden fijo**: `sets` → `reader` → `residuals` → `stats`. Gana el primero que lo tenga. Frodo no sabe hacerlo; Frodo sabe a quién preguntar."
       },
       {
         "t": "code",
@@ -105,7 +117,7 @@
       },
       {
         "t": "p",
-        "x": "Esto tiene tres consecuencias que conviene tener presentes:"
+        "x": "Cómodo, sí. Gratis, no. Tiene tres consecuencias que conviene tener presentes antes de fiarte del atajo:"
       },
       {
         "t": "table",
@@ -120,13 +132,17 @@
           ],
           [
             "La misma llamada cambia de firma según el formato",
-            "`db.extract_inputs` llega a `CODAReader.extract_inputs` en una base y a `NUMPYReader.extract_inputs` en otra. Ni los nombres ni el orden de los argumentos están garantizados: lee el docstring del reader concreto."
+            "`db.extract_inputs` llega a `CODAReader.extract_inputs` en una base y a `NUMPYReader.extract_inputs` en otra. Ni los nombres ni el orden de los argumentos están garantizados: lee el docstring del reader concreto, no el de FRODO."
           ],
           [
             "Las colisiones se resuelven por ese orden, en silencio",
             "`db.summary` llega a `sets.summary` aunque los readers también definan uno, y `db.db` llega a `sets.db` (el puntero de vuelta al FRODO padre). Escribe `db.reader.summary` cuando la distinción importe."
           ]
         ]
+      },
+      {
+        "t": "note",
+        "x": "Esta es la trampa que más tiempo cuesta en este repositorio. No es que esté mal: es que el mismo nombre significa cosas distintas según quién lleve el anillo."
       },
       {
         "t": "h",
@@ -141,7 +157,7 @@
         "rows": [
           [
             "`format`",
-            "clave usada para elegir el cuarteto en los registries"
+            "clave usada para elegir el cuarteto en los registros"
           ],
           [
             "`root_dir`",
@@ -175,11 +191,15 @@
       },
       {
         "t": "h",
-        "x": "El caso especial de `metadata`"
+        "x": "El caso raro de `metadata`"
       },
       {
         "t": "p",
-        "x": "`db.metadata` **no es un atributo de FRODO**. Se resuelve por delegación a `reader.metadata`, que es donde viven `df_cases`, `design_vars`, `eq_type`, `folder_fmt` y `num_stages`. La excepción son las instancias que producen `copy()` y `merge_datasets()`: ésas sí lo fijan como atributo propio, que a partir de entonces tapa al del reader. Si mutas `db.metadata`, conviene saber cuál de los dos tienes en la mano."
+        "x": "`db.metadata` **no es un atributo de FRODO**. Se resuelve por delegación a `reader.metadata`, que es donde viven `df_cases`, `design_vars`, `eq_type`, `folder_fmt` y `num_stages`. La excepción son las instancias que producen `copy()` y `merge_datasets()`: ésas sí lo fijan como atributo propio, que a partir de entonces tapa al del reader."
+      },
+      {
+        "t": "note",
+        "x": "O sea: hay dos Anillos con la misma pinta y solo uno es el bueno, según de dónde venga el objeto. Si mutas `db.metadata`, conviene saber cuál tienes en la mano."
       },
       {
         "t": "h",
@@ -187,11 +207,11 @@
       },
       {
         "t": "p",
-        "x": "Es un `@staticmethod`: interpola todas las mallas de origen sobre una malla de referencia, concatena los `FlCc` y reconstruye `df_cases` (y `df_state`, y `df_post` en CODA) para que describan **exactamente** los casos que se extrajeron, no todos los que la base tenía definidos."
+        "x": "Es un `@staticmethod`: interpola todas las mallas de origen sobre una de referencia, concatena los `FlCc` y reconstruye `df_cases` (y `df_state`, y `df_post` en CODA) para que describan **exactamente** los casos que se extrajeron, no todos los que la base tenía definidos."
       },
       {
         "t": "p",
-        "x": "Dos reglas suyas explican la mayoría de los errores que lanza: **`FlCc` es la verdad** sobre qué casos se fusionan, y **no hay deduplicación silenciosa** — si el mismo caso físico aparece en dos fuentes, es `ValueError`, no una elección arbitraria."
+        "x": "Dos reglas suyas explican la mayoría de los errores que lanza: **`FlCc` es la verdad** sobre qué casos se fusionan, y **no hay deduplicación silenciosa** — si el mismo caso físico aparece en dos fuentes, es `ValueError`. Aquí no se tira nada al Monte del Destino por si acaso; si hay ambigüedad, se para y te lo dice."
       },
       {
         "t": "note",
@@ -205,7 +225,11 @@
       },
       {
         "t": "p",
-        "x": "SAM no se instancia nunca. Todo se llama como `SAM.Area.funcion(...)` y casi todo es `@staticmethod`. La única excepción es `SAM.HDF5reader`, que sí es un objeto real porque guarda la ruta del fichero y su índice de datasets."
+        "x": "Sam Gamyi no es un héroe de profecía: es el jardinero de Bolsón Cerrado al que pillan escuchando por la ventana y acaba metido en el viaje. No tiene arco iris de poderes; tiene una mochila bien hecha y la cabeza en su sitio."
+      },
+      {
+        "t": "p",
+        "x": "SAM se comporta igual: **no se instancia nunca**. Todo se llama como `SAM.Area.funcion(...)` y casi todo es `@staticmethod`. La única excepción es `SAM.HDF5reader`, que sí es un objeto real porque guarda la ruta del fichero y su índice de datasets."
       },
       {
         "t": "code",
@@ -214,6 +238,10 @@
       {
         "t": "h",
         "x": "Las seis áreas"
+      },
+      {
+        "t": "p",
+        "x": "Dos de ellas tienen nombre literal, no metafórico: Sam **era** jardinero, y Sam **sí** llevaba la mochila. Las otras cuatro ya son licencia poética."
       },
       {
         "t": "table",
@@ -225,69 +253,77 @@
         "rows": [
           [
             "`Gardener`",
-            "Montar y normalizar los tensores planos `[coords | cond. vuelo | aux | salidas]` de entrenamiento, con una fila por par (punto, caso)",
+            "El jardinero de verdad. Cultiva el tensor plano `[coords | cond. vuelo | aux | salidas]`, una fila por par (punto, caso), y lo normaliza",
             "código de usuario"
           ],
           [
             "`HDF5reader`",
-            "Leer datasets de un `.h5` como array numpy o tensor torch",
+            "Leer datasets de un `.h5` como array numpy o tensor torch. Poco glamour, mucho uso",
             "código de usuario"
           ],
           [
             "`Backpack`",
-            "Ficheros y mallas: inferencia de patrones de nombre, logs de CODA, conectividad PyVista, malla y `.hsol` de HORSES3D, evaluador seguro de fórmulas",
+            "La mochila: patrones de nombre de fichero, logs de CODA, conectividad PyVista, malla y `.hsol` de HORSES3D, evaluador seguro de fórmulas. Cosas que es mejor llevar y no necesitar",
             "readers y sets, constantemente"
           ],
           [
             "`Weapons`",
-            "Ordenar nubes de puntos, derivadas de superficie y volumen, clustering GMM, y los núcleos de interpolación malla-a-malla",
+            "La parte guerrera: ordenar nubes de puntos, derivadas de superficie y volumen, clustering GMM, y los núcleos de interpolación malla-a-malla",
             "sets, y código de usuario"
           ],
           [
             "`DifferentialOperators`",
-            "Gradiente, jacobiano y divergencia sobre puntos dispersos por mínimos cuadrados móviles, sin necesidad de conectividad",
+            "El hermano callado de Weapons. Gradiente, jacobiano y divergencia por mínimos cuadrados móviles, sin pedir conectividad a nadie",
             "código de usuario"
           ],
           [
             "`DictVisualizer`",
-            "Inspeccionar diccionarios anidados resumiendo cada hoja por tipo y forma",
+            "Para mirar un diccionario sin que te mire él a ti",
             "`FRODO.summary_data` y código de usuario"
           ]
         ]
       },
       {
         "t": "h",
-        "x": "Por qué ordenar antes de derivar"
+        "x": "Por qué hay que ordenar antes de derivar"
       },
       {
         "t": "p",
-        "x": "Una extracción de superficie llega sin orden, y una derivada a lo largo de una superficie desordenada no significa nada. Por eso `Weapons` ofrece cuatro ordenaciones distintas: cuál usar depende de si la curva es cerrada y de lo irregular que sea el muestreo. `DifferentialOperators`, en cambio, no necesita orden ninguno: ajusta un polinomio local por vecindad."
+        "x": "Una extracción de superficie llega desordenada, y una derivada a lo largo de una superficie desordenada no significa absolutamente nada. Por eso `Weapons` ofrece cuatro ordenaciones distintas: cuál usar depende de si la curva es cerrada y de lo irregular que sea el muestreo. `DifferentialOperators`, en cambio, no necesita orden ninguno: ajusta un polinomio local por vecindad y se despreocupa."
       },
       {
         "t": "h",
-        "x": "El coste de importar"
+        "x": "El peaje de la mochila, ya pagado"
       },
       {
         "t": "p",
-        "x": "`sam.py` importa `torch`, `pyvista`, `scikit-learn`, `seaborn` y `matplotlib` **a nivel de módulo**, y `frodo.py` importa SAM sin condiciones. Importar cualquier cosa de `FotR` paga esa pila entera. Es también la razón de que los ficheros de test sustituyan SAM por stubs en lugar de importarlo, y de que esa sustitución dependa del orden de importación."
+        "x": "Sam cargaba con cacharros de cocina que sonaban en cada paso, y SAM hacía lo mismo: importaba `torch`, `pyvista`, `scikit-learn`, `seaborn` y `matplotlib` **a nivel de módulo**, de forma que `import FotR` pagaba la pila entera aunque solo quisieras listar una carpeta. Unos 3,4 segundos de peaje por cruzar el puente."
+      },
+      {
+        "t": "p",
+        "x": "Ya no. Cada una de esas librerías es ahora un sustituto perezoso (`FotR/_lazy.py`) que se importa de verdad la primera vez que alguien le pide un atributo. Las llamadas se escriben igual —`torch.as_tensor(...)` sigue siendo `torch.as_tensor(...)`—, pero un flujo CODA completo no llega a tocar torch ni seaborn en ningún momento."
+      },
+      {
+        "t": "note",
+        "x": "Dos límites que conviene conocer antes de añadir código: `from libreria import Nombre` **no** se puede diferir así —el nombre se liga al importar—, así que esos van dentro de la función que los usa; y el módulo lleva `from __future__ import annotations` para que una firma como `x: torch.Tensor` no dispare la importación al ejecutarse el `def`."
       },
       {
         "t": "h",
-        "x": "Dos avisos"
+        "x": "Dos avisos de la casa"
       },
       {
         "t": "note",
-        "x": "`Backpack.pattern_pocket_ant` es la versión anterior de `pattern_pocket` y sigue ahí solo por compatibilidad. Código nuevo, siempre `pattern_pocket`."
+        "x": "`Backpack.pattern_pocket_ant` es la versión anterior de `pattern_pocket` y sigue ahí solo por compatibilidad: unas 435 líneas haciendo lo mismo peor. Código nuevo, siempre `pattern_pocket`."
       },
       {
         "t": "note",
-        "x": "`Backpack.HorsesLazyField.load()` está declarado pero lanza `NotImplementedError`: SAM aún no tiene un lector validado del binario Fortran `.hsol`. Solo hay metadatos de cabecera, vía `read_horses_hsol_header`."
+        "x": "`Backpack.HorsesLazyField.load()` está declarado pero lanza `NotImplementedError`. SAM aún no sabe leer el binario Fortran `.hsol`; solo hay metadatos de cabecera, vía `read_horses_hsol_header`. Es una promesa, no una función."
       }
     ],
     "datadict": [
       {
         "t": "p",
-        "x": "`data_dict` es donde acaban los datos extraídos, y **su forma depende del formato**. Hay dos layouts incompatibles."
+        "x": "El Anillo cambia de forma según quién lo lleve, y `data_dict` también. **Su estructura depende del formato**, y hay dos layouts que no se parecen en nada. Si copias código de un notebook de CODA a uno de PYLOM, esto es lo que te va a morder."
       },
       {
         "t": "h",
@@ -307,7 +343,7 @@
       },
       {
         "t": "note",
-        "x": "En CODA_SINGLE, `mesh` puede ser una design var (un factor numérico). La identidad de la malla no vive en esa clave —colisionaría— sino en `sim_metadata[*]['mesh_info']` y en `df_state['mesh_file']`."
+        "x": "En CODA_SINGLE, `mesh` puede ser una design var (un factor numérico). La identidad de la malla no vive en esa clave —colisionaría— sino en `sim_metadata[*]['mesh_info']` y en `df_state['mesh_file']`. Dos cosas con el mismo nombre que no son lo mismo: otra vez."
       },
       {
         "t": "h",
@@ -316,6 +352,10 @@
       {
         "t": "code",
         "x": "data_dict['CADGroup_g<g>_<mesh>'] = {\n    'Coord':     NodeCoords\n    'FlCc':      solo design_vars\n    'Vars':      {str(p): {variable: HorsesLazyField}}\n    'hsol_meta': metadatos de cabecera\n}"
+      },
+      {
+        "t": "p",
+        "x": "Ojo: lo que hay en `Vars` no son arrays, son `HorsesLazyField`, promesas de campo que todavía no se pueden cobrar porque `load()` no está implementado."
       },
       {
         "t": "h",
@@ -327,7 +367,79 @@
       },
       {
         "t": "note",
-        "x": "`FlCc` contiene **solo las design vars del usuario**, nunca parámetros del solver. Es la regla que hace que `merge_datasets` pueda identificar un caso por su física y no por su posición."
+        "x": "`FlCc` contiene **solo las design vars del usuario**, nunca parámetros del solver. Es la regla que permite a `merge_datasets` identificar un caso por su física y no por su posición — o, dicho de otro modo, reconocer a un hobbit por quién es y no por dónde estaba sentado."
+      }
+    ],
+    "fellowship": [
+      {
+        "t": "p",
+        "x": "Antes de nada, el reparto. Porque aquí nadie se llama `DataManager` ni `UtilsHelper`, y eso tiene su gracia hasta que llevas media hora buscando dónde está el método."
+      },
+      {
+        "t": "table",
+        "head": [
+          "personaje",
+          "en el código",
+          "qué hace, sin poesía"
+        ],
+        "rows": [
+          [
+            "**FRODO**",
+            "`FotR.FRODO`",
+            "Carga con los datos. Lee las carpetas de simulación y las deja en `data_dict`."
+          ],
+          [
+            "**SAM**",
+            "`FotR.SAM`",
+            "La mochila. Todo el cálculo que no depende del formato."
+          ],
+          [
+            "**GANDALF**",
+            "`FotR.GANDALF`",
+            "Monta la campaña *antes* de que haya resultados y la manda al clúster. Tiene [su propia documentación](../gandalf/index.html)."
+          ],
+          [
+            "**LEGOLAS**",
+            "`FotR.LEGOLAS`",
+            "Pinta. Es el único consumidor externo de FRODO."
+          ],
+          [
+            "**GIMLI**",
+            "`FotR.GIMLI`",
+            "Agrupa y cuenta: clustering."
+          ],
+          [
+            "**ARAGORN**",
+            "`FotR.ARAGORN`",
+            "El montaraz: sale fuera a lanzar gmsh y XFOIL."
+          ],
+          [
+            "**SMEAGOL**",
+            "pyLOM",
+            "No es nuestro, pero va en el equipo. Ver abajo."
+          ],
+          [
+            "**La Luz de Eärendil**",
+            "`FotR.EarendilsLight`",
+            "La ayuda introspectiva. Ver abajo."
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Sobre Sméagol"
+      },
+      {
+        "t": "p",
+        "x": "pyLOM es exactamente lo que el README dice que es: necesario, incómodo y poco de fiar. Tenía además una traición concreta, **B12**: `sets/coda.py` lo importaba en la cabecera, así que si no estaba instalado, CODA y NUMPY **perdían su clase Sets en silencio**. No fallaba el import, no tronaba nada: `db.sets` aparecía a `None` con un `UserWarning` que nadie leía. **Eso ya está arreglado**: pyLOM se importa ahora de forma perezosa, así que sin él conservas tus Sets y solo fallan los métodos de exportación a pyLOM, que es lo razonable. Donde sigue siendo mortal es en el formato `PYLOM`, porque ahí pyLOM *es* el anillo."
+      },
+      {
+        "t": "h",
+        "x": "Sobre la Luz de Eärendil"
+      },
+      {
+        "t": "p",
+        "x": "Galadriel se la entregó a Frodo diciendo: *«May it be a light to you in dark places, when all other lights go out»*. En el repositorio, el frasco no enciende: `EarendilsLight` no funciona sobre FRODO ni sobre SAM, porque las anotaciones `db: 'FRODO'` viven bajo `TYPE_CHECKING` y no se resuelven en tiempo de ejecución. Una luz para los lugares oscuros que, de momento, va a pilas. Está en el ANÁLISIS §7."
       }
     ]
   },
@@ -335,29 +447,41 @@
     "map": [
       {
         "t": "p",
-        "x": "**FRODO** is the database: it opens a directory of simulations, parses it, and leaves the results in `data_dict`. **SAM** is the toolbox: computation and utilities that depend on no particular format. FRODO imports SAM; SAM knows nothing about FRODO."
+        "x": "**FRODO** is the Bearer. Not because it is the strongest or the cleverest — it is neither — but because somebody had to carry the data and everyone else looked away. It opens a directory of simulations, parses it and leaves the spoils in `data_dict`."
+      },
+      {
+        "t": "p",
+        "x": "**SAM** is the one carrying the pack. Frodo gets the credit; Sam carries the rope, the salt, the pan and, when it comes to it, Frodo. Here it is every computation that does not depend on the format: tensors, meshes, derivatives, clustering and inspection."
       },
       {
         "t": "code",
         "x": "FRODO(root_dir, format)\n  ├─ reader      parse folders, extract inputs/outputs\n  ├─ sets        ML tensors, mesh operations, export\n  ├─ residuals   convergence and integral metrics\n  └─ stats       statistics across cases, stages and meshes\n\nSAM  (static namespace, never instantiated)\n  ├─ Gardener               training tensors\n  ├─ HDF5reader             .h5 reading\n  ├─ Backpack               files, meshes, parsers\n  ├─ Weapons                ordering, derivatives, clustering, interpolation\n  ├─ DifferentialOperators  gradient / Jacobian / divergence (MLS)\n  └─ DictVisualizer         nested-dictionary inspection"
       },
       {
+        "t": "p",
+        "x": "The dependency runs one way: `frodo.py` imports SAM, and SAM has no idea FRODO exists. As it should be — Sam would still be gardening at Bag End if no ring had ever landed on Frodo."
+      },
+      {
         "t": "note",
-        "x": "Almost nothing you call as `db.something(...)` lives on FRODO: it resolves to one of the four sub-objects. How, and in what order, is in the FRODO guide."
+        "x": "Almost nothing you call as `db.something(...)` lives on FRODO: it resolves to one of the four sub-objects. The Bearer delegates. How, and in what order, is in the FRODO guide."
       }
     ],
     "frodo": [
       {
         "t": "h",
-        "x": "The mental model"
+        "x": "The Bearer does almost nothing, and that is deliberate"
       },
       {
         "t": "p",
-        "x": "A FRODO instance is a thin coordinator. In the constructor it picks, according to `format`, a *quartet* of format-specific helpers — `reader`, `sets`, `residuals` and `stats` — and from then on forwards almost everything to them. The only heavyweight logic FRODO owns is `merge_datasets`."
+        "x": "Frodo wins no battles. He does not track like Aragorn, does not shoot like Legolas and cannot force a dwarf-door. His job is to carry the Ring and reach the end. FRODO is the same: a thin coordinator that, on construction, picks a *quartet* of helpers according to `format` — `reader`, `sets`, `residuals` and `stats` — and hands the work to them from then on."
       },
       {
         "t": "p",
-        "x": "The `reader` is mandatory: if the format is not registered, the constructor raises `ValueError`. The other three are optional; when missing, the attribute is set to `None` and a `UserWarning` is emitted."
+        "x": "The only heavy thing it does with its own hands is `merge_datasets`. Everything else is delegated. Do not be surprised: that method is half the lines in the class, and the other half is plumbing."
+      },
+      {
+        "t": "p",
+        "x": "The `reader` is mandatory: if the format is not registered the constructor raises `ValueError` and there is no journey. The other three are optional; when missing, the attribute is `None` and a `UserWarning` is emitted — the Fellowship leaves Rivendell short-handed and nobody minds until Moria."
       },
       {
         "t": "h",
@@ -369,7 +493,7 @@
       },
       {
         "t": "p",
-        "x": "`extract_inputs` always comes first: readers write the solution arrays into the CAD group that `extract_inputs` created."
+        "x": "`extract_inputs` always comes first: readers write the solution arrays into the CAD group it created. Do it the other way round and you get no elegant warning — it simply has nowhere to put things."
       },
       {
         "t": "h",
@@ -377,7 +501,7 @@
       },
       {
         "t": "p",
-        "x": "FRODO consumes two keys and forwards **everything else verbatim to the reader constructor**. Its own two are `name` (default `'FRODO Database'`) and `update_df_state` (default `False`). What the constructor accepts therefore depends on the format:"
+        "x": "FRODO keeps two keys and forwards **everything else verbatim to the reader constructor**. Its own are `name` (default `'FRODO Database'`) and `update_df_state` (default `False`). What the constructor accepts therefore depends on which ring it happens to be wearing:"
       },
       {
         "t": "table",
@@ -405,12 +529,12 @@
           [
             "NUMPYFILE",
             "`file=`",
-            "legacy format"
+            "Bilbo's ring: it still works, nobody wants it any more"
           ],
           [
             "PYLOM",
             "`file=`",
-            "pyLOM dataset"
+            "a pyLOM dataset, with Sméagol in the middle"
           ],
           [
             "HORSES3D",
@@ -421,15 +545,15 @@
       },
       {
         "t": "note",
-        "x": "If you omit a required kwarg, the error comes from the reader, not from FRODO: you get a `TypeError` about an argument FRODO's own constructor never mentions."
+        "x": "If you omit a required kwarg, the error comes from the reader, not from FRODO: you get a `TypeError` complaining about an argument FRODO's own constructor never mentions. Confusing the first time, and only the first time."
       },
       {
         "t": "h",
-        "x": "Delegation: why `db.add_aux()` works"
+        "x": "Delegation: why `db.add_aux()` works without existing"
       },
       {
         "t": "p",
-        "x": "`add_aux` does not exist on FRODO. When Python fails to find an attribute it calls `__getattr__`, which searches the four sub-objects **in this fixed order**: `sets` → `reader` → `residuals` → `stats`. The first one that has it wins."
+        "x": "`add_aux` is not on FRODO. When Python fails to find an attribute it calls `__getattr__`, which walks the four sub-objects **in this fixed order**: `sets` → `reader` → `residuals` → `stats`. The first one that has it wins. Frodo does not know how to do it; Frodo knows whom to ask."
       },
       {
         "t": "code",
@@ -437,7 +561,7 @@
       },
       {
         "t": "p",
-        "x": "Three consequences are worth keeping in mind:"
+        "x": "Convenient, yes. Free, no. It has three consequences worth knowing before you trust the shortcut:"
       },
       {
         "t": "table",
@@ -452,13 +576,17 @@
           ],
           [
             "The same call changes signature per format",
-            "`db.extract_inputs` reaches `CODAReader.extract_inputs` in one database and `NUMPYReader.extract_inputs` in another. Neither argument names nor their order are guaranteed: read the docstring of the concrete reader."
+            "`db.extract_inputs` reaches `CODAReader.extract_inputs` in one database and `NUMPYReader.extract_inputs` in another. Neither argument names nor their order are guaranteed: read the concrete reader's docstring, not FRODO's."
           ],
           [
             "Collisions resolve by that order, silently",
             "`db.summary` reaches `sets.summary` even though readers define one too, and `db.db` reaches `sets.db` (the back-pointer to the parent FRODO). Write `db.reader.summary` when the distinction matters."
           ]
         ]
+      },
+      {
+        "t": "note",
+        "x": "This is the trap that costs the most time in this repository. It is not wrong: it is that the same name means different things depending on who bears the ring."
       },
       {
         "t": "h",
@@ -507,11 +635,15 @@
       },
       {
         "t": "h",
-        "x": "The special case of `metadata`"
+        "x": "The odd case of `metadata`"
       },
       {
         "t": "p",
-        "x": "`db.metadata` is **not an attribute of FRODO**. It resolves by delegation to `reader.metadata`, which is where `df_cases`, `design_vars`, `eq_type`, `folder_fmt` and `num_stages` live. The exception is instances produced by `copy()` and `merge_datasets()`: those do set it as a real attribute, which from then on shadows the reader's. If you mutate `db.metadata`, it pays to know which of the two you are holding."
+        "x": "`db.metadata` is **not an attribute of FRODO**. It resolves by delegation to `reader.metadata`, which is where `df_cases`, `design_vars`, `eq_type`, `folder_fmt` and `num_stages` live. The exception is instances produced by `copy()` and `merge_datasets()`: those do set it as a real attribute, which from then on shadows the reader's."
+      },
+      {
+        "t": "note",
+        "x": "In other words: there are two Rings that look alike and only one is the real one, depending on where the object came from. If you mutate `db.metadata`, it pays to know which you are holding."
       },
       {
         "t": "h",
@@ -519,11 +651,11 @@
       },
       {
         "t": "p",
-        "x": "It is a `@staticmethod`: it interpolates every source mesh onto a reference mesh, concatenates the `FlCc` arrays and rebuilds `df_cases` (and `df_state`, and `df_post` for CODA) so that they describe **exactly** the cases that were extracted, not every case the database had defined."
+        "x": "It is a `@staticmethod`: it interpolates every source mesh onto a reference one, concatenates the `FlCc` arrays and rebuilds `df_cases` (and `df_state`, and `df_post` for CODA) so that they describe **exactly** the cases that were extracted, not every case the database had defined."
       },
       {
         "t": "p",
-        "x": "Two of its rules explain most of the errors it raises: **`FlCc` is the ground truth** about which cases are being merged, and **there is no silent deduplication** — if the same physical case appears in two sources, that is a `ValueError`, not an arbitrary choice."
+        "x": "Two of its rules explain most of the errors it raises: **`FlCc` is the ground truth** about which cases are merged, and **there is no silent deduplication** — if the same physical case appears in two sources, that is a `ValueError`. Nothing gets thrown into Mount Doom on the off chance; where there is ambiguity it stops and tells you."
       },
       {
         "t": "note",
@@ -537,7 +669,11 @@
       },
       {
         "t": "p",
-        "x": "SAM is never instantiated. Everything is called as `SAM.Area.function(...)` and almost everything is a `@staticmethod`. The one exception is `SAM.HDF5reader`, which is a real object because it holds a file path and its dataset index."
+        "x": "Samwise Gamgee is no prophesied hero: he is the Bag End gardener who gets caught listening at the window and ends up on the journey. He has no array of powers; he has a well-packed bag and his head screwed on."
+      },
+      {
+        "t": "p",
+        "x": "SAM behaves the same way: it is **never instantiated**. Everything is called as `SAM.Area.function(...)` and almost everything is a `@staticmethod`. The one exception is `SAM.HDF5reader`, which is a real object because it holds a file path and its dataset index."
       },
       {
         "t": "code",
@@ -546,6 +682,10 @@
       {
         "t": "h",
         "x": "The six areas"
+      },
+      {
+        "t": "p",
+        "x": "Two of them are named literally, not metaphorically: Sam **was** a gardener, and Sam **did** carry the pack. The other four are poetic licence."
       },
       {
         "t": "table",
@@ -557,69 +697,77 @@
         "rows": [
           [
             "`Gardener`",
-            "Build and normalise the flat `[coords | flight cond. | aux | outputs]` training tensors, one row per (point, case) pair",
+            "The actual gardener. Grows the flat `[coords | flight cond. | aux | outputs]` tensor, one row per (point, case) pair, and normalises it",
             "user code"
           ],
           [
             "`HDF5reader`",
-            "Read datasets from an `.h5` as a numpy array or torch tensor",
+            "Read datasets from an `.h5` as a numpy array or torch tensor. Little glamour, much mileage",
             "user code"
           ],
           [
             "`Backpack`",
-            "Files and meshes: filename-pattern inference, CODA logs, PyVista connectivity, HORSES3D mesh and `.hsol`, safe formula evaluator",
+            "The pack: filename patterns, CODA logs, PyVista connectivity, HORSES3D mesh and `.hsol`, safe formula evaluator. Things better carried and not needed",
             "readers and sets, constantly"
           ],
           [
             "`Weapons`",
-            "Point-cloud ordering, surface and volume derivatives, GMM clustering, and the mesh-to-mesh interpolation kernels",
+            "The warlike part: point-cloud ordering, surface and volume derivatives, GMM clustering, and the mesh-to-mesh interpolation kernels",
             "sets, and user code"
           ],
           [
             "`DifferentialOperators`",
-            "Gradient, Jacobian and divergence on scattered points by moving least squares, with no connectivity needed",
+            "Weapons' quiet brother. Gradient, Jacobian and divergence by moving least squares, asking nobody for connectivity",
             "user code"
           ],
           [
             "`DictVisualizer`",
-            "Inspect nested dictionaries, summarising each leaf by type and shape",
+            "For looking at a dictionary without it looking back at you",
             "`FRODO.summary_data` and user code"
           ]
         ]
       },
       {
         "t": "h",
-        "x": "Why order before differentiating"
+        "x": "Why you must order before differentiating"
       },
       {
         "t": "p",
-        "x": "A surface extraction arrives unordered, and a derivative along an unordered surface means nothing. That is why `Weapons` offers four different orderings: which one to use depends on whether the curve is closed and how irregular the sampling is. `DifferentialOperators`, by contrast, needs no ordering at all: it fits a local polynomial per neighbourhood."
+        "x": "A surface extraction arrives unordered, and a derivative along an unordered surface means precisely nothing. That is why `Weapons` offers four different orderings: which one to use depends on whether the curve is closed and how irregular the sampling is. `DifferentialOperators`, by contrast, needs no ordering at all: it fits a local polynomial per neighbourhood and does not care."
       },
       {
         "t": "h",
-        "x": "Import cost"
+        "x": "The toll on the pack, already paid"
       },
       {
         "t": "p",
-        "x": "`sam.py` imports `torch`, `pyvista`, `scikit-learn`, `seaborn` and `matplotlib` **at module level**, and `frodo.py` imports SAM unconditionally. Importing anything from `FotR` pays for that whole stack. It is also why the test files stub SAM out instead of importing it, and why that stubbing is order-sensitive."
+        "x": "Sam carried cooking gear that rattled at every step, and SAM did the same: it imported `torch`, `pyvista`, `scikit-learn`, `seaborn` and `matplotlib` **at module level**, so `import FotR` paid for the whole stack even if all you wanted was to list a folder. Some 3.4 seconds of toll for crossing the bridge."
+      },
+      {
+        "t": "p",
+        "x": "Not any more. Each of those libraries is now a lazy stand-in (`FotR/_lazy.py`) that imports for real the first time somebody asks it for an attribute. Call sites are written exactly as before — `torch.as_tensor(...)` is still `torch.as_tensor(...)` — but a full CODA workflow never touches torch or seaborn at all."
+      },
+      {
+        "t": "note",
+        "x": "Two limits worth knowing before you add code: `from library import Name` **cannot** be deferred this way — the name is bound at import time — so those go inside the function that uses them; and the module carries `from __future__ import annotations` so that a signature like `x: torch.Tensor` does not trigger the import when the `def` runs."
       },
       {
         "t": "h",
-        "x": "Two warnings"
+        "x": "Two warnings from the management"
       },
       {
         "t": "note",
-        "x": "`Backpack.pattern_pocket_ant` is the previous version of `pattern_pocket` and remains only for compatibility. New code should always use `pattern_pocket`."
+        "x": "`Backpack.pattern_pocket_ant` is the previous version of `pattern_pocket` and remains only for compatibility: some 435 lines doing the same thing worse. New code should always use `pattern_pocket`."
       },
       {
         "t": "note",
-        "x": "`Backpack.HorsesLazyField.load()` is declared but raises `NotImplementedError`: SAM has no validated reader for the `.hsol` Fortran binary yet. Only header metadata is available, via `read_horses_hsol_header`."
+        "x": "`Backpack.HorsesLazyField.load()` is declared but raises `NotImplementedError`. SAM cannot read the `.hsol` Fortran binary yet; only header metadata is available, via `read_horses_hsol_header`. It is a promise, not a function."
       }
     ],
     "datadict": [
       {
         "t": "p",
-        "x": "`data_dict` is where extracted data ends up, and **its shape depends on the format**. There are two incompatible layouts."
+        "x": "The Ring changes shape depending on who bears it, and so does `data_dict`. **Its structure depends on the format**, and there are two layouts with nothing in common. If you copy code from a CODA notebook into a PYLOM one, this is what will bite you."
       },
       {
         "t": "h",
@@ -639,7 +787,7 @@
       },
       {
         "t": "note",
-        "x": "In CODA_SINGLE, `mesh` can be a design var (a numeric factor). The mesh identity does not live in that key — it would collide — but in `sim_metadata[*]['mesh_info']` and in `df_state['mesh_file']`."
+        "x": "In CODA_SINGLE, `mesh` can be a design var (a numeric factor). The mesh identity does not live in that key — it would collide — but in `sim_metadata[*]['mesh_info']` and in `df_state['mesh_file']`. Two things with the same name that are not the same thing: once again."
       },
       {
         "t": "h",
@@ -648,6 +796,10 @@
       {
         "t": "code",
         "x": "data_dict['CADGroup_g<g>_<mesh>'] = {\n    'Coord':     NodeCoords\n    'FlCc':      design_vars only\n    'Vars':      {str(p): {variable: HorsesLazyField}}\n    'hsol_meta': header metadata\n}"
+      },
+      {
+        "t": "p",
+        "x": "Careful: what sits in `Vars` are not arrays but `HorsesLazyField` objects — promises of a field you cannot yet cash, because `load()` is not implemented."
       },
       {
         "t": "h",
@@ -659,7 +811,79 @@
       },
       {
         "t": "note",
-        "x": "`FlCc` holds **only the user's design vars**, never solver parameters. That is the rule that lets `merge_datasets` identify a case by its physics rather than by its position."
+        "x": "`FlCc` holds **only the user's design vars**, never solver parameters. That is the rule that lets `merge_datasets` identify a case by its physics rather than by its position — or, put another way, recognise a hobbit by who he is and not by where he was sitting."
+      }
+    ],
+    "fellowship": [
+      {
+        "t": "p",
+        "x": "First, the cast. Because nothing here is called `DataManager` or `UtilsHelper`, which is charming right up to the half-hour mark of hunting for a method."
+      },
+      {
+        "t": "table",
+        "head": [
+          "character",
+          "in the code",
+          "what it does, without the poetry"
+        ],
+        "rows": [
+          [
+            "**FRODO**",
+            "`FotR.FRODO`",
+            "Bears the data. Reads the simulation folders and leaves them in `data_dict`."
+          ],
+          [
+            "**SAM**",
+            "`FotR.SAM`",
+            "The pack. Every computation that does not depend on the format."
+          ],
+          [
+            "**GANDALF**",
+            "`FotR.GANDALF`",
+            "Assembles the campaign *before* any results exist and sends it to the cluster. It has [its own documentation](../gandalf/index.html)."
+          ],
+          [
+            "**LEGOLAS**",
+            "`FotR.LEGOLAS`",
+            "Draws. The only external consumer of FRODO."
+          ],
+          [
+            "**GIMLI**",
+            "`FotR.GIMLI`",
+            "Groups and counts: clustering."
+          ],
+          [
+            "**ARAGORN**",
+            "`FotR.ARAGORN`",
+            "The ranger: goes out and runs gmsh and XFOIL."
+          ],
+          [
+            "**SMÉAGOL**",
+            "pyLOM",
+            "Not ours, but it travels with us. See below."
+          ],
+          [
+            "**Eärendil's Light**",
+            "`FotR.EarendilsLight`",
+            "The introspective help. See below."
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "On Sméagol"
+      },
+      {
+        "t": "p",
+        "x": "pyLOM is precisely what the README says it is: necessary, uncomfortable and not to be trusted. It also had one specific betrayal, **B12**: `sets/coda.py` imported it at the top, so if it was not installed, CODA and NUMPY **lost their Sets class in silence**. The import did not fail, nothing exploded: `db.sets` was simply `None`, with a `UserWarning` nobody read. **That is now fixed**: pyLOM is imported lazily, so without it you keep your Sets and only the pyLOM-export methods fail, which is the sensible outcome. Where it is still fatal is the `PYLOM` format itself, because there pyLOM *is* the ring."
+      },
+      {
+        "t": "h",
+        "x": "On Eärendil's Light"
+      },
+      {
+        "t": "p",
+        "x": "Galadriel handed it to Frodo saying: *«May it be a light to you in dark places, when all other lights go out»*. In this repository the phial does not light up: `EarendilsLight` does not work on FRODO or SAM, because the `db: 'FRODO'` annotations live under `TYPE_CHECKING` and never resolve at runtime. A light for dark places that currently runs on batteries. It is in ANALYSIS §7."
       }
     ]
   }

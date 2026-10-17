@@ -35,3 +35,9 @@ Como ya hemos dicho, SAM es ese compañero indispensable de viaje. El mítico co
 Un detalle práctico: SAM **no se instancia nunca**. Todo se llama como `SAM.Area.funcion(...)`, y la única excepción es `SAM.HDF5reader`, que sí es un objeto porque guarda el fichero abierto.
 
 En adelante, y como ahora no dispongo de más tiempo, resumiré la ayuda mínima necesaria en comentarios mientras navegas por este notebook. No dudes en escribirme si tienes dudas sobre la convivencia en esta comunidad (miguel.jaraizga@upm.es)
+
+*UNA ÚLTIMA COSA, SOBRE EL PESO DE LA MOCHILA*
+
+Desde el 10/10/2026, importar la Comunidad ya no cuesta lo que costaba. `import FotR` son 3 ms y `from FotR import FRODO` unos 292 ms, porque cada personaje se carga al nombrarlo y las librerías gordas (torch, seaborn, scikit-learn, pyvista) solo entran cuando alguien las usa de verdad. Un flujo CODA entero no llega a tocar torch ni seaborn.
+
+Si te pones a añadir código: usa `lazy_module('loquesea')` en la cabecera en vez de `import loquesea`, mete los `from loquesea import Algo` dentro de la función que los necesite, y si alguna anotación menciona una librería diferida, pon `from __future__ import annotations` arriba del todo. El porqué está en `FotR/_lazy.py`.
