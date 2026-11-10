@@ -35,6 +35,18 @@
       },
       {
         "title": {
+          "es": "Seguir casos en directo mientras corren",
+          "en": "Follow cases live while they run"
+        },
+        "source": "examples/gandalf/monitor_TIFON.py",
+        "code": "from FotR import FRODO\n\ndb = FRODO(root_dir='/home/m.jaraiz/Documentos/DATASETS/data_TIFON/rans5', format='CODA', initial_parse=True)\n\n# Uno de los tres: case_idx o carpetas, un subset, o una consulta sobre df_cases.\nmon = db.residuals.monitor_cases([219, 228, 243, 245, 257])\n# mon = db.residuals.monitor_cases(['aoa_4.3363_mach_0.7247', 'aoa_4.9831_mach_0.8085'])\n# mon = db.residuals.monitor_cases(query='mach > 0.78 and aoa > 4')\n\nprint(mon)      # <CODA monitor http://127.0.0.1:8765/ pid=... running>\nmon.stop()      # o esperar: se para solo a los 30 min sin la página abierta",
+        "note": {
+          "es": "Abre un servidor pequeño en un proceso aparte, que no bloquea el notebook y sobrevive a él. La página se refresca cada 5 s y enseña un caso cada vez (con la tecla `t`, la tabla de todos): estado, stage, iteración frente al límite, s/iteración y cada criterio de parada frente a su umbral, con residuos, coeficientes con su tubo de Cauchy y CFL. Todo sale del `-out.txt` de Slurm, el único fichero que CODA escribe mientras corre, así que también sigue casos que corren en flexo. Desde VS Code con Remote-SSH el puerto se reenvía solo (pestaña *Ports*); para una ventana propia, `brave --app=http://localhost:8765/` en tu PC, que necesita internet para cargar Plotly.",
+          "en": "Starts a small server in a separate process, which does not block the notebook and outlives it. The page refreshes every 5 s and shows one case at a time (key `t` for the table of all of them): status, stage, iteration against the limit, s/iteration and every stop criterion against its threshold, with residuals, coefficients with their Cauchy tube, and CFL. Everything comes from the Slurm `-out.txt`, the only file CODA writes while it runs, so cases running on flexo can be followed too. From VS Code with Remote-SSH the port is forwarded automatically (*Ports* tab); for a window of its own, `brave --app=http://localhost:8765/` on your computer, which needs internet to load Plotly."
+        }
+      },
+      {
+        "title": {
           "es": "Añadir un array y exportar a .npy",
           "en": "Add an array and export to .npy"
         },

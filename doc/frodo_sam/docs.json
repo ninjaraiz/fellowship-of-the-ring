@@ -12862,6 +12862,269 @@
               }
             },
             {
+              "id": "CODAResiduals.restart_stalled_cases",
+              "class": "CODAResiduals",
+              "name": "restart_stalled_cases",
+              "signature": "restart_stalled_cases(cases: Union[str, int, list, tuple], cpus: int, node: str, stage: Optional[int] = None, cluster: str = 'flexo', file_sh: str = 'run.sh', script: Optional[str] = None, dry_run: bool = True, submit: bool = False)",
+              "returns": "pd.DataFrame",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Prepare (and optionally resubmit) cases whose last stage stalled, so that the stage is computed again on its own.",
+                "description": "Automates the manual restart of a case that hit the iteration limit\nwithout meeting the residual criterion. For every case:\n\n1. ``output_<stage>.h5`` becomes ``<ci_name>.h5`` (``ci_name`` is\n   read from the run script, default ``'ci'``) and every other\n   ``output_<stage>*`` file is deleted, so neither the run script\n   nor ``CODAReader.parse_simulation_dirs`` consider the stage done.\n2. In the run script: ``custom_ci = True`` and\n   ``stages = ['stage<stage>']``. Nothing else in the script is\n   touched; see Notes for where the stage then starts from.\n3. In ``file_sh``: ``#SBATCH --nodelist=<node>``,\n   ``--ntasks=<cpus>`` and ``--tasks-per-node=<cpus>``.\n4. With ``submit=True``, ``sbatch <file_sh>`` from the case folder.\n\nEach case is fully validated before anything is written; a case\nthat fails a check is reported as ``'skipped'`` and left untouched.",
+                "params": [
+                  {
+                    "name": "cases",
+                    "type": "str, int, list or tuple",
+                    "desc": "Case folder names (keys of ``db.sim_metadata``) or case indices (resolved with ``case_per_idx``), or a list mixing both."
+                  },
+                  {
+                    "name": "cpus",
+                    "type": "int",
+                    "desc": "MPI processes for the restarted job (``--ntasks`` and ``--tasks-per-node``)."
+                  },
+                  {
+                    "name": "node",
+                    "type": "str",
+                    "desc": "Node for ``#SBATCH --nodelist``, e.g. ``'n002'``."
+                  },
+                  {
+                    "name": "stage",
+                    "type": "int or None",
+                    "desc": "Stage to restart. Default ``metadata['num_stages'] - 1`` (the last one)."
+                  },
+                  {
+                    "name": "cluster",
+                    "type": "str",
+                    "desc": "Slurm cluster the cases run on, compared with the ``ClusterName`` of the cluster this method runs on. Default ``'flexo'``. See Notes."
+                  },
+                  {
+                    "name": "file_sh",
+                    "type": "str",
+                    "desc": "Slurm script inside each case folder. Default ``'run.sh'``."
+                  },
+                  {
+                    "name": "script",
+                    "type": "str or None",
+                    "desc": "Python run script inside each case folder. Default: the ``.py`` file launched by the ``mpiexec``/``mpirun``/``srun`` line of ``file_sh``."
+                  },
+                  {
+                    "name": "dry_run",
+                    "type": "bool",
+                    "desc": "If True (default), only report what would change."
+                  },
+                  {
+                    "name": "submit",
+                    "type": "bool",
+                    "desc": "If True, submit each restarted case with ``sbatch``. Requires ``dry_run=False``. Default False."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "pd.DataFrame",
+                    "desc": "One row per case with columns ``folder``, ``status`` (``'planned'``, ``'restarted'``, ``'submitted'``, ``'skipped'`` or ``'failed'``), ``reason``, ``changes`` (list of str) and ``job_id``."
+                  }
+                ],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "RuntimeError",
+                    "desc": "If ``dry_run=False`` and this is not ``cluster`` (nothing is modified), or if ``squeue``/``sinfo`` fail on ``cluster``."
+                  },
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If ``submit=True`` with ``dry_run=True``, if ``cpus`` < 1, or if ``node`` does not exist on ``cluster`` or has fewer than ``cpus`` CPUs."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Side-effects",
+                    "text": "With ``dry_run=False``, per restarted case: rewrites the run script\nand ``file_sh``, renames ``output_<stage>.h5`` to ``<ci_name>.h5``\n(overwriting a previous one), **deletes** every other\n``output_<stage>*`` file (Slurm ``-out.txt``/``-err.txt`` logs are\nkept) and drops ``<stage>`` from\n``db.sim_metadata[folder]['stages']``. ``db.df_state`` is not\nrebuilt; call ``parse_simulation_dirs()`` for that."
+                  },
+                  {
+                    "title": "Notes",
+                    "text": "**Cluster check.** A case must never be modified while one of its\njobs is pending or running, and that is checked with ``squeue``.\nFrom a different cluster ``squeue`` does not fail: it answers with\n*that* cluster's queue, so the check would always pass. The method\ntherefore compares ``cluster`` with the current ``ClusterName``\n(``scontrol show config``; the short hostname if ``scontrol`` is\nmissing). Off-cluster, only ``dry_run=True`` is allowed and it\nwarns that the job check was not done.\n\n**Where the restarted stage starts.** That is decided by the run\nscript, not by this method. With ``run_sst_v5.py`` as generated for\nthe TIFON datasets, ``if not isNotFirstStage:`` re-initialises the\nfirst stage of ``stages`` to free stream even when ``custom_ci`` is\nset, so the stage restarts from **free stream** and\n``<ci_name>.h5`` only provides the mesh (``ImportMeshHDF5``). Its\nrelative residual criterion is then measured against the\nfree-stream residual and is met almost at once, so in practice the\nCauchy criterion on the integral forces decides when it stops. This\nreproduces the manual restart procedure. To really continue from\nthe saved state, the script needs\n``if not isNotFirstStage and not custom_ci:`` and\n``not custom_ci`` instead of ``~custom_ci`` (``~`` on a bool is -1\nor -2, always true)."
+                  },
+                  {
+                    "title": "Examples",
+                    "text": "Review the changes, then apply and submit (on the right cluster)::\n\n    plan = db.residuals.restart_stalled_cases(\n        ['aoa_0.3347_mach_0.8863', 'aoa_0.7253_mach_0.8678'],\n        cpus=40, node='n002',\n    )\n    print(plan[['folder', 'status', 'reason']])\n\n    done = db.residuals.restart_stalled_cases(\n        plan.loc[plan['status'] == 'planned', 'folder'].tolist(),\n        cpus=40, node='n002', dry_run=False, submit=True,\n    )"
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals._prepare_restart",
+              "class": "CODAResiduals",
+              "name": "_prepare_restart",
+              "signature": "_prepare_restart(folder: str, stage: int, cpus: int, node: str, file_sh: str, script: Optional[str], active: Optional[dict])",
+              "returns": "dict",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Validate one case and build, in memory, everything the restart writes. Raises ``ValueError``/``FileNotFoundError`` with the reason the case must be skipped; nothing on disk is touched.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals._apply_restart",
+              "class": "CODAResiduals",
+              "name": "_apply_restart",
+              "signature": "_apply_restart(plan: dict, stage: int)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Write what ``_prepare_restart`` built and move/delete the stage outputs. Scripts are replaced atomically (temp file + rename).",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals.monitor_cases",
+              "class": "CODAResiduals",
+              "name": "monitor_cases",
+              "signature": "monitor_cases(cases=None, subset: Optional[str] = None, query: Optional[str] = None, port: int = 8765, interval: float = 5.0, stale_after: float = 900.0, idle_timeout: float = 1800.0, background: bool = True, title: Optional[str] = None)",
+              "returns": "",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Open a live web monitor that follows a list of cases while they run.",
+                "description": "Unlike ``plot_state_calculation``, which draws every case once, the\npage refreshes itself every ``interval`` seconds and shows one case\nat a time (with a table of all of them a key away): status, stage,\niteration against the limit, time per iteration, and each stop\ncriterion against its threshold. Its plot stacks the residual\nreductions, every integral (``CoefLift``, ``CoefDrag``…) with its\nCauchy window, and the CFL.\n\nEverything comes from the Slurm ``-out.txt`` log, the only file\nCODA writes while it runs (the ``.dat`` monitors appear at the end\nof each stage), so cases on another cluster sharing the file\nsystem can be followed too. See ``FotR.solver_tools.coda_log``.\n\nGive the cases with exactly one of ``cases``, ``subset`` or\n``query``.",
+                "params": [
+                  {
+                    "name": "cases",
+                    "type": "int, str, list, pd.DataFrame or 'all'",
+                    "desc": "Case indices (``case_idx``, resolved with ``case_per_idx``), folder names (keys of ``db.sim_metadata``) or a list mixing both; a DataFrame with a ``folder`` (or ``case_idx``) column, such as a filtered ``df_cases``; or ``'all'``."
+                  },
+                  {
+                    "name": "subset",
+                    "type": "str or None",
+                    "desc": "Name of a subset defined with ``define_subset``."
+                  },
+                  {
+                    "name": "query",
+                    "type": "str or None",
+                    "desc": "``pandas.DataFrame.query`` expression on ``metadata['df_cases']``, e.g. ``'mach > 0.78 and aoa < 2'``."
+                  },
+                  {
+                    "name": "port",
+                    "type": "int",
+                    "desc": "First port to try on 127.0.0.1; the next free one is used if it is taken. Default 8765."
+                  },
+                  {
+                    "name": "interval",
+                    "type": "float",
+                    "desc": "Seconds between refreshes. Default 5."
+                  },
+                  {
+                    "name": "stale_after",
+                    "type": "float",
+                    "desc": "Seconds without log writes after which a running case is shown as quiet. Default 900."
+                  },
+                  {
+                    "name": "idle_timeout",
+                    "type": "float",
+                    "desc": "Seconds without the page open after which the server stops by itself; 0 never stops. Default 1800."
+                  },
+                  {
+                    "name": "background",
+                    "type": "bool",
+                    "desc": "If True (default), run the server in a separate process and return at once: it does not block the notebook and outlives it. If False, serve from this process until Ctrl-C."
+                  },
+                  {
+                    "name": "title",
+                    "type": "str or None",
+                    "desc": "Page title. Default: the folder name of ``db.root_dir``."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "MonitorHandle or None",
+                    "desc": "With ``background=True``: ``url``, ``pid``, ``alive()`` and ``stop()``. None otherwise."
+                  }
+                ],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If not exactly one of ``cases``, ``subset`` and ``query`` is given, if a folder is not in ``db.sim_metadata``, or if no case is left."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Notes",
+                    "text": "The server listens on 127.0.0.1 of the machine running Python.\nFrom VS Code with Remote-SSH the port is forwarded automatically\n(check the *Ports* panel); for a window of its own, open the URL\nwith ``brave --app=<url>`` (or chrome/chromium) on your computer.\nPlotly is loaded from cdnjs, so that browser needs internet.\n\nStatuses: ``pending`` (no log yet), ``queued`` (the last log\nended and the ``output_<stage>.h5`` of its last stage became\n``ci.h5``, as ``restart_stalled_cases`` leaves it), ``starting``,\n``running``, ``quiet``, ``finished``, ``limit`` (ended at the\niteration limit), ``diverged`` (NaN), ``cancelled`` and ``error``\n(non-empty ``-err.txt``).\n\nThe Cauchy check is ``max |x_i - x_k|`` over the current value and\nthe ``number of samples`` before it. It was deduced from the logs,\nand reproduces CODA's own ``Cauchy convergence achieved`` message\nat every iteration of the rans5 logs."
+                  },
+                  {
+                    "title": "Examples",
+                    "text": "By case index, folder name, or a query on ``df_cases``::\n\n    mon = db.residuals.monitor_cases([219, 228, 243])\n    mon = db.residuals.monitor_cases(['aoa_4.3363_mach_0.7247'])\n    mon = db.residuals.monitor_cases(query='mach > 0.78')\n    mon.url      # 'http://127.0.0.1:8765/'\n    mon.stop()"
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals._monitor_folders",
+              "class": "CODAResiduals",
+              "name": "_monitor_folders",
+              "signature": "_monitor_folders(cases, subset, query)",
+              "returns": "list",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Folder names selected by ``monitor_cases``, in the order given.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "CODAResiduals._monitor_info",
+              "class": "CODAResiduals",
+              "name": "_monitor_info",
+              "signature": "_monitor_info(folder: str)",
+              "returns": "dict",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "``case_idx`` and design variables of a case, for the page.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
               "id": "CODAResiduals.plot_residuals_from_case",
               "class": "CODAResiduals",
               "name": "plot_residuals_from_case",

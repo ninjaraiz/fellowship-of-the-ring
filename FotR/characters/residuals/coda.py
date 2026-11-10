@@ -15,8 +15,11 @@ Provides:
 
 import os
 import re
+import socket
+import getpass
 import logging
 import warnings
+import subprocess
 from typing import Literal, Optional, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
@@ -886,6 +889,550 @@ class CODAResiduals(BaseResiduals):
         return result_mean, result_std
 
     # =========================================================================
+    # Restart helpers
+    # =========================================================================
+
+    def restart_stalled_cases(
+        self,
+        cases: Union[str, int, list, tuple],
+        cpus: int,
+        node: str,
+        stage: Optional[int] = None,
+        cluster: str = 'flexo',
+        file_sh: str = 'run.sh',
+        script: Optional[str] = None,
+        dry_run: bool = True,
+        submit: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Prepare (and optionally resubmit) cases whose last stage stalled, so
+        that the stage is computed again on its own.
+
+        Automates the manual restart of a case that hit the iteration limit
+        without meeting the residual criterion. For every case:
+
+        1. ``output_<stage>.h5`` becomes ``<ci_name>.h5`` (``ci_name`` is
+           read from the run script, default ``'ci'``) and every other
+           ``output_<stage>*`` file is deleted, so neither the run script
+           nor ``CODAReader.parse_simulation_dirs`` consider the stage done.
+        2. In the run script: ``custom_ci = True`` and
+           ``stages = ['stage<stage>']``. Nothing else in the script is
+           touched; see Notes for where the stage then starts from.
+        3. In ``file_sh``: ``#SBATCH --nodelist=<node>``,
+           ``--ntasks=<cpus>`` and ``--tasks-per-node=<cpus>``.
+        4. With ``submit=True``, ``sbatch <file_sh>`` from the case folder.
+
+        Each case is fully validated before anything is written; a case
+        that fails a check is reported as ``'skipped'`` and left untouched.
+
+        Parameters
+        ----------
+        cases : str, int, list or tuple
+            Case folder names (keys of ``db.sim_metadata``) or case indices
+            (resolved with ``case_per_idx``), or a list mixing both.
+        cpus : int
+            MPI processes for the restarted job (``--ntasks`` and
+            ``--tasks-per-node``).
+        node : str
+            Node for ``#SBATCH --nodelist``, e.g. ``'n002'``.
+        stage : int or None
+            Stage to restart. Default ``metadata['num_stages'] - 1`` (the
+            last one).
+        cluster : str
+            Slurm cluster the cases run on, compared with the
+            ``ClusterName`` of the cluster this method runs on. Default
+            ``'flexo'``. See Notes.
+        file_sh : str
+            Slurm script inside each case folder. Default ``'run.sh'``.
+        script : str or None
+            Python run script inside each case folder. Default: the ``.py``
+            file launched by the ``mpiexec``/``mpirun``/``srun`` line of
+            ``file_sh``.
+        dry_run : bool
+            If True (default), only report what would change.
+        submit : bool
+            If True, submit each restarted case with ``sbatch``. Requires
+            ``dry_run=False``. Default False.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per case with columns ``folder``, ``status``
+            (``'planned'``, ``'restarted'``, ``'submitted'``, ``'skipped'``
+            or ``'failed'``), ``reason``, ``changes`` (list of str) and
+            ``job_id``.
+
+        Raises
+        ------
+        RuntimeError
+            If ``dry_run=False`` and this is not ``cluster`` (nothing is
+            modified), or if ``squeue``/``sinfo`` fail on ``cluster``.
+        ValueError
+            If ``submit=True`` with ``dry_run=True``, if ``cpus`` < 1, or if
+            ``node`` does not exist on ``cluster`` or has fewer than
+            ``cpus`` CPUs.
+
+        Side-effects
+        ------------
+        With ``dry_run=False``, per restarted case: rewrites the run script
+        and ``file_sh``, renames ``output_<stage>.h5`` to ``<ci_name>.h5``
+        (overwriting a previous one), **deletes** every other
+        ``output_<stage>*`` file (Slurm ``-out.txt``/``-err.txt`` logs are
+        kept) and drops ``<stage>`` from
+        ``db.sim_metadata[folder]['stages']``. ``db.df_state`` is not
+        rebuilt; call ``parse_simulation_dirs()`` for that.
+
+        Notes
+        -----
+        **Cluster check.** A case must never be modified while one of its
+        jobs is pending or running, and that is checked with ``squeue``.
+        From a different cluster ``squeue`` does not fail: it answers with
+        *that* cluster's queue, so the check would always pass. The method
+        therefore compares ``cluster`` with the current ``ClusterName``
+        (``scontrol show config``; the short hostname if ``scontrol`` is
+        missing). Off-cluster, only ``dry_run=True`` is allowed and it
+        warns that the job check was not done.
+
+        **Where the restarted stage starts.** That is decided by the run
+        script, not by this method. With ``run_sst_v5.py`` as generated for
+        the TIFON datasets, ``if not isNotFirstStage:`` re-initialises the
+        first stage of ``stages`` to free stream even when ``custom_ci`` is
+        set, so the stage restarts from **free stream** and
+        ``<ci_name>.h5`` only provides the mesh (``ImportMeshHDF5``). Its
+        relative residual criterion is then measured against the
+        free-stream residual and is met almost at once, so in practice the
+        Cauchy criterion on the integral forces decides when it stops. This
+        reproduces the manual restart procedure. To really continue from
+        the saved state, the script needs
+        ``if not isNotFirstStage and not custom_ci:`` and
+        ``not custom_ci`` instead of ``~custom_ci`` (``~`` on a bool is -1
+        or -2, always true).
+
+        Examples
+        --------
+        Review the changes, then apply and submit (on the right cluster)::
+
+            plan = db.residuals.restart_stalled_cases(
+                ['aoa_0.3347_mach_0.8863', 'aoa_0.7253_mach_0.8678'],
+                cpus=40, node='n002',
+            )
+            print(plan[['folder', 'status', 'reason']])
+
+            done = db.residuals.restart_stalled_cases(
+                plan.loc[plan['status'] == 'planned', 'folder'].tolist(),
+                cpus=40, node='n002', dry_run=False, submit=True,
+            )
+        """
+        if submit and dry_run:
+            raise ValueError("submit=True requires dry_run=False.")
+        cpus = int(cpus)
+        if cpus < 1:
+            raise ValueError(f"cpus must be >= 1 (got {cpus}).")
+        if stage is None:
+            stage = int(self.db.metadata['num_stages']) - 1
+        stage = int(stage)
+
+        if isinstance(cases, (str, int, np.integer)):
+            cases = [cases]
+        folders: list = []
+        for case in cases:
+            if isinstance(case, (int, np.integer)):
+                folder = self._resolve_case_name(case_idx=int(case))
+            else:
+                folder = self._resolve_case_name(case_name=case)
+            if folder not in folders:
+                folders.append(folder)
+
+        # ── Cluster check: before any Slurm query or file change ─────────────
+        current = _current_slurm_cluster()
+        if current is None or current.lower() != cluster.lower():
+            msg = (
+                f"This is cluster '{current}', but the cases run on "
+                f"'{cluster}': its Slurm queue cannot be queried from here."
+            )
+            if not dry_run:
+                raise RuntimeError(
+                    f"{msg} Nothing was modified; run this method on "
+                    f"'{cluster}' to restart the cases."
+                )
+            warnings.warn(
+                f"{msg} Dry run only: whether a case still has a pending or "
+                "running job was NOT checked, nor were 'node' and 'cpus'.",
+                UserWarning,
+            )
+            active = None
+        else:
+            node_cpus = _slurm_node_cpus()
+            if node not in node_cpus:
+                raise ValueError(
+                    f"Node '{node}' does not exist on cluster '{cluster}'. "
+                    f"Available: {sorted(node_cpus)}."
+                )
+            if cpus > node_cpus[node]:
+                raise ValueError(
+                    f"Node '{node}' has {node_cpus[node]} CPUs; "
+                    f"cpus={cpus} would never be scheduled."
+                )
+            active = _slurm_active_workdirs()
+
+        rows = []
+        for folder in folders:
+            row = {'folder': folder, 'status': 'skipped', 'reason': '',
+                   'changes': [], 'job_id': None}
+            try:
+                plan = self._prepare_restart(
+                    folder, stage, cpus, node, file_sh, script, active
+                )
+            except (ValueError, FileNotFoundError) as exc:
+                row['reason'] = str(exc)
+                log.info("Skipping '%s': %s", folder, exc)
+                rows.append(row)
+                continue
+
+            row['changes'] = plan['changes']
+            if dry_run:
+                row['status'] = 'planned'
+                rows.append(row)
+                continue
+
+            try:
+                self._apply_restart(plan, stage)
+            except OSError as exc:
+                row['status'] = 'failed'
+                row['reason'] = f"while applying the restart: {exc}"
+                log.warning("Restart of '%s' failed: %s", folder, exc)
+                rows.append(row)
+                continue
+            row['status'] = 'restarted'
+            log.info("Restarted '%s' (stage %s).", folder, stage)
+
+            if submit:
+                try:
+                    row['job_id'] = _sbatch(plan['case_dir'], file_sh)
+                    row['status'] = 'submitted'
+                    log.info("Submitted '%s': job %s.", folder, row['job_id'])
+                except (OSError, subprocess.SubprocessError) as exc:
+                    stderr = (getattr(exc, 'stderr', '') or '').strip()
+                    row['reason'] = f"sbatch failed: {exc} {stderr}".strip()
+                    log.warning("sbatch failed for '%s': %s", folder, exc)
+            rows.append(row)
+
+        return pd.DataFrame(
+            rows, columns=['folder', 'status', 'reason', 'changes', 'job_id']
+        )
+
+    def _prepare_restart(
+        self,
+        folder: str,
+        stage: int,
+        cpus: int,
+        node: str,
+        file_sh: str,
+        script: Optional[str],
+        active: Optional[dict],
+    ) -> dict:
+        """Validate one case and build, in memory, everything the restart
+        writes. Raises ``ValueError``/``FileNotFoundError`` with the reason
+        the case must be skipped; nothing on disk is touched."""
+        sim = self.db.sim_metadata.get(folder)
+        if sim is None:
+            raise ValueError(
+                "not in db.sim_metadata; run parse_simulation_dirs() first."
+            )
+        case_dir = sim['path']
+
+        h5_path = os.path.join(case_dir, f'output_{stage}.h5')
+        if not os.path.isfile(h5_path):
+            raise FileNotFoundError(
+                f"output_{stage}.h5 not found: stage {stage} has no state "
+                "to restart from."
+            )
+        if active is not None:
+            jobs = active.get(os.path.realpath(case_dir))
+            if jobs:
+                raise ValueError(
+                    "Slurm job(s) still pending or running in this folder: "
+                    + ", ".join(f"{j} ({st})" for j, st in jobs)
+                )
+
+        sh_path = os.path.join(case_dir, file_sh)
+        if not os.path.isfile(sh_path):
+            raise FileNotFoundError(f"{file_sh} not found.")
+        with open(sh_path) as fh:
+            sh_text = fh.read()
+
+        script_name = script or _script_from_sh(sh_text, file_sh)
+        py_path = os.path.join(case_dir, script_name)
+        if not os.path.isfile(py_path):
+            raise FileNotFoundError(f"{script_name} not found.")
+        with open(py_path) as fh:
+            py_text = fh.read()
+
+        new_py, py_changes, ci_name = _restart_script_text(py_text, stage)
+
+        new_sh, sh_changes = sh_text, []
+        for option, value in (('nodelist', node),
+                              ('ntasks', cpus),
+                              ('tasks-per-node', cpus)):
+            new_sh, change = _set_sbatch_option(new_sh, option, value)
+            if change:
+                sh_changes.append(change)
+
+        ci_path = os.path.join(case_dir, f'{ci_name}.h5')
+        to_delete = sorted(
+            f for f in os.listdir(case_dir)
+            if _output_stage(f) == stage and f != f'output_{stage}.h5'
+        )
+        changes = (
+            [f"{script_name}: {c}" for c in py_changes]
+            + [f"{file_sh}: {c}" for c in sh_changes]
+            + [f"output_{stage}.h5 -> {ci_name}.h5"
+               + (" (overwrites the existing one)"
+                  if os.path.exists(ci_path) else "")]
+            + ([f"delete: {', '.join(to_delete)}"] if to_delete else [])
+        )
+        return {
+            'folder': folder, 'case_dir': case_dir,
+            'py_path': py_path, 'new_py': new_py,
+            'py_changed': bool(py_changes),
+            'sh_path': sh_path, 'new_sh': new_sh,
+            'sh_changed': bool(sh_changes),
+            'h5_path': h5_path, 'ci_path': ci_path, 'to_delete': to_delete,
+            'changes': changes,
+        }
+
+    def _apply_restart(self, plan: dict, stage: int) -> None:
+        """Write what ``_prepare_restart`` built and move/delete the stage
+        outputs. Scripts are replaced atomically (temp file + rename)."""
+        for changed, path, text in (
+            (plan['py_changed'], plan['py_path'], plan['new_py']),
+            (plan['sh_changed'], plan['sh_path'], plan['new_sh']),
+        ):
+            if changed:
+                tmp = path + '.restart_tmp'
+                with open(tmp, 'w') as fh:
+                    fh.write(text)
+                os.chmod(tmp, os.stat(path).st_mode)
+                os.replace(tmp, path)
+
+        os.replace(plan['h5_path'], plan['ci_path'])
+        for fname in plan['to_delete']:
+            os.remove(os.path.join(plan['case_dir'], fname))
+        self.db.sim_metadata[plan['folder']]['stages'].pop(stage, None)
+
+    # =========================================================================
+    # Live monitor
+    # =========================================================================
+
+    def monitor_cases(
+        self,
+        cases=None,
+        subset: Optional[str] = None,
+        query: Optional[str] = None,
+        port: int = 8765,
+        interval: float = 5.0,
+        stale_after: float = 900.0,
+        idle_timeout: float = 1800.0,
+        background: bool = True,
+        title: Optional[str] = None,
+    ):
+        """
+        Open a live web monitor that follows a list of cases while they run.
+
+        Unlike ``plot_state_calculation``, which draws every case once, the
+        page refreshes itself every ``interval`` seconds and shows one case
+        at a time (with a table of all of them a key away): status, stage,
+        iteration against the limit, time per iteration, and each stop
+        criterion against its threshold. Its plot stacks the residual
+        reductions, every integral (``CoefLift``, ``CoefDrag``…) with its
+        Cauchy window, and the CFL.
+
+        Everything comes from the Slurm ``-out.txt`` log, the only file
+        CODA writes while it runs (the ``.dat`` monitors appear at the end
+        of each stage), so cases on another cluster sharing the file
+        system can be followed too. See ``FotR.solver_tools.coda_log``.
+
+        Give the cases with exactly one of ``cases``, ``subset`` or
+        ``query``.
+
+        Parameters
+        ----------
+        cases : int, str, list, pd.DataFrame or 'all'
+            Case indices (``case_idx``, resolved with ``case_per_idx``),
+            folder names (keys of ``db.sim_metadata``) or a list mixing
+            both; a DataFrame with a ``folder`` (or ``case_idx``) column,
+            such as a filtered ``df_cases``; or ``'all'``.
+        subset : str or None
+            Name of a subset defined with ``define_subset``.
+        query : str or None
+            ``pandas.DataFrame.query`` expression on
+            ``metadata['df_cases']``, e.g. ``'mach > 0.78 and aoa < 2'``.
+        port : int
+            First port to try on 127.0.0.1; the next free one is used if
+            it is taken. Default 8765.
+        interval : float
+            Seconds between refreshes. Default 5.
+        stale_after : float
+            Seconds without log writes after which a running case is shown
+            as quiet. Default 900.
+        idle_timeout : float
+            Seconds without the page open after which the server stops by
+            itself; 0 never stops. Default 1800.
+        background : bool
+            If True (default), run the server in a separate process and
+            return at once: it does not block the notebook and outlives
+            it. If False, serve from this process until Ctrl-C.
+        title : str or None
+            Page title. Default: the folder name of ``db.root_dir``.
+
+        Returns
+        -------
+        MonitorHandle or None
+            With ``background=True``: ``url``, ``pid``, ``alive()`` and
+            ``stop()``. None otherwise.
+
+        Raises
+        ------
+        ValueError
+            If not exactly one of ``cases``, ``subset`` and ``query`` is
+            given, if a folder is not in ``db.sim_metadata``, or if no
+            case is left.
+
+        Notes
+        -----
+        The server listens on 127.0.0.1 of the machine running Python.
+        From VS Code with Remote-SSH the port is forwarded automatically
+        (check the *Ports* panel); for a window of its own, open the URL
+        with ``brave --app=<url>`` (or chrome/chromium) on your computer.
+        Plotly is loaded from cdnjs, so that browser needs internet.
+
+        Statuses: ``pending`` (no log yet), ``queued`` (the last log
+        ended and the ``output_<stage>.h5`` of its last stage became
+        ``ci.h5``, as ``restart_stalled_cases`` leaves it), ``starting``,
+        ``running``, ``quiet``, ``finished``, ``limit`` (ended at the
+        iteration limit), ``diverged`` (NaN), ``cancelled`` and ``error``
+        (non-empty ``-err.txt``).
+
+        The Cauchy check is ``max |x_i - x_k|`` over the current value and
+        the ``number of samples`` before it. It was deduced from the logs,
+        and reproduces CODA's own ``Cauchy convergence achieved`` message
+        at every iteration of the rans5 logs.
+
+        Examples
+        --------
+        By case index, folder name, or a query on ``df_cases``::
+
+            mon = db.residuals.monitor_cases([219, 228, 243])
+            mon = db.residuals.monitor_cases(['aoa_4.3363_mach_0.7247'])
+            mon = db.residuals.monitor_cases(query='mach > 0.78')
+            mon.url      # 'http://127.0.0.1:8765/'
+            mon.stop()
+        """
+        from ...solver_tools import coda_monitor   # deferred: stdlib only
+
+        folders = self._monitor_folders(cases, subset, query)
+        entries = [
+            {'path': self.db.sim_metadata[f]['path'], 'label': f,
+             'info': self._monitor_info(f)}
+            for f in folders
+        ]
+        if title is None:
+            title = os.path.basename(os.path.normpath(self.db.root_dir))
+        options = dict(title=title, port=port, interval=interval,
+                       stale_after=stale_after, idle_timeout=idle_timeout)
+        if background:
+            handle = coda_monitor.launch(entries, **options)
+            log.info("CODA monitor at %s (pid %s).", handle.url, handle.pid)
+            return handle
+        server = coda_monitor.MonitorServer(entries, **options)
+        print(f"CODA monitor: {server.url}  (Ctrl-C to stop)", flush=True)
+        server.serve_forever()
+        return None
+
+    def _monitor_folders(self, cases, subset, query) -> list:
+        """Folder names selected by ``monitor_cases``, in the order given."""
+        given = [x is not None for x in (cases, subset, query)]
+        if sum(given) != 1:
+            raise ValueError(
+                "Give exactly one of 'cases', 'subset' or 'query'."
+            )
+        df_cases = self.db.metadata.get('df_cases')
+
+        if subset is not None or query is not None:
+            if df_cases is None or 'folder' not in df_cases.columns:
+                raise ValueError(
+                    "metadata['df_cases'] has no 'folder' column; run "
+                    "parse_simulation_dirs() first."
+                )
+            if subset is not None:
+                rows = df_cases.iloc[self.db.reader.get_subset(subset)]
+            else:
+                rows = df_cases.query(query)
+            items = list(rows['folder'])
+        elif isinstance(cases, str) and cases.lower() == 'all':
+            items = [f for f in (df_cases['folder'] if df_cases is not None
+                                 and 'folder' in df_cases.columns else [])
+                     if isinstance(f, str)]
+            items += [f for f in self.db.sim_metadata if f not in items]
+        elif isinstance(cases, pd.DataFrame):
+            if 'folder' in cases.columns:
+                items = list(cases['folder'])
+            elif 'case_idx' in cases.columns:
+                items = [int(i) for i in cases['case_idx']]
+            else:
+                raise ValueError(
+                    "A DataFrame of cases needs a 'folder' or a 'case_idx' "
+                    "column."
+                )
+        elif isinstance(cases, (str, int, np.integer)):
+            items = [cases]
+        else:
+            items = list(cases)
+
+        folders, skipped = [], []
+        for item in items:
+            if isinstance(item, (int, np.integer)) and not isinstance(item, bool):
+                folder = self._resolve_case_name(case_idx=int(item))
+            elif isinstance(item, str):
+                folder = item
+            else:
+                skipped.append(item)
+                continue
+            if folder not in folders:
+                folders.append(folder)
+        if skipped:
+            warnings.warn(
+                f"{len(skipped)} case(s) without a folder were skipped "
+                "(not generated yet?).",
+                UserWarning,
+            )
+        unknown = [f for f in folders if f not in self.db.sim_metadata]
+        if unknown:
+            raise ValueError(
+                f"Not in db.sim_metadata: {unknown}. Folder names must match "
+                "outputs/; run parse_simulation_dirs() if they are new."
+            )
+        if not folders:
+            raise ValueError("No case selected.")
+        return folders
+
+    def _monitor_info(self, folder: str) -> dict:
+        """``case_idx`` and design variables of a case, for the page."""
+        info = {}
+        df_cases = self.db.metadata.get('df_cases')
+        if df_cases is not None and 'folder' in df_cases.columns:
+            match = df_cases.index[df_cases['folder'] == folder]
+            if len(match):
+                row = df_cases.loc[match[0]]
+                info['case_idx'] = int(row['case_idx'] if 'case_idx' in row
+                                       else match[0])
+        sim = self.db.sim_metadata[folder]
+        for var in self.db.metadata.get('design_vars', []):
+            if var in sim:
+                info[var] = float(sim[var])
+        return info
+
+    # =========================================================================
     # Visualisation
     # =========================================================================
 
@@ -1577,3 +2124,192 @@ class CODAResiduals(BaseResiduals):
                     height=kwargs.get('height', 800),
                 )
                 fig.show()
+
+
+# =============================================================================
+# Restart helpers (module level: pure text logic and thin Slurm wrappers)
+# =============================================================================
+
+def _output_stage(fname: str) -> Optional[int]:
+    """Stage number of a CODA ``output_<n>...`` file, or None.
+
+    Same rule as ``CODAReader.parse_simulation_dirs``, so ``output_1``
+    never matches ``output_10``.
+    """
+    if not fname.startswith('output_'):
+        return None
+    parts = fname.split('_')
+    if len(parts) < 2:
+        return None
+    raw = os.path.splitext(parts[1])[0]
+    return int(raw) if raw.isdigit() else None
+
+
+def _patch_line(
+    text: str, pattern: str, new_line: str, label: str
+) -> Tuple[str, Optional[str]]:
+    """Replace the single unindented line matching ``pattern`` by
+    ``new_line``.
+
+    Only top-level lines count (an indented one never matches), and a
+    trailing ``# comment`` is allowed in the match and dropped.
+
+    Returns ``(new_text, change)``, ``change`` being None when nothing
+    changed. Raises ``ValueError`` unless exactly one line matches.
+    """
+    found = list(re.finditer(
+        rf'^{pattern}[ \t]*(?:#.*)?$', text, re.MULTILINE
+    ))
+    if len(found) != 1:
+        raise ValueError(
+            f"{label}: expected exactly one matching line in the run "
+            f"script, found {len(found)}."
+        )
+    match = found[0]
+    old = match.group(0)
+    if old == new_line:
+        return text, None
+    return (text[:match.start()] + new_line + text[match.end():],
+            f"{old.strip()} -> {new_line}")
+
+
+def _restart_script_text(text: str, stage: int) -> Tuple[str, list, str]:
+    """Return ``(new_text, changes, ci_name)`` for a CODA run script that
+    must run only ``stage``, reading its mesh from ``<ci_name>.h5``.
+
+    Only ``custom_ci`` and ``stages`` are changed; where the stage starts
+    from is left to the script (see ``restart_stalled_cases``, Notes).
+    Raises ``ValueError`` if a line to patch is missing or ambiguous.
+    """
+    m = re.search(r"^ci_name\s*=\s*[\"']([^\"']+)[\"']", text, re.MULTILINE)
+    ci_name = m.group(1) if m else 'ci'
+
+    changes = []
+    for pattern, new_line, label in (
+        (r'custom_ci\s*=\s*(?:True|False)', 'custom_ci = True', 'custom_ci'),
+        (r'stages\s*=[^\n]*?', f"stages = ['stage{stage}']", 'stages'),
+    ):
+        text, change = _patch_line(text, pattern, new_line, label)
+        if change:
+            changes.append(change)
+    return text, changes, ci_name
+
+
+def _set_sbatch_option(
+    text: str, option: str, value
+) -> Tuple[str, Optional[str]]:
+    """Set the value of the single active ``#SBATCH --<option>=`` line.
+
+    Commented-out lines (``##SBATCH``) never match, and ``--ntasks=`` does
+    not match ``--ntasks-per-node=``. Returns ``(new_text, change)``;
+    raises ``ValueError`` unless exactly one line sets the option.
+    """
+    found = list(re.finditer(
+        rf'^([ \t]*#SBATCH[ \t]+--{re.escape(option)}=)(\S*)',
+        text, re.MULTILINE,
+    ))
+    if len(found) != 1:
+        raise ValueError(
+            f"expected exactly one '#SBATCH --{option}=' line, "
+            f"found {len(found)}."
+        )
+    match = found[0]
+    old = match.group(2)
+    if old == str(value):
+        return text, None
+    return (text[:match.start(2)] + str(value) + text[match.end(2):],
+            f"--{option}: {old} -> {value}")
+
+
+def _script_from_sh(text: str, file_sh: str) -> str:
+    """Name of the ``.py`` launched by the active mpiexec/mpirun/srun line
+    of a Slurm script. Raises ``ValueError`` unless there is exactly one."""
+    found = re.findall(
+        r'^[ \t]*(?:mpiexec|mpirun|srun)\b[^\n#]*?\bpython3?[ \t]+(\S+\.py)\b',
+        text, re.MULTILINE,
+    )
+    if len(set(found)) != 1:
+        raise ValueError(
+            f"could not tell the run script from {file_sh} "
+            f"(found {found or 'none'}); pass script=... explicitly."
+        )
+    return found[0]
+
+
+def _current_slurm_cluster() -> Optional[str]:
+    """``ClusterName`` of the Slurm cluster this process runs on.
+
+    Falls back to the short hostname when ``scontrol`` is unavailable and
+    returns None when neither gives a name. Works on compute nodes too,
+    where the hostname is the node's, not the cluster's.
+    """
+    try:
+        out = subprocess.run(
+            ['scontrol', 'show', 'config'],
+            capture_output=True, text=True, check=True, timeout=60,
+        ).stdout
+        m = re.search(r'^\s*ClusterName\s*=\s*(\S+)', out, re.MULTILINE)
+        if m:
+            return m.group(1)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    host = socket.gethostname().split('.')[0]
+    return host or None
+
+
+def _slurm_active_workdirs() -> dict:
+    """Map ``realpath(WorkDir) -> [(job_id, state), ...]`` for every job of
+    the current user known to ``squeue`` (pending, running, ...).
+
+    Raises ``RuntimeError`` if ``squeue`` cannot be run: a restart must
+    never proceed without knowing whether the case is still running.
+    """
+    try:
+        out = subprocess.run(
+            ['squeue', '-u', getpass.getuser(), '-h', '-o', '%i|%T|%Z'],
+            capture_output=True, text=True, check=True, timeout=60,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError(
+            f"squeue failed ({exc}); cannot tell whether the cases are "
+            "still running, so nothing is restarted."
+        ) from exc
+    active: dict = {}
+    for line in out.splitlines():
+        parts = line.strip().split('|', 2)
+        if len(parts) == 3 and parts[2]:
+            active.setdefault(os.path.realpath(parts[2]), []).append(
+                (parts[0], parts[1])
+            )
+    return active
+
+
+def _slurm_node_cpus() -> dict:
+    """Map node name -> CPUs, from ``sinfo``. Raises ``RuntimeError`` if
+    ``sinfo`` cannot be run."""
+    try:
+        out = subprocess.run(
+            ['sinfo', '-h', '-N', '-o', '%N %c'],
+            capture_output=True, text=True, check=True, timeout=60,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError(
+            f"sinfo failed ({exc}); cannot validate 'node' and 'cpus'."
+        ) from exc
+    nodes: dict = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            nodes[parts[0]] = max(nodes.get(parts[0], 0), int(parts[1]))
+    return nodes
+
+
+def _sbatch(case_dir: str, file_sh: str) -> str:
+    """Submit ``file_sh`` from ``case_dir`` (Slurm resolves the relative
+    ``--output``/``--error`` paths there) and return the job id."""
+    result = subprocess.run(
+        ['sbatch', file_sh], cwd=case_dir,
+        capture_output=True, text=True, check=True, timeout=120,
+    )
+    m = re.search(r'(\d+)', result.stdout)
+    return m.group(1) if m else result.stdout.strip()

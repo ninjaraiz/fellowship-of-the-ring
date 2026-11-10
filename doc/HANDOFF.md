@@ -4,31 +4,35 @@
 > localizados, cobertura de tests) → [`doc/frodo_sam/ANALISIS.md`](frodo_sam/ANALISIS.md).
 > Para usar una clase, los visores de `doc/` (§7). No releas el repo entero.
 
-## 1. Estado — `develop` @ `fb6e486`, **con trabajo sin commitear**
+## 1. Estado — `develop` @ `d6dd431` (17/10/2026), **con trabajo sin commitear**
 
-Suite: **239 passed** (215 + 24 del lector `.hsol`).
+Suite: **315 passed** (27/10/2026; 34 son del monitor, `test_coda_monitor.py`).
 
 ```bash
 /home/m.jaraiz/miniconda/envs/envkan_nvidia/bin/python -m pytest FotR/tests/ -q
 ```
 
-Sin commitear, cuatro bloques independientes:
+Los cuatro bloques que estaban sin commitear se commitearon el 17/10: lector `.hsol`
+(`6316468`), imports perezosos (`18c7002`), documentación (`479efc2`), examples
+(`477d054`), y después la reescritura de EarendilsLight (`e2c6dfe`, `f8a58b0`,
+`4372d1a`, `d6dd431`).
 
-1. **Imports perezosos** (§8) — toca `FotR/__init__.py`, los cinco `__init__.py` de
-   registries, `sam.py`, `legolas.py`, `gimli.py`, `readers/coda.py`, `residuals/*`,
-   `sets/*`, `stats/coda.py`, `rings/base.py`, y añade `FotR/_lazy.py` (nuevo,
-   sin trackear).
-2. **Documentación** — narrativa de los dos visores reescrita con el tono del
-   repositorio, `doc/gandalf/` entero, y este fichero.
-3. **Examples** — `coda_single_GCI*.ipynb`, `build_gci_report.py`, `TIFON2.ipynb`,
-   `df_post_analysis.ipynb`, más `examples/gandalf/coda_1sim.py` y `coda_TIFON.py`
-   (nuevos, sin trackear). Son tuyos, no los he tocado.
-4. **Lector `.hsol`/`.hmesh` de HORSES3D, hito M1** (§9) — `FotR/solver_tools/horses3d.py`
-   y `FotR/tests/test_horses3d_hsol.py` (nuevos, sin trackear), y
-   `FotR/solver_tools/__init__.py` perezoso. No toca ningún fichero de los otros bloques.
+Sin commitear hoy:
 
-Commits recientes: `cc963aa` (docs + GCI TIFON cerrado + merge_datasets),
-`da04abb` (arranque de la doc de GANDALF), `fb6e486` (rans5 en examples).
+1. **`CODAResiduals.restart_stalled_cases`** (21/10/2026, §10) —
+   `FotR/characters/residuals/coda.py` (método, `_prepare_restart`, `_apply_restart`
+   y helpers de módulo `_current_slurm_cluster`, `_slurm_active_workdirs`,
+   `_slurm_node_cpus`, `_sbatch`…), `FotR/tests/test_coda_restart.py` (19 tests, sin
+   trackear) y `doc/frodo_sam/docs.json` regenerado.
+2. **Monitor en directo de casos CODA** (27/10/2026, §11) — nuevos y sin trackear:
+   `FotR/solver_tools/coda_log.py`, `coda_monitor.py`, `coda_monitor.html` y
+   `FotR/tests/test_coda_monitor.py`, más `examples/gandalf/monitor_TIFON.py`. Toca
+   `CODAResiduals.monitor_cases` (en `residuals/coda.py`, que ya tenía el bloque 1),
+   `solver_tools/__init__.py` (docstring), `setup.py` (`package_data` del `.html`),
+   `README.md`, `examples.json` y `docs.json` regenerado.
+3. **Examples** — `examples/gandalf/restart_TIFON.py` (nuevo, sin trackear; usado el
+   27/10 para relanzar casos de rans5), `df_post_analysis.ipynb`, `TIFON2.ipynb` y
+   `codasingle.ipynb` (este último pierde ~23 000 líneas: salidas borradas). Son tuyos.
 
 Aviso sobre los tests: los ficheros usan **stubs mutuamente incompatibles** y el
 aislamiento depende del orden de importación. El motivo original (no arrastrar
@@ -60,6 +64,10 @@ siendo frágiles.
   `XGBClassifier` en la propia definición de clase y declara una clase llamada
   `GANDALF` que no tiene nada que ver con la de verdad.
 
+* `restart_stalled_cases` **reproduce el reinicio manual y no corrige** los dos bugs de
+  reinicio de `run_sst_v5.py` (el stage reiniciado arranca desde corriente libre; §10).
+  Decidido el 21/10/2026 para que los casos de rans5 sean coherentes entre sí.
+
 Heredada del handoff anterior, **no verificable desde aquí**: `run_sst_v4.py` (fuera
 del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fichero.
 
@@ -76,6 +84,7 @@ del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fich
 | generadores | `characters/rings/` + `gandalf.py` | DoE, SLURM, `cases_metadata.json` |
 | plots | `characters/legolas.py` | **único consumidor externo de FRODO** |
 | imports perezosos | `FotR/_lazy.py` | `lazy_module`, `LazyRegistry` (§8) |
+| monitor en directo | `solver_tools/coda_log.py`, `coda_monitor.py` | logs de CODA y servidor web, solo biblioteca estándar (§11) |
 | documentación | `doc/frodo_sam/` · `doc/gandalf/` | dos visores HTML (§7) |
 
 ## 4. Trampas conocidas
@@ -89,7 +98,7 @@ del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fich
   `FlCc` ya extraído) y los subsets solo viven en el global → ANÁLISIS §3.4.
 * **SAM no tiene ni un test.** De FRODO solo se testea `merge_datasets`.
   `stats/coda.py` está a cero → ANÁLISIS §6.
-* `EarendilsLight` **reescrito el 17/10/2026** y ya con tests (19). Antes lanzaba
+* `EarendilsLight` **reescrito el 17/10/2026** y ya con tests (20). Antes lanzaba
   `TypeError: expected str instance, Syntax found` en toda consulta que encontrase un
   docstring. Ahora hace dos cosas y solo dos: resolver la cadena de delegación sobre un
   objeto vivo (`db.some_light('extract_inputs')` → qué reader te tocó y su firma real) y
@@ -109,9 +118,26 @@ del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fich
   sets en [`DISENO_SETS_CODA_SINGLE.md`](frodo_sam/DISENO_SETS_CODA_SINGLE.md).
   Lo que **no** se tocó: la misma conectividad errónea sigue en la ruta de CODA y
   LEGOLAS sigue sin soportar este formato.
+* Los dos [ALTO] de ANÁLISIS §4: el de `find_files(file_end=...)` **ya no está** (no
+  queda ningún `file_end=` en `readers/coda.py`); el de `CODAReader.extract_inputs`
+  **sigue**: un caso que falla avisa «This case was skipped», pero entra en el dataset
+  con `FlCc` e `idx_sort` a cero (`readers/coda.py`, `except` del bucle por caso).
+* **Slurm y clústeres.** Los casos de TIFON corren en **flexo**, cuyo `ClusterName` es
+  **`linux`** (así lo usa `restart_TIFON.py`). El defecto `cluster='flexo'` de
+  `restart_stalled_cases` no casa con ese nombre: con `dry_run=False` lanza
+  `RuntimeError` salvo que se pase `cluster='linux'`. Las sesiones de Claude suelen
+  correr en **nibbler** (`ClusterName = nibbler`), donde `squeue` contesta con otra
+  cola, y desde nibbler **no hay ssh a flexo** (comprobado el 27/10/2026). El NFS sí
+  es compartido: los ficheros de los casos se ven desde los dos.
 
 ## 5. Siguiente paso previsto
 
+* **Monitor en directo (§11): hecho, sin commitear y sin probar en tu navegador.**
+  Probado con un navegador headless (QtWebEngine), no con VS Code + Brave reales.
+  Falta que lo abras tú y decidas si `plot_state_calculation` sigue teniendo
+  sentido.
+* **HORSES3D M2** (§9) sigue pendiente: `HorsesLazyField.load()` aún lanza
+  `NotImplementedError`.
 * **LEGOLAS** — lo último del repo según tu plan. Despacha por `format == "CODA"`
   exacto, así que CODA_SINGLE cae en la rama NUMPYFILE y muere con «No coordinates
   found for plotting». Ampliar el despacho no basta: `Coord` es una lista y
@@ -154,8 +180,9 @@ Reglas de mantenimiento:
 * Los docstrings son la fuente de verdad del API y van **en inglés**; el tono del
   repositorio vive solo en la narrativa. El generador entiende numpydoc y estilo
   Google (`Args:`), que es el que usan los rings.
-* En esta máquina no hay runtime JS: el JS de los visores solo se puede validar
-  estáticamente. La comprobación visual la haces tú.
+* No hay node ni deno, pero **sí se puede ejecutar JS**: QtWebEngine de PySide6 en
+  modo headless carga la página, devuelve los errores de consola y hace capturas (ver
+  la nota de §11). La comprobación en tu navegador sigue siendo tuya.
 
 ## 8. Imports perezosos (10/10/2026)
 
@@ -199,7 +226,7 @@ Encargo: leer las soluciones de HORSES3D para **visualizarlas, validarlas y saca
 conclusiones en equipo**. La exportación a tensor (`create_jset`) queda para después.
 Formato verificado contra `HexMesh_SaveSolution`/`SolutionFile.f90` del solver.
 
-**M1 hecho — `FotR/solver_tools/horses3d.py`**, solo numpy (sirve en el `pvpython` de
+**M1 hecho y commiteado (`6316468`) — `FotR/solver_tools/horses3d.py`**, solo numpy (sirve en el `pvpython` de
 MN5; un test comprueba que importarlo no carga torch, pandas, h5py…):
 
 * `read_header` (cabecera de 204 B, `complete` = marcador 99 al final), `scan` (offsets
@@ -225,3 +252,84 @@ exige el `NotImplementedError`. Después: M3 escritores VTU/Tecplot, M4 planos
 derivadas, integrales y `Horses3DStats` (registrados con `LazyRegistry`). Datos de
 prueba: la esfera (`~/Documentos/COMAC/my_ESPHERE_1`, pequeña, con gradientes) y
 `~/Documentos/COMAC/fan_duct_AD_pressure` (grande).
+
+## 10. Reinicio de casos estancados (21/10/2026, sin commitear)
+
+`db.residuals.restart_stalled_cases(cases, cpus, node, stage=None, cluster=…,
+dry_run=True, submit=False)` automatiza el reinicio manual de un stage que llegó al
+límite de iteraciones sin converger:
+
+1. renombra `output_<stage>.h5` a `ci.h5` y borra el resto de `output_<stage>*`;
+2. en el script pone `custom_ci = True` y `stages = ['stage<stage>']`;
+3. en `run.sh` cambia el nodo y las CPUs;
+4. con `submit=True`, hace el `sbatch`.
+
+Valida cada caso antes de escribir nada y devuelve un DataFrame con lo que hizo (o
+haría) por caso. Con `dry_run=False` exige estar en el clúster de los casos (ver §4:
+en flexo es `cluster='linux'`). Ejemplo real: `examples/gandalf/restart_TIFON.py`.
+El docstring explica por qué el stage reiniciado arranca desde corriente libre con
+`run_sst_v5.py`.
+
+## 11. Monitor en directo de casos CODA (27/10/2026, sin commitear)
+
+```python
+mon = db.residuals.monitor_cases([219, 228, 243])     # case_idx o carpetas
+mon = db.residuals.monitor_cases(query='mach > 0.78') # o subset=, o un DataFrame, o 'all'
+mon.url; mon.stop()
+```
+
+Página web pequeña que sigue una lista de casos mientras corren: un caso cada vez
+(flechas para cambiar, `t` para la tabla de todos), refresco cada 5 s. Cabecera con
+estado, stage, iteración frente al límite, s/iteración, tiempo hasta el límite, job,
+nodo y si arrancó de `ci.h5`; un chip por criterio de parada frente a su umbral; y una
+gráfica con los residuos relativos (con su umbral), un panel por coeficiente con el
+tubo de Cauchy y la CFL.
+
+**Piezas** (las dos primeras, solo biblioteca estándar; hay test de que no cargan
+numpy ni pandas):
+
+| pieza | qué hace |
+|---|---|
+| `solver_tools/coda_log.py` | `CodaLog`: lector incremental del `-out.txt` (solo lee lo nuevo, hasta la última línea completa). `CodaCase`: una carpeta de caso; sigue el log más nuevo (por job id), lee `run.sh` y `-err.txt`, calcula estado, ritmo y criterios |
+| `solver_tools/coda_monitor.py` | `MonitorServer` (`http.server` en 127.0.0.1, hilo que relee cada `interval`, se para solo tras `idle_timeout` sin peticiones), `launch()` (proceso aparte, manifiesto y log en `~/.cache/FotR/coda_monitor/`) y CLI `python -m FotR.solver_tools.coda_monitor <carpetas>` |
+| `solver_tools/coda_monitor.html` | la página; Plotly básico desde cdnjs, modo oscuro, pensada para ~500 px de ancho |
+| `CODAResiduals.monitor_cases` | elige los casos desde FRODO (`case_idx`, carpeta, `subset`, `query`, DataFrame, `'all'`) y llama a `launch` |
+
+**Hechos medidos** sobre rans5 corriendo en flexo y leído desde nibbler por el NFS:
+
+* Durante la ejecución **solo crece el `-out.txt`**; los `output_<s>__monitors_*.dat`
+  se exportan al acabar cada stage. Va línea a línea, sin buffer, a ~5 s por iteración
+  con 40 CPUs. El log completo (3,5 MB) se lee en ~0,2 s; una actualización, en <1 ms.
+* Trae por iteración la CFL, las tres reducciones de residuo y CD, CL y CMy (con 10
+  decimales), y por stage los criterios de parada completos. CODA escribe además
+  `Iteration N: Cauchy convergence achieved over 1000 samples.` en cada iteración
+  en que se cumple Cauchy, y el `StopResidualStagnation` de `run_sst_v5.py` escribe
+  `residual stagnation achieved ...`. El monitor muestra los dos.
+* **Criterio de Cauchy, deducido de los logs** (el código de CODA no se puede leer, ver
+  la nota de abajo): por variable, `max |x_i − x_actual|` sobre el valor actual y las
+  N=1000 muestras anteriores del stage, menor que su umbral. Reproduce el mensaje de
+  CODA en **las 2,1 millones de iteraciones de los 329 logs de rans5**, sin una sola
+  discrepancia; `max − min` sobre la ventana falla en ~2 %. Contrastado también
+  contra los `.dat`: iteraciones, reducciones (= absoluto / residuo inicial) y
+  coeficientes coinciden (hay test con el caso real `aoa_0.0222_mach_1.0715`).
+* **Estados:** `pending` (sin log), `queued` (el último log acabó y su
+  `output_<s>.h5` ya es `ci.h5`: reinicio preparado, job aún sin log), `starting`,
+  `running`, `quiet` (>15 min sin escribir), `finished`, `limit`, `diverged` (NaN),
+  `cancelled` (`CANCELLED` en `-err.txt`) y `error` (acabó con `-err.txt` no vacío).
+  Desde nibbler no hay Slurm de flexo, así que todo se deduce de los ficheros.
+* El ritmo es «vivo» (iteraciones vistas llegar en los últimos 10 min) o, al abrir,
+  la media desde la primera línea `date`, que incluye el arranque.
+
+**Notas:**
+
+* **No se lee nunca el código fuente de CODA** (`~/flowsimulator2024`): orden
+  explícita del usuario. Lo de CODA se deduce de sus salidas y de los scripts de caso.
+* El servidor escucha en 127.0.0.1 de nibbler: cualquier usuario de nibbler puede
+  llegar a ese puerto. Solo sirve la página y los logs de los casos que se le dieron,
+  que de todos modos son legibles por todos (`-rw-r--r--`).
+* **Sí hay forma de ejecutar JS aquí**: QtWebEngine de PySide6 (en `envkan_nvidia`) con
+  `QT_QPA_PLATFORM=offscreen` y `QTWEBENGINE_CHROMIUM_FLAGS='--disable-gpu
+  --no-sandbox'`. Carga una URL `http://`, devuelve los mensajes de consola
+  (`javaScriptConsoleMessage`), ejecuta JS (`runJavaScript`) y hace capturas
+  (`view.grab()`). Con `file://` no carga los scripts del CDN. Vale también para los
+  visores de `doc/`.

@@ -97,6 +97,23 @@ Casi nada de lo que llames como `db.algo(...)` vive en FRODO: se resuelve por
 delegación en `sets`, `reader`, `residuals` o `stats`, **en ese orden**. Por eso
 la misma llamada puede tener firma distinta según el formato.
 
+## Seguir simulaciones mientras corren
+
+Para CODA y CODA_SINGLE, una ventanita que se refresca sola y sigue una lista de
+casos, uno a uno o en tabla:
+
+```python
+mon = db.residuals.monitor_cases([219, 228, 243])        # case_idx o carpetas
+mon = db.residuals.monitor_cases(query='mach > 0.78')    # o una consulta sobre df_cases
+mon.url, mon.stop()
+```
+
+Arranca un servidor en un proceso aparte, en `127.0.0.1:8765`. Desde VS Code
+con Remote-SSH el puerto se reenvía solo (pestaña *Ports*); en tu PC,
+`brave --app=http://localhost:8765/` lo abre como una aplicación pequeña. Lo lee
+todo del `-out.txt` de Slurm, así que sigue también casos que corren en otro
+clúster con el mismo disco. Se para solo a los 30 minutos sin nadie mirando.
+
 ## Documentación
 
 | dónde | qué es |

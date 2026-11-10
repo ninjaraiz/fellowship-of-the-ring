@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CODA monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.3/plotly-basic.min.js"></script>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --fg: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc;
+  --run: #2563c9; --ok: #2e7d32; --warn: #b26a00; --bad: #c62828; --idle: #8a8a85;
+  --r1: #2563c9; --r2: #d9730d; --r3: #2e7d32; --coef: #444441; --cfl: #7a7a75;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15161a; --card: #1d1f24; --fg: #e6e6e3; --muted: #9a9a95; --line: #2d2f35;
+    --run: #6f9fff; --ok: #5cb85c; --warn: #f0a030; --bad: #ef5350; --idle: #7a7a7d;
+    --r1: #6f9fff; --r2: #f0a030; --r3: #5cb85c; --coef: #d4d4cf; --cfl: #9a9a95;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.bar { position: sticky; top: 0; z-index: 2; display: flex; gap: 6px; align-items: center;
+  padding: 8px 10px; background: var(--card); border-bottom: 1px solid var(--line); }
+.bar .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 30%; }
+.bar select { flex: 1; min-width: 0; font: inherit; padding: 4px 6px; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.bar button { font: inherit; padding: 4px 9px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.bar button:hover { border-color: var(--muted); }
+main { padding: 8px 10px 4px; }
+.head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.case-name { font-family: var(--mono); font-weight: 600; }
+.case-info { color: var(--muted); font-family: var(--mono); }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 600;
+  font-size: 12px; color: #fff; background: var(--idle); white-space: nowrap; }
+.pill.run { background: var(--run); } .pill.ok { background: var(--ok); }
+.pill.warn { background: var(--warn); } .pill.bad { background: var(--bad); }
+.meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 2px 10px; margin: 6px 0; }
+.meta div { display: flex; flex-direction: column; min-width: 0; }
+.meta span { color: var(--muted); font-size: 11px; }
+.meta b { font-family: var(--mono); font-weight: 500; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress div { height: 100%; width: 0; background: var(--run); transition: width .4s; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; }
+.chip { font-family: var(--mono); font-size: 11.5px; padding: 1px 6px; border-radius: 5px;
+  border: 1px solid var(--line); background: var(--card); white-space: nowrap; }
+.chip.ok { border-color: var(--ok); color: var(--ok); }
+.chip.no { border-color: var(--line); }
+.chip.wait { color: var(--muted); }
+.chip i { font-style: normal; color: var(--muted); }
+.stages { display: flex; gap: 4px; align-items: center; margin: 4px 0; color: var(--muted); }
+.stages button { font: inherit; font-size: 12px; padding: 1px 8px; border-radius: 5px; cursor: pointer;
+  color: var(--fg); background: var(--card); border: 1px solid var(--line); }
+.stages button.on { border-color: var(--run); color: var(--run); font-weight: 600; }
+.stages .sep { flex: 1; }
+#plot { width: 100%; min-height: 380px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; }
+td .pill { font-size: 11px; }
+td.num { font-family: var(--mono); text-align: right; }
+td.mono { font-family: var(--mono); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--card); }
+.wrap { overflow-x: auto; }
+footer { padding: 4px 10px 8px; color: var(--muted); font-size: 11px; }
+footer.err { color: var(--bad); }
+.empty { padding: 30px 0; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="title" id="title">CODA monitor</span>
+  <button id="prev" title="Caso anterior (←)">‹</button>
+  <select id="case" title="Caso"></select>
+  <button id="next" title="Caso siguiente (→)">›</button>
+  <button id="view" title="Alternar tabla (t)">Tabla</button>
+</div>
+<main>
+  <section id="single">
+    <div class="head">
+      <span class="pill" id="status">—</span>
+      <span class="case-name" id="name"></span>
+      <span class="case-info" id="info"></span>
+    </div>
+    <div class="meta" id="meta"></div>
+    <div class="progress"><div id="prog"></div></div>
+    <div class="chips" id="chips"></div>
+    <div class="stages" id="stages"></div>
+    <div id="plot"></div>
+  </section>
+  <section id="table" hidden>
+    <div class="wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>caso</th><th>estado</th><th>stage · iteración</th>
+          <th title="peor reducción de residuo frente a su umbral">residuos</th>
+          <th title="criterios de Cauchy cumplidos">Cauchy</th><th title="última escritura del log">escrito</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<footer id="foot">Conectando…</footer>
+<script>
+'use strict';
+
+const STATUS = {
+  loading:   ['cargando', 'idle'],
+  pending:   ['sin log', 'idle'],
+  queued:    ['relanzado, en cola', 'idle'],
+  starting:  ['arrancando', 'run'],
+  running:   ['corriendo', 'run'],
+  quiet:     ['sin señales', 'warn'],
+  finished:  ['terminado', 'ok'],
+  limit:     ['límite de iteraciones', 'warn'],
+  diverged:  ['NaN', 'bad'],
+  cancelled: ['cancelado', 'bad'],
+  error:     ['error', 'bad'],
+};
+const MARK = { loading: '·', pending: '○', queued: '◌', starting: '▷', running: '▶',
+  quiet: '…', finished: '✓', limit: '⚠', diverged: '✗', cancelled: '✗', error: '✗' };
+const SHORT = {
+  DensityResidual: 'ρ', MomentumResidual: 'ρu', EnergyStagnationDensityResidual: 'ρE',
+  CoefLift: 'CL', CoefDrag: 'CD', CoefMomentY: 'CMy', CoefMomentX: 'CMx', CoefMomentZ: 'CMz',
+};
+
+const st = {
+  cfg: null, current: 0, view: 'single', cache: {}, summaries: [],
+  stageChoice: {}, busy: false, lastOk: null, tailZoom: true,
+};
+const $ = (id) => document.getElementById(id);
+
+function shortName(name) {
+  const base = String(name).replace(/Reduction$/, '');
+  if (SHORT[base]) return SHORT[base];
+  return base.replace(/^Coef/, 'C').replace(/Residual$/, '');
+}
+function fmtNum(v) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const a = Math.abs(v);
+  if (a === 0) return '0';
+  if (a >= 1e-2 && a < 1e4) return Number(v.toPrecision(4)).toString();
+  return v.toExponential(2);
+}
+function fmtDur(sec) {
+  if (sec === null || sec === undefined || !isFinite(sec)) return '—';
+  sec = Math.max(0, sec);
+  if (sec < 90) return `${Math.round(sec)} s`;
+  const min = Math.round(sec / 60);
+  if (min < 90) return `${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h < 48) return `${h} h ${String(m).padStart(2, '0')} min`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+function infoText(info) {
+  if (!info) return '';
+  const parts = [];
+  for (const [k, v] of Object.entries(info)) {
+    if (k === 'case_idx') continue;
+    parts.push(`${k}=${typeof v === 'number' ? fmtNum(v) : v}`);
+  }
+  return parts.join('  ');
+}
+function caseIdx(i) {
+  const info = st.cfg.cases[i].info || {};
+  return info.case_idx !== undefined && info.case_idx !== null ? info.case_idx : i;
+}
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+async function getJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+  return r.json();
+}
+function el(tag, attrs, text) {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// ── navigation ────────────────────────────────────────────────────────────
+
+function select(i) {
+  const n = st.cfg.cases.length;
+  st.current = ((i % n) + n) % n;
+  $('case').value = String(st.current);
+  history.replaceState(null, '', `#${st.view === 'table' ? 'tabla' : st.current}`);
+  if (st.view === 'single') refreshCase().catch(showError);
+}
+function setView(view) {
+  st.view = view;
+  $('single').hidden = view !== 'single';
+  $('table').hidden = view !== 'table';
+  $('view').textContent = view === 'single' ? 'Tabla' : 'Caso';
+  history.replaceState(null, '', `#${view === 'table' ? 'tabla' : st.current}`);
+  if (view === 'table') renderTable();
+  else refreshCase().catch(showError);
+}
+function fillSelect() {
+  const sel = $('case');
+  sel.textContent = '';
+  st.cfg.cases.forEach((c, i) => sel.appendChild(el('option', { value: String(i) },
+    `${caseIdx(i)} · ${c.label}`)));
+}
+function updateSelectMarks() {
+  const sel = $('case');
+  st.summaries.forEach((s) => {
+    const opt = sel.options[s.i];
+    if (opt) opt.textContent = `${MARK[s.status] || '·'} ${caseIdx(s.i)} · ${s.label}`;
+  });
+}
+
+// ── single case ───────────────────────────────────────────────────────────
+
+async function refreshCase() {
+  const i = st.current;
+  let c = st.cache[i];
+  const since = c ? c.n : 0;
+  const log = c ? c.log : '';
+  const d = await getJSON(`api/case?i=${i}&since=${since}&log=${encodeURIComponent(log || '')}`);
+  if (i !== st.current) return;
+  c = st.cache[i];
+  // Two requests can overlap (timer and a click): drop an answer whose rows
+  // the cache already holds.
+  if (c && !d.reset && c.n !== d.since) return;
+  if (!c || d.reset) c = st.cache[i] = { log: d.log, n: 0, cols: {} };
+  for (const [name, values] of Object.entries(d.columns)) {
+    if (!c.cols[name]) c.cols[name] = new Array(c.n).fill(null);
+    const col = c.cols[name];
+    for (let k = 0; k < values.length; k++) col.push(values[k]);
+  }
+  for (const col of Object.values(c.cols)) while (col.length < d.n) col.push(null);
+  c.n = d.n;
+  c.log = d.log;
+  renderSingle(d.summary, c);
+}
+
+function stageSpan(c, stage) {
+  const s = c.cols.stage || [];
+  const a = s.indexOf(stage);
+  if (a < 0) return null;
+  let b = a;
+  while (b < c.n && s[b] === stage) b++;
+  return [a, b];
+}
+
+function renderSingle(s, c) {
+  const [label, tone] = STATUS[s.status] || [s.status, 'idle'];
+  const pill = $('status');
+  pill.textContent = label;
+  pill.className = `pill ${tone}`;
+  $('name').textContent = `${caseIdx(st.current)} · ${s.label}`;
+  $('info').textContent = infoText(s.info);
+
+  const stages = s.stages || [];
+  const chosen = st.stageChoice[st.current];
+  const stage = stages.includes(chosen) ? chosen : (s.stage !== null ? s.stage : stages[stages.length - 1]);
+  const checks = (s.checks || {})[String(stage)] || { residuals: [], cauchy: [], max_iterations: null };
+  const span = stage === undefined || stage === null ? null : stageSpan(c, stage);
+  const lastIt = span ? c.cols.iteration[span[1] - 1] : null;
+  const maxIt = checks.max_iterations;
+
+  const rate = s.sec_per_iter ? `${fmtNum(s.sec_per_iter)}${s.rate_source === 'average' ? ' (media)' : ''}` : '—';
+  const meta = [
+    ['stage', stages.length ? `${stage} (${stages.join(', ')})` : '—'],
+    ['iteración', lastIt !== null && lastIt !== undefined ? `${lastIt}${maxIt ? ' / ' + maxIt : ''}` : '—'],
+    ['s / iteración', rate],
+    ['hasta el límite', fmtDur(s.eta)],
+    ['transcurrido', fmtDur(s.elapsed)],
+    ['última escritura', s.age === null ? '—' : `hace ${fmtDur(s.age)}`],
+    ['job · nodo', `${s.job_id || '—'} · ${s.node || '—'}${s.ntasks ? ' ×' + s.ntasks : ''}`],
+    ['condición inicial', s.ci ? 'ci.h5' : 'corriente libre'],
+  ];
+  if (s.err_bytes) meta.push(['-err.txt', `${s.err_bytes} B`]);
+  const box = $('meta');
+  box.textContent = '';
+  for (const [k, v] of meta) {
+    const d = el('div');
+    d.appendChild(el('span', null, k));
+    d.appendChild(el('b', { title: v }, v));
+    box.appendChild(d);
+  }
+  $('prog').style.width = maxIt && lastIt !== null && lastIt !== undefined
+    ? `${Math.min(100, 100 * lastIt / maxIt)}%` : '0';
+
+  const chips = $('chips');
+  chips.textContent = '';
+  for (const r of checks.residuals) {
+    const chip = el('span', { class: `chip ${r.ok ? 'ok' : 'no'}`,
+      title: `${r.variable}: reducción relativa ${fmtNum(r.value)}, umbral ${fmtNum(r.threshold)}` });
+    chip.textContent = `${r.ok ? '✓' : '✗'} ${shortName(r.variable)} ${fmtNum(r.value)} `;
+    chip.appendChild(el('i', null, `/ ${fmtNum(r.threshold)}`));
+    chips.appendChild(chip);
+  }
+  for (const q of checks.cauchy) {
+    const full = q.samples >= q.required;
+    const cls = q.ok ? 'ok' : (full ? 'no' : 'wait');
+    const chip = el('span', { class: `chip ${cls}`,
+      title: `${q.variable}: máx |x − x actual| sobre las ${q.samples} muestras anteriores (hacen falta ${q.required}); umbral ${fmtNum(q.threshold)}` });
+    chip.textContent = `${q.ok ? '✓' : (full ? '✗' : '…')} Δ${shortName(q.variable)} ${fmtNum(q.delta)} `;
+    chip.appendChild(el('i', null, full ? `/ ${fmtNum(q.threshold)}` : `/ ${fmtNum(q.threshold)} · ${q.samples}/${q.required}`));
+    chips.appendChild(chip);
+  }
+  const stag = (checks.events || {}).stagnation;
+  if (stag) {
+    const chip = el('span', { class: `chip ${stag.now ? 'ok' : 'wait'}`,
+      title: `StopResidualStagnation de run_sst_v5.py: ${stag.samples} muestras, tol ${stag.tolerance}. ` +
+        `Visto por primera vez en la iteración ${stag.first_iteration}. Solo para junto con Cauchy.` });
+    chip.textContent = stag.now ? '✓ residuos estancados'
+      : `estancados en ${stag.first_iteration}–${stag.last_iteration}`;
+    chips.appendChild(chip);
+  }
+
+  const bar = $('stages');
+  bar.textContent = '';
+  if (stages.length > 1) {
+    bar.appendChild(el('span', null, 'stage'));
+    for (const sg of stages) {
+      const b = el('button', { class: sg === stage ? 'on' : '' }, String(sg));
+      b.addEventListener('click', () => { st.stageChoice[st.current] = sg; refreshCase().catch(showError); });
+      bar.appendChild(b);
+    }
+  }
+  if (checks.cauchy.length) {
+    bar.appendChild(el('span', { class: 'sep' }));
+    const z = el('button', { class: st.tailZoom ? 'on' : '',
+      title: 'Coeficientes: ampliar el tramo final, donde está la ventana de Cauchy, o ver la serie entera' },
+      st.tailZoom ? 'coef.: tramo final' : 'coef.: serie entera');
+    z.addEventListener('click', () => { st.tailZoom = !st.tailZoom; refreshCase().catch(showError); });
+    bar.appendChild(z);
+  }
+  drawPlot(s, c, stage, span, checks);
+}
+
+function drawPlot(s, c, stage, span, checks) {
+  const div = $('plot');
+  const top = div.getBoundingClientRect().top + window.scrollY;
+  const height = Math.max(380, window.innerHeight - top - 30);
+  if (!span || span[1] <= span[0]) {
+    if (div.data) Plotly.purge(div);
+    div.style.height = 'auto';
+    div.innerHTML = '';
+    div.appendChild(el('div', { class: 'empty' },
+      s.status === 'pending' ? 'Todavía no hay log de Slurm en esta carpeta.' : 'Sin iteraciones todavía.'));
+    return;
+  }
+  if (!div.data) div.innerHTML = '';
+  div.style.height = `${height}px`;
+  const [a, b] = span;
+  const x = c.cols.iteration.slice(a, b);
+  const names = Object.keys(c.cols);
+  const resCols = names.filter((n) => /Residual/.test(n));
+  const cauchyVars = checks.cauchy.map((q) => q.variable);
+  const coefCols = cauchyVars.filter((n) => names.includes(n))
+    .concat(names.filter((n) => /^Coef/.test(n) && !cauchyVars.includes(n)));
+  const hasCfl = names.includes('CFL');
+
+  const fg = cssVar('--fg'), muted = cssVar('--muted'), line = cssVar('--line');
+  const colors = [cssVar('--r1'), cssVar('--r2'), cssVar('--r3')];
+  const panels = [{ kind: 'res', weight: 3 }]
+    .concat(coefCols.map((n) => ({ kind: 'coef', name: n, weight: 1.2 })))
+    .concat(hasCfl ? [{ kind: 'cfl', weight: 0.9 }] : []);
+  const total = panels.reduce((t, p) => t + p.weight, 0);
+  const gap = 0.025;
+  const usable = 1 - gap * (panels.length - 1);
+  let yTop = 1;
+  const traces = [];
+  const shapes = [];
+  const layout = {
+    height, margin: { l: 58, r: 10, t: 22, b: 32 },
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: fg, size: 11 }, showlegend: true,
+    legend: { orientation: 'h', x: 1, xanchor: 'right', y: 1, yanchor: 'bottom',
+      bgcolor: 'rgba(0,0,0,0)', font: { size: 10 } },
+    hovermode: 'x unified', uirevision: `${st.current}|${stage}|${c.log}|${st.tailZoom}`,
+  };
+
+  panels.forEach((p, k) => {
+    const id = k === 0 ? '' : String(k + 1);
+    const h = usable * p.weight / total;
+    const domain = [Math.max(0, yTop - h), yTop];
+    yTop -= h + gap;
+    const xa = `x${id}`, ya = `y${id}`;
+    const last = k === panels.length - 1;
+    layout[`xaxis${id}`] = {
+      domain: [0, 1], anchor: ya, showticklabels: last, gridcolor: line, zeroline: false,
+      title: last ? { text: 'iteración', font: { size: 11, color: muted } } : undefined,
+    };
+    if (k > 0) layout[`xaxis${id}`].matches = 'x';
+    const yaxis = { domain, anchor: xa, gridcolor: line, zeroline: false, automargin: true,
+      tickfont: { size: 10 } };
+
+    if (p.kind === 'res') {
+      yaxis.type = 'log';
+      yaxis.exponentformat = 'power';
+      yaxis.title = { text: 'residuo relativo', font: { size: 11, color: muted } };
+      resCols.forEach((n, j) => traces.push({
+        x, y: c.cols[n].slice(a, b), xaxis: xa, yaxis: ya, type: 'scatter', mode: 'lines',
+        name: shortName(n), line: { width: 1.2, color: colors[j % colors.length] },
+      }));
+      const thr = checks.residuals.length ? checks.residuals[0].threshold : null;
+      if (thr) shapes.push({ type: 'line', xref: `${xa} domain`, x0: 0, x1: 1, yref: ya, y0: thr, y1: thr,
+        line: { color: muted, width: 1, dash: 'dash' } });
+    } else if (p.kind === 'coef') {
+      yaxis.title = { text: shortName(p.name), font: { size: 11, color: muted } };
+      yaxis.exponentformat = 'e';
+      traces.push({ x, y: c.cols[p.name].slice(a, b), xaxis: xa, yaxis: ya, type: 'scatter',
+        mode: 'lines', name: shortName(p.name), showlegend: false,
+        line: { width: 1.2, color: cssVar('--coef') } });
+      const q = checks.cauchy.find((r) => r.variable === p.name);
+      if (q && q.current !== null && q.from_iteration !== null) {
+        // Cauchy tube: every value of the window must stay within
+        // current ± threshold.
+        const tone = q.ok ? cssVar('--ok') : cssVar('--warn');
+        shapes.push({ type: 'rect', xref: xa, yref: ya, x0: q.from_iteration, x1: q.to_iteration,
+          y0: q.current - q.threshold, y1: q.current + q.threshold,
+          fillcolor: tone, opacity: 0.16, line: { width: 0 } });
+      }
+      if (q && q.current !== null && st.tailZoom) {
+        // Zoom on the end of the series, where the window is, never
+        // narrower than the Cauchy tube.
+        const vals = c.cols[p.name].slice(a, b).filter((v) => v !== null);
+        const tail = vals.slice(-Math.max(3 * q.required, 50));
+        const lo = Math.min(q.current - q.threshold, ...tail);
+        const hi = Math.max(q.current + q.threshold, ...tail);
+        const pad = (hi - lo) * 0.06;
+        yaxis.range = [lo - pad, hi + pad];
+      }
+    } else {
+      yaxis.type = 'log';
+      yaxis.title = { text: 'CFL', font: { size: 11, color: muted } };
+      traces.push({ x, y: c.cols.CFL.slice(a, b), xaxis: xa, yaxis: ya, type: 'scatter',
+        mode: 'lines', name: 'CFL', showlegend: false, line: { width: 1.2, color: cssVar('--cfl') } });
+    }
+    layout[`yaxis${id}`] = yaxis;
+  });
+  layout.shapes = shapes;
+  Plotly.react(div, traces, layout, {
+    displaylogo: false, responsive: true,
+    modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d', 'toggleSpikelines'],
+  });
+}
+
+// ── table ─────────────────────────────────────────────────────────────────
+
+function worstResidual(s) {
+  const ch = (s.checks || {})[String(s.stage)];
+  if (!ch || !ch.residuals.length) return null;
+  let worst = null;
+  for (const r of ch.residuals) {
+    if (r.value === null || !r.threshold) continue;
+    const ratio = r.value / r.threshold;
+    if (!worst || ratio > worst.ratio) worst = { ratio, r };
+  }
+  return worst;
+}
+function renderTable() {
+  const body = $('tbody');
+  body.textContent = '';
+  for (const s of st.summaries) {
+    const tr = el('tr');
+    const [label, tone] = STATUS[s.status] || [s.status, 'idle'];
+    const ch = (s.checks || {})[String(s.stage)] || { cauchy: [] };
+    const okC = ch.cauchy.filter((q) => q.ok).length;
+    const w = worstResidual(s);
+    tr.appendChild(el('td', { class: 'num' }, String(caseIdx(s.i))));
+    tr.appendChild(el('td', { class: 'mono' }, s.label));
+    const td = el('td');
+    td.appendChild(el('span', { class: `pill ${tone}` }, label));
+    tr.appendChild(td);
+    tr.appendChild(el('td', { class: 'num' }, s.iteration === null ? '—'
+      : `${s.stage} · ${s.iteration}${s.max_iterations ? '/' + s.max_iterations : ''}`));
+    tr.appendChild(el('td', { class: 'num', title: w ? `${w.r.variable} ${fmtNum(w.r.value)} / ${fmtNum(w.r.threshold)}` : '' },
+      w ? `${fmtNum(w.r.value)} ${w.ratio < 1 ? '✓' : '✗'}` : '—'));
+    tr.appendChild(el('td', { class: 'num' }, ch.cauchy.length ? `${okC}/${ch.cauchy.length}` : '—'));
+    tr.appendChild(el('td', { class: 'num' }, s.age === null ? '—' : fmtDur(s.age)));
+    tr.addEventListener('click', () => { st.current = s.i; $('case').value = String(s.i); setView('single'); });
+    body.appendChild(tr);
+  }
+}
+
+// ── loop ──────────────────────────────────────────────────────────────────
+
+function showError(err) {
+  const f = $('foot');
+  f.className = 'err';
+  const when = st.lastOk ? ` Último dato: ${st.lastOk.toLocaleTimeString()}.` : '';
+  f.textContent = `Sin respuesta del servidor (${err.message}).${when}`;
+}
+async function tick() {
+  if (st.busy) return;
+  st.busy = true;
+  try {
+    const sum = await getJSON('api/summary');
+    st.summaries = sum.cases;
+    updateSelectMarks();
+    if (st.view === 'table') renderTable();
+    else await refreshCase();
+    st.lastOk = new Date();
+    const f = $('foot');
+    f.className = '';
+    const running = st.summaries.filter((s) => s.status === 'running').length;
+    f.textContent = `${st.summaries.length} casos · ${running} corriendo · actualizado ${st.lastOk.toLocaleTimeString()} · cada ${st.cfg.interval} s`;
+  } catch (err) {
+    showError(err);
+  } finally {
+    st.busy = false;
+  }
+}
+async function init() {
+  if (typeof Plotly === 'undefined') {
+    $('foot').className = 'err';
+    $('foot').textContent = 'No se pudo cargar Plotly desde cdnjs.cloudflare.com: el navegador necesita acceso a internet.';
+    return;
+  }
+  st.cfg = await getJSON('api/config');
+  document.title = st.cfg.title;
+  $('title').textContent = st.cfg.title;
+  $('title').title = st.cfg.title;
+  fillSelect();
+  const hash = location.hash.slice(1);
+  const n = st.cfg.cases.length;
+  if (/^\d+$/.test(hash) && Number(hash) < n) st.current = Number(hash);
+  $('case').value = String(st.current);
+  $('case').addEventListener('change', (e) => select(Number(e.target.value)));
+  $('prev').addEventListener('click', () => select(st.current - 1));
+  $('next').addEventListener('click', () => select(st.current + 1));
+  $('view').addEventListener('click', () => setView(st.view === 'single' ? 'table' : 'single'));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'ArrowLeft') select(st.current - 1);
+    else if (e.key === 'ArrowRight') select(st.current + 1);
+    else if (e.key === 't') setView(st.view === 'single' ? 'table' : 'single');
+  });
+  window.addEventListener('resize', () => {
+    const div = $('plot');
+    if (div.data) {
+      const top = div.getBoundingClientRect().top + window.scrollY;
+      const height = Math.max(380, window.innerHeight - top - 30);
+      div.style.height = `${height}px`;
+      Plotly.relayout(div, { height });
+    }
+  });
+  if (hash === 'tabla') setView('table');
+  await tick();
+  setInterval(tick, Math.max(1, st.cfg.interval) * 1000);
+}
+init().catch(showError);
+</script>
+</body>
+</html>
