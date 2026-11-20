@@ -7,7 +7,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
+        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3, hecho)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
       },
       {
         "t": "p",
@@ -45,7 +45,7 @@
           [
             "L3",
             "`Census` completo: BC frente a `.control`/`parameter.ini`, estanqueidad, duplicados, comparar mallas",
-            "pendiente"
+            "**hecho** (20/11/2026)"
           ],
           [
             "L4",
@@ -151,6 +151,95 @@
       {
         "t": "note",
         "x": "Las áreas son la prueba de fuego del orden de nodos: con un orden equivocado las caras de alto orden se retuercen y el área se dispara. Con la turbina g4 en `.msh` de ANSA, el área de `inlet` sale 8,86 en lugar de 4,88."
+      },
+      {
+        "t": "h",
+        "x": "Comprobaciones (L3)"
+      },
+      {
+        "t": "p",
+        "x": "Contar está bien; lo que ahorra tiempo es que Legolas diga antes de lanzar lo que el solver va a protestar después. Cada comprobación devuelve sus números y una lista `issues` con nivel `error` (HORSES3D o PyHOPE se paran, o la malla está rota), `warning` (probable error) o `info`. `check()` las junta todas, errores primero, y `check_report()` las imprime."
+      },
+      {
+        "t": "code",
+        "x": "lg.census.check_bcs(control='wind_turbine.control', ini='parameter.ini')\nlg.census.watertight()\nlg.census.duplicates()\nlg.census.compare('Wind_turbine_disk_fluid_g4.cgns')\nprint(lg.census.check_report(control=..., ini=...))"
+      },
+      {
+        "t": "table",
+        "head": [
+          "comprobación",
+          "qué mira"
+        ],
+        "rows": [
+          [
+            "`check_bcs`",
+            "las zonas de la malla frente a los `#define boundary` del `.control` (varias zonas por bloque, unidas con `__`) y los `BoundaryName`/`BoundaryType` del `parameter.ini`. Sin distinguir mayúsculas: HOPR escribe `sidea` y ANSA `sideA`"
+          ],
+          [
+            "`watertight`",
+            "la piel del dominio: caras exteriores sin BC, caras compartidas por más de dos celdas, aristas de la piel con una sola cara (agujeros) o con más de dos, caras en dos BC, BC medio interiores"
+          ],
+          [
+            "`duplicates`",
+            "nodos en el mismo sitio que son nodos distintos. Separa los de alto orden (inofensivos), las **grietas** (dos caras exteriores superpuestas: el dominio está cortado) y las **celdas colapsadas**"
+          ],
+          [
+            "`compare`",
+            "dos mallas celda a celda, emparejadas por el centroide de sus esquinas (no importa cómo numere cada fichero), y BC a BC: caras y áreas"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Las reglas de check_bcs"
+      },
+      {
+        "t": "table",
+        "head": [
+          "regla",
+          "nivel",
+          "por qué"
+        ],
+        "rows": [
+          [
+            "zona con caras y sin `type` en el control",
+            "error",
+            "HORSES3D se para. **También las interiores**: piden un `type` aunque no se aplique nunca (FreeSlipWall vale)"
+          ],
+          [
+            "zona sin caras (como `fluid` en la esfera)",
+            "info",
+            "no hace falta nada: HORSES3D no crea la zona"
+          ],
+          [
+            "zona interior con tipo ≠ 100 en el ini",
+            "error",
+            "PyHOPE para con «internal face with multiple BCs»"
+          ],
+          [
+            "tipo 100 en una zona de la piel",
+            "error",
+            "100 es solo para caras con celda a cada lado"
+          ],
+          [
+            "zona del `.cgns`/`.msh` sin `BoundaryName`",
+            "error",
+            "PyHOPE la necesita; con un `.h5` ya convertido baja a warning"
+          ],
+          [
+            "nombre en un fichero que no está en la malla",
+            "warning",
+            "inofensivo para el solver, pero suele querer decir que el fichero es de otra malla"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Caso real (20/11/2026): el `wind_turbine.control` y el `parameter.ini` de la turbina son de la malla con el disco **hueco** (`empty`), con la que salen limpios. Contra la malla **rellena** (`fluid`), `check_bcs` da el mismo error que dio PyHOPE: `disk_side` es interior y lleva tipo 5 en lugar de 100. Y avisa de que `disk_upstream` y `disk_downstream` no existen en esa malla."
+      },
+      {
+        "t": "p",
+        "x": "Otros dos resultados de la turbina: el `.cgns` g2 tiene 2980 nodos de alto orden repetidos, en 1948 grupos, y ninguna grieta. Son justo los que PyHOPE fusiona (322 297 nodos frente a 319 317 del `.h5`). Y g1, g2 y g4, en `.h5` y `.cgns`, comparten esquinas hasta 1,6·10⁻¹⁴: el área curva de `rotor_cylinder` cambia un 0,03 % de g2 a g4."
       }
     ],
     "formats": [
@@ -366,6 +455,16 @@
         ],
         "rows": [
           [
+            "PyHOPE: «internal face with multiple BCs»",
+            "una zona interior (como `disk_side` en la malla rellena) con tipo distinto de 100 en el `parameter.ini`",
+            "`check_bcs` lo dice antes de lanzar PyHOPE"
+          ],
+          [
+            "HORSES3D se para pidiendo el `type` de una zona interior",
+            "el control no declara `rotor_cylinder` u otra zona interior",
+            "`check_bcs` lo marca como error; vale cualquier tipo, no se aplica"
+          ],
+          [
             "meshio: «Couldn't read file …msh as gmsh»",
             "`.msh` 2.2 binario en big-endian (ANSA)",
             "lo lee con su parser propio y lo indica en `meta['byteorder']`"
@@ -505,7 +604,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
+        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3, done)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
       },
       {
         "t": "p",
@@ -543,7 +642,7 @@
           [
             "L3",
             "full `Census`: BCs against `.control`/`parameter.ini`, watertightness, duplicates, mesh comparison",
-            "pending"
+            "**done** (20/11/2026)"
           ],
           [
             "L4",
@@ -649,6 +748,95 @@
       {
         "t": "note",
         "x": "Areas are the acid test of the node order: with a wrong order high-order faces twist and the area shoots up. With the turbine g4 in ANSA's `.msh`, the `inlet` area comes out 8.86 instead of 4.88."
+      },
+      {
+        "t": "h",
+        "x": "Checks (L3)"
+      },
+      {
+        "t": "p",
+        "x": "Counting is fine; what saves time is Legolas saying before the run what the solver will complain about afterwards. Every check returns its numbers and an `issues` list with level `error` (HORSES3D or PyHOPE stop, or the mesh is broken), `warning` (probably a mistake) or `info`. `check()` gathers them all, errors first, and `check_report()` prints them."
+      },
+      {
+        "t": "code",
+        "x": "lg.census.check_bcs(control='wind_turbine.control', ini='parameter.ini')\nlg.census.watertight()\nlg.census.duplicates()\nlg.census.compare('Wind_turbine_disk_fluid_g4.cgns')\nprint(lg.census.check_report(control=..., ini=...))"
+      },
+      {
+        "t": "table",
+        "head": [
+          "check",
+          "what it looks at"
+        ],
+        "rows": [
+          [
+            "`check_bcs`",
+            "the zones of the mesh against the `#define boundary` blocks of the `.control` (several zones per block, joined with `__`) and the `BoundaryName`/`BoundaryType` of the `parameter.ini`. Case-insensitive: HOPR writes `sidea` and ANSA `sideA`"
+          ],
+          [
+            "`watertight`",
+            "the skin of the domain: exterior faces with no BC, faces shared by more than two cells, skin edges with one face (holes) or more than two, faces in two BCs, half-inner BCs"
+          ],
+          [
+            "`duplicates`",
+            "nodes in the same place that are different nodes. Tells apart the high-order ones (harmless), **cracks** (two exterior faces on top of each other: the domain is cut) and **collapsed cells**"
+          ],
+          [
+            "`compare`",
+            "two meshes cell by cell, paired by the centroid of their corners (however each file numbers them), and BC by BC: faces and areas"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "The rules of check_bcs"
+      },
+      {
+        "t": "table",
+        "head": [
+          "rule",
+          "level",
+          "why"
+        ],
+        "rows": [
+          [
+            "zone with faces and no `type` in the control",
+            "error",
+            "HORSES3D stops. **Inner zones too**: they need a `type` even though it is never applied (FreeSlipWall will do)"
+          ],
+          [
+            "zone with no faces (like `fluid` in the sphere)",
+            "info",
+            "nothing needed: HORSES3D does not create the zone"
+          ],
+          [
+            "inner zone with type ≠ 100 in the ini",
+            "error",
+            "PyHOPE stops with \"internal face with multiple BCs\""
+          ],
+          [
+            "type 100 on a zone of the skin",
+            "error",
+            "100 is only for faces with a cell on each side"
+          ],
+          [
+            "`.cgns`/`.msh` zone with no `BoundaryName`",
+            "error",
+            "PyHOPE needs it; with an already converted `.h5` it drops to a warning"
+          ],
+          [
+            "name in a file that is not in the mesh",
+            "warning",
+            "harmless for the solver, but it usually means the file belongs to another mesh"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Real case (20/11/2026): the turbine's `wind_turbine.control` and `parameter.ini` belong to the mesh with the **hollow** disk (`empty`), against which they come out clean. Against the **filled** mesh (`fluid`), `check_bcs` gives the same error PyHOPE gave: `disk_side` is inner and has type 5 instead of 100. It also warns that `disk_upstream` and `disk_downstream` do not exist in that mesh."
+      },
+      {
+        "t": "p",
+        "x": "Two more turbine results: the g2 `.cgns` has 2980 repeated high-order nodes, in 1948 groups, and no crack. They are exactly the ones PyHOPE merges (322,297 nodes against 319,317 in the `.h5`). And g1, g2 and g4, as `.h5` and `.cgns`, share their corners to 1.6·10⁻¹⁴: the curved area of `rotor_cylinder` changes by 0.03 % from g2 to g4."
       }
     ],
     "formats": [
@@ -863,6 +1051,16 @@
           "what LEGOLAS does"
         ],
         "rows": [
+          [
+            "PyHOPE: \"internal face with multiple BCs\"",
+            "an inner zone (like `disk_side` in the filled mesh) with a type other than 100 in `parameter.ini`",
+            "`check_bcs` says so before running PyHOPE"
+          ],
+          [
+            "HORSES3D stops asking for the `type` of an inner zone",
+            "the control does not declare `rotor_cylinder` or another inner zone",
+            "`check_bcs` flags it as an error; any type will do, it is never applied"
+          ],
           [
             "meshio: \"Couldn't read file …msh as gmsh\"",
             "binary `.msh` 2.2 in big-endian (ANSA)",

@@ -15,6 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..mesh import CellBlock, Mesh
+from ..topology import coincident_labels
 
 
 def merge_points(x: np.ndarray, rtol: float = 1e-9) -> tuple:
@@ -25,19 +26,8 @@ def merge_points(x: np.ndarray, rtol: float = 1e-9) -> tuple:
     points, index : numpy.ndarray
         Unique points and, for every input point, its row in ``points``.
     """
-    from scipy.sparse import coo_matrix
-    from scipy.sparse.csgraph import connected_components
-    from scipy.spatial import cKDTree
-
-    tol = rtol * float(np.linalg.norm(x.max(0) - x.min(0)) or 1.0)
-    pairs = cKDTree(x).query_pairs(tol, output_type='ndarray')
-    n = len(x)
-    graph = coo_matrix((np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])),
-                       shape=(n, n))
-    _, label = connected_components(graph, directed=False)
-    first = np.full(label.max() + 1, -1, dtype=np.int64)
-    first[label[::-1]] = np.arange(n)[::-1]
-    return x[first], label.astype(np.int64)
+    label, first, _ = coincident_labels(x, rtol)
+    return x[first], label
 
 
 def read(path: str, rtol: float = 1e-9) -> Mesh:

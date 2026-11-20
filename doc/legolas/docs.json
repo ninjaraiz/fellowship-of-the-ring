@@ -1023,6 +1023,246 @@
           }
         },
         {
+          "id": "LEGOLAS.Census.zone_status",
+          "class": "LEGOLAS.Census",
+          "name": "zone_status",
+          "signature": "zone_status()",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Where each boundary's faces lie.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``{name: {'n_faces', 'interior_faces', 'status'}}`` with ``status`` one of ``'empty'`` (no faces), ``'boundary'`` (all on the skin of the domain), ``'interior'`` (all with a cell on each side: an inner zone) or ``'mixed'``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.check_bcs",
+          "class": "LEGOLAS.Census",
+          "name": "check_bcs",
+          "signature": "check_bcs(control=None, ini=None)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Compare the zones of the mesh with the BCs declared in files.",
+            "description": "Names are compared without case: HOPR writes them in lower case\n(``sidea``) while ANSA and the files keep ``sideA``.\n\nRules, from what HORSES3D and PyHOPE actually do:\n\n* HORSES3D needs a ``#define boundary`` with a ``type`` for every\n  zone that has faces, **inner zones included** (their type is never\n  applied, but the solver stops without it). A zone with no faces\n  needs nothing.\n* PyHOPE needs a ``BoundaryName`` for every surface group of a\n  ``.cgns``/``.msh``, and an inner zone must have type 100: any other\n  type stops it with \"internal face with multiple BCs\". Type 100 on\n  a zone that lies on the skin of the domain is a mistake too.\n* A name declared in a file but absent from the mesh is reported as\n  a warning: harmless for the solver, but usually a sign that the\n  file belongs to another mesh.",
+            "params": [
+              {
+                "name": "control",
+                "type": "str or path-like, optional",
+                "desc": "HORSES3D ``.control`` file."
+              },
+              {
+                "name": "ini",
+                "type": "str or path-like, optional",
+                "desc": "PyHOPE ``parameter.ini``."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``rows``: one per name (union of mesh and files), with ``name``, ``mesh`` (status, None if absent), ``n_faces``, ``control`` (type, None if absent), ``ini`` (type tuple); and ``issues``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\n    r = lg.census.check_bcs(control='wind_turbine.control',\n                            ini='parameter.ini')\n    print(lg.census.bcs_report(r))"
+              }
+            ],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.watertight",
+          "class": "LEGOLAS.Census",
+          "name": "watertight",
+          "signature": "watertight()",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Check the skin of the domain.",
+            "description": "The exterior faces of a sound volume mesh form closed surfaces: every\nedge of the skin belongs to exactly two exterior faces. An edge with\none face is a hole (typically a non-conforming interface or two zones\nwhose nodes were not merged); with three or more, surfaces touch\nalong a line.",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``exterior_faces``, ``unassigned_faces`` (in no boundary), ``nonmanifold_faces`` (more than two cells), ``open_edges``, ``nonmanifold_edges``, ``faces_in_two_boundaries``, ``mixed_boundaries`` (names of BCs partly inner, partly on the skin), ``closed`` (no open edges) and ``issues``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.duplicates",
+          "class": "LEGOLAS.Census",
+          "name": "duplicates",
+          "signature": "duplicates(rtol: float = 1e-09)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Find nodes that coincide in space but are different nodes.",
+            "description": "Three things come out of the same search, and they mean different\nthings:\n\n* duplicates among **high-order nodes only** (edge or face nodes\n  written once per element): harmless for the topology, which only\n  looks at corners; PyHOPE merges them when it writes the ``.h5``;\n* coincident **exterior faces** (cracks): two faces in the same\n  place that the topology sees as different, so the domain is cut\n  along them and both count as skin;\n* **collapsed cells**: two nodes of one cell in the same place.",
+            "params": [
+              {
+                "name": "rtol",
+                "type": "float",
+                "desc": "Tolerance relative to the bounding-box diagonal."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``tol``, ``groups`` (sets of coincident nodes), ``extra_nodes`` (nodes that merging would remove), ``corner_groups`` (groups with two or more corner nodes), ``highorder_groups``, ``crack_faces``, ``collapsed_cells`` and ``issues``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.compare",
+          "class": "LEGOLAS.Census",
+          "name": "compare",
+          "signature": "compare(other, rtol: float = 1e-06)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Compare this mesh with another one, cell by cell and BC by BC.",
+            "description": "Meant for the same mesh in two formats (``.cgns`` and its ``.h5``)\nor at two geometric orders (g2 and g4 of one ANSA mesh): cells are\npaired by the centroid of their corners, so the comparison does not\ndepend on how the files number them, and the corners must coincide.\nAreas of curved boundaries differ a little between orders; that is\nexpected and reported, not flagged.",
+            "params": [
+              {
+                "name": "other",
+                "type": "LEGOLAS, Mesh or path",
+                "desc": "The mesh to compare with."
+              },
+              {
+                "name": "rtol",
+                "type": "float",
+                "desc": "Tolerance relative to this mesh's bounding-box diagonal."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``cells`` (both counts), ``matched_cells``, ``max_corner_diff``, ``same_corners``, ``boundaries`` (rows ``name``, ``faces``, ``area`` as pairs and ``area_rel_diff``), ``only_here``, ``only_there``, ``orders`` and ``issues``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.check",
+          "class": "LEGOLAS.Census",
+          "name": "check",
+          "signature": "check(control=None, ini=None, duplicates: bool = True)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Run every check and collect the findings.",
+            "description": "",
+            "params": [
+              {
+                "name": "control, ini",
+                "type": "str or path-like, optional",
+                "desc": "Passed to :meth:`check_bcs` (skipped when both are None)."
+              },
+              {
+                "name": "duplicates",
+                "type": "bool",
+                "desc": "Run :meth:`duplicates` too (a k-d tree over all nodes; a few seconds for millions of nodes). Default True."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``ok`` (no errors), ``issues`` (all of them, errors first) and the result of each check under its name."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.check_report",
+          "class": "LEGOLAS.Census",
+          "name": "check_report",
+          "signature": "check_report(control=None, ini=None, duplicates: bool = True)",
+          "returns": "str",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": ":meth:`check` as plain text, with the BC table if files given.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.bcs_report",
+          "class": "LEGOLAS.Census",
+          "name": "bcs_report",
+          "signature": "bcs_report(result: dict, issues: bool = True)",
+          "returns": "str",
+          "kind": "staticmethod",
+          "is_private": false,
+          "doc": {
+            "summary": "Table of a :meth:`check_bcs` result.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
           "id": "LEGOLAS.Census.report",
           "class": "LEGOLAS.Census",
           "name": "report",
@@ -1844,6 +2084,42 @@
             "text_sections": [],
             "has_doc": true
           }
+        },
+        {
+          "id": "legolas.topology.coincident_labels",
+          "class": "legolas.topology",
+          "name": "coincident_labels",
+          "signature": "coincident_labels(points: np.ndarray, rtol: float = 1e-09)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Group points closer than ``rtol`` times the bounding-box diagonal.",
+            "description": "Pairs within the tolerance are joined transitively (connected\ncomponents), so a chain of near points ends up in one group.",
+            "params": [],
+            "returns": [
+              {
+                "name": "label",
+                "type": "numpy.ndarray",
+                "desc": "``(n,)`` group of every point, numbered from 0."
+              },
+              {
+                "name": "first",
+                "type": "numpy.ndarray",
+                "desc": "For every group, the index of its first point."
+              },
+              {
+                "name": "tol",
+                "type": "float",
+                "desc": "The absolute tolerance used."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
         }
       ],
       "module": true
@@ -2145,6 +2421,110 @@
             "description": "Every array starts on a 4-byte boundary, little-endian. The header gets\nan ``arrays`` entry ``{name: {dtype, offset, count, shape}}`` with the\nbyte offset from the start of the payload, so the browser can wrap each\none in a typed array without copying.",
             "params": [],
             "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "module": true
+    },
+    {
+      "id": "legolas.bcfiles",
+      "file": "FotR/characters/legolas/bcfiles.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Boundary conditions declared outside the mesh: HORSES3D ``.control`` and PyHOPE ``parameter.ini``.",
+        "description": "Only what :meth:`LEGOLAS.Census.check_bcs <.census.Census.check_bcs>` needs\nis read: which zone names each file declares and with which type. Comments\nstart with ``!`` in both formats and are dropped; key names are matched\nwithout case.\n\n* ``.control``: blocks ``#define boundary a__b__c`` … ``type = X`` …\n  ``#end``. Several zones share a block by joining their names with\n  ``__`` (that is how HORSES3D splits them).\n* ``parameter.ini``: pairs ``BoundaryName = x`` / ``BoundaryType =\n  (/t,c,s,a/)``; the first integer of the type is the kind, and 100 marks\n  an inner zone (faces with a cell on each side).\n\nThe GANDALF ring ``horses3d`` writes these blocks on its own; the two do not\nshare code on purpose (``doc/PLAN_HORSES3D.md``), so a change of syntax has\nto be made in both.",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "legolas.bcfiles._strip",
+          "class": "legolas.bcfiles",
+          "name": "_strip",
+          "signature": "_strip(line: str)",
+          "returns": "str",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "legolas.bcfiles.read_control_bcs",
+          "class": "legolas.bcfiles",
+          "name": "read_control_bcs",
+          "signature": "read_control_bcs(path)",
+          "returns": "list",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Zones declared in the ``#define boundary`` blocks of a ``.control``.",
+            "description": "",
+            "params": [
+              {
+                "name": "path",
+                "type": "str or path-like",
+                "desc": "HORSES3D control file."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "list[dict]",
+                "desc": "One entry per zone name: ``name`` (as written), ``type`` (value of the block's ``type`` key, or None), ``line`` (1-based line of the ``#define``) and ``group`` (all the names of that block). Commented-out blocks are ignored."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.bcfiles.read_ini_bcs",
+          "class": "legolas.bcfiles",
+          "name": "read_ini_bcs",
+          "signature": "read_ini_bcs(path)",
+          "returns": "list",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Boundaries declared in a PyHOPE/HOPR ``parameter.ini``.",
+            "description": "",
+            "params": [
+              {
+                "name": "path",
+                "type": "str or path-like",
+                "desc": "PyHOPE parameter file."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "list[dict]",
+                "desc": "``name``, ``type`` (tuple of ints from ``(/t,c,s,a/)``, or None if no ``BoundaryType`` follows) and ``line``, in file order."
+              }
+            ],
             "raises": [],
             "attributes": [],
             "methods": [],

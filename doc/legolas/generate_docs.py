@@ -36,6 +36,7 @@ FUNCTION_MODULES = [
     f"{PKG}/ordering.py",
     f"{PKG}/topology.py",
     f"{PKG}/scene.py",
+    f"{PKG}/bcfiles.py",
 ]
 
 #: Clases de nivel superior que se documentan, por fichero (None = todas).

@@ -17,6 +17,18 @@
     "nested_Census": [
       {
         "title": {
+          "es": "Comprobar la malla de la turbina contra sus ficheros",
+          "en": "Checking the turbine mesh against its files"
+        },
+        "source": "examples/legolas/check_turbine.py",
+        "code": "import os\nfrom FotR import LEGOLAS\n\nsources = '/home/m.jaraiz/Documentos/COMAC/wind_turbine_ansa/sources'\ncontrol = os.path.join(sources, 'wind_turbine.control')\nini = os.path.join(sources, 'parameter.ini')\n\n# La malla con el disco relleno (\"fluid\") frente a los ficheros del caso.\nlg = LEGOLAS(os.path.join(sources, 'Wind_turbine_disk_fluid_cgns_g2_mesh.h5'))\nprint(lg.census.check_report(control=control, ini=ini))\nprint()\n\n# Los mismos ficheros con la malla del disco hueco (\"empty\"): sin errores.\nempty = LEGOLAS(os.path.join(sources, 'Wind_turbine_disk_empty_cgns_g2_mesh.h5'))\nprint(empty.census.bcs_report(empty.census.check_bcs(control=control, ini=ini)))\nprint()\n\n# Nodos repetidos del CGNS elevado: solo de alto orden, sin grietas.\ncgns = LEGOLAS(os.path.join(sources, 'Wind_turbine_disk_fluid_g2.cgns'))\nd = cgns.census.duplicates()\nprint(d['extra_nodes'], 'nodos de más,', d['crack_faces'], 'caras en grieta')\n\n# La misma malla a orden 2 y a orden 4: mismas esquinas, áreas curvas casi iguales.\nc = lg.census.compare(os.path.join(sources, 'Wind_turbine_disk_fluid_g4.cgns'))\nprint(c['same_corners'], [(r['name'], round(100 * r['area_rel_diff'], 3))\n                          for r in c['boundaries'] if r['area_rel_diff'] > 1e-9])",
+        "note": {
+          "es": "Con la malla rellena sale un error (`disk_side`, tipo 5 en el ini) y dos avisos (`disk_upstream`/`disk_downstream`); con la hueca, ninguno. Luego: `2980 nodos de más, 0 caras en grieta` y `True [('rotor_cylinder', 0.03), ('disk_side', 0.03)]`.",
+          "en": "The filled mesh gives one error (`disk_side`, type 5 in the ini) and two warnings (`disk_upstream`/`disk_downstream`); the hollow one, none. Then: `2980 nodos de más, 0 caras en grieta` and `True [('rotor_cylinder', 0.03), ('disk_side', 0.03)]`."
+        }
+      },
+      {
+        "title": {
           "es": "El censo como dict",
           "en": "The census as a dict"
         },

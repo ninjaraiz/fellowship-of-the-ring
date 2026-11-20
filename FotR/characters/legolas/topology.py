@@ -12,7 +12,7 @@ import numpy as np
 
 from .mesh import Mesh
 
-__all__ = ['face_keys', 'group_keys', 'all_faces', 'face_index', 'face_rows', 'exterior_faces',
+__all__ = ['face_keys', 'group_keys', 'all_faces', 'face_index', 'face_rows', 'exterior_faces', 'coincident_labels',
            'match_faces', 'face_area', 'used_nodes']
 
 
@@ -197,3 +197,34 @@ def used_nodes(mesh: Mesh) -> np.ndarray:
     for block in mesh.blocks:
         used[block.conn.ravel()] = True
     return used
+
+
+def coincident_labels(points: np.ndarray, rtol: float = 1e-9) -> tuple:
+    """Group points closer than ``rtol`` times the bounding-box diagonal.
+
+    Pairs within the tolerance are joined transitively (connected
+    components), so a chain of near points ends up in one group.
+
+    Returns
+    -------
+    label : numpy.ndarray
+        ``(n,)`` group of every point, numbered from 0.
+    first : numpy.ndarray
+        For every group, the index of its first point.
+    tol : float
+        The absolute tolerance used.
+    """
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    from scipy.spatial import cKDTree
+
+    points = np.asarray(points, dtype=np.float64)
+    n = len(points)
+    tol = rtol * float(np.linalg.norm(points.max(0) - points.min(0)) or 1.0)
+    pairs = cKDTree(points).query_pairs(tol, output_type='ndarray')
+    graph = coo_matrix((np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])),
+                       shape=(n, n))
+    _, label = connected_components(graph, directed=False)
+    first = np.full(label.max() + 1, -1, dtype=np.int64)
+    first[label[::-1]] = np.arange(n)[::-1]
+    return label.astype(np.int64), first, tol

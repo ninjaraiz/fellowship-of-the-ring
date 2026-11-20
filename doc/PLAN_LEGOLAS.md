@@ -186,9 +186,11 @@ tocar código, `graphify update .`.
 | hito | estado |
 |---|---|
 | L0 | **hecho** (20/11/2026): este documento y HANDOFF |
-| L1 | **hecho** (20/11/2026), sin commitear: ver abajo |
-| L2 | **hecho** (20/11/2026), sin commitear: ver abajo |
-| L3–L7 | pendientes |
+| — | commits en la rama `legolas` (salida de `develop`): L0–L2 en `2208226`, L3 en el siguiente |
+| L1 | **hecho** (20/11/2026): ver abajo |
+| L2 | **hecho** (20/11/2026): ver abajo |
+| L3 | **hecho** (20/11/2026): ver abajo |
+| L4–L7 | pendientes |
 
 ### L1 (20/11/2026)
 
@@ -251,6 +253,29 @@ tocar código, `graphify update .`.
 * Tests: `FotR/tests/test_legolas_viewer.py` (23). Ejemplo: `examples/legolas/viewer_turbine.py`.
   Visor de documentación: pestaña `Viewer` activa, con `ViewerHandle`, `ViewerServer` y
   `legolas.scene`.
+
+### L3 (20/11/2026)
+
+* `bcfiles.py`: lectura de los `#define boundary` del `.control` (varias zonas por bloque con
+  `__`, comentarios `!`) y de los `BoundaryName`/`BoundaryType` del `parameter.ini`. No
+  comparte código con el ring `horses3d` a propósito (misma política que `PLAN_HORSES3D.md`).
+* `Census` gana `zone_status`, `check_bcs`, `watertight`, `duplicates`, `compare`, `check`,
+  `check_report` y `bcs_report`. Todas devuelven sus números y `issues` con nivel
+  `error`/`warning`/`info`.
+* Reglas de `check_bcs` sacadas de lo vivido: HORSES3D pide `type` para toda zona **con
+  caras**, también las interiores (las vacías, como `fluid` de la esfera, no: la esfera corrió
+  sin declararla); PyHOPE pide tipo 100 para las interiores («internal face with multiple
+  BCs»).
+* `duplicates` separa nodos de alto orden repetidos (inofensivos), grietas (caras exteriores
+  superpuestas) y celdas colapsadas; `topology.coincident_labels` (k-d tree + componentes
+  conexas) sale del lector `.hmesh`, que ahora lo usa.
+* Resultados reales: el `.control` y el `parameter.ini` de la turbina son de la malla
+  **empty** (limpios ahí); contra la **fluid** sale el error de `disk_side` (tipo 5, no 100).
+  El `.cgns` g2 tiene 2980 nodos de alto orden repetidos y ninguna grieta. g1/g2/g4 comparten
+  esquinas (1,6·10⁻¹⁴); el área de `rotor_cylinder` cambia un 0,03 % de g2 a g4. Esfera:
+  `watertight` 1,1 s y `duplicates` 2,0 s con 2,2 M nodos.
+* Tests: `FotR/tests/test_legolas_census.py` (19); `FotR/tests/_legolas_meshes.py` con la caja
+  de prueba común a censo y visor. Ejemplo: `examples/legolas/check_turbine.py`.
 
 ### Decisiones abiertas (se resuelven al llegar al hito)
 
