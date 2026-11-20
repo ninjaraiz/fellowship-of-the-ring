@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LEGOLAS viewer</title>
+<style>
+:root{
+  --bg:#ffffff; --fg:#1c1f23; --muted:#6b7280; --line:#e3e6ea; --line2:#cbd2d9;
+  --accent:#2b8a57; --accent-soft:#e6f4ec; --panel:#f7f8fa; --canvas:#eef1f4;
+  --warn-bd:#e4a11b; --warn-bg:#fdf7e8; --bad:#c0392b; --edge:#1b1f23;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#14171a; --fg:#e6e8ea; --muted:#9aa3ad; --line:#272c31; --line2:#3a4249;
+  --accent:#5cc28a; --accent-soft:#16291f; --panel:#181c20; --canvas:#101316;
+  --warn-bd:#8a6d1f; --warn-bg:#241f12; --bad:#ff7b6b; --edge:#dfe3e7;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13.5px;line-height:1.45}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+#app{display:grid;grid-template-columns:320px 1fr;height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:.7rem .85rem 2rem}
+#view{position:relative;overflow:hidden;background:var(--canvas)}
+#view canvas{display:block;width:100%;height:100%}
+h1{font-size:1.05rem;margin:0;display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+h1 small{font-weight:400;color:var(--muted);font-size:.8rem;word-break:break-all}
+h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  margin:1.1rem 0 .4rem;font-weight:650}
+.stats{color:var(--muted);font-size:.85rem;margin:.25rem 0 0}
+button,select{font:inherit;cursor:pointer;border:1px solid var(--line2);background:var(--bg);
+  color:var(--fg);border-radius:6px;padding:.22rem .55rem}
+button:hover,select:hover{border-color:var(--accent)}
+button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin:.3rem 0}
+.zone{display:grid;grid-template-columns:auto 12px 1fr auto auto;gap:.45rem;align-items:center;
+  padding:.18rem .25rem;border-radius:5px}
+.zone:hover{background:var(--bg)}
+.zone .sw{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
+.zone .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zone .n{color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
+.zone .focus{border:none;background:none;padding:0 .15rem;color:var(--muted);font-size:.95rem;line-height:1}
+.zone .focus:hover{color:var(--accent)}
+.badge{font-size:.68rem;border:1px solid var(--line2);border-radius:4px;padding:0 .3rem;
+  color:var(--muted);margin-left:.3rem;white-space:nowrap}
+.badge.bad{color:var(--bad);border-color:var(--bad)}
+.note{border-left:3px solid var(--warn-bd);background:var(--warn-bg);padding:.35rem .55rem;
+  margin:.35rem 0;border-radius:0 5px 5px 0;font-size:.82rem;word-break:break-word}
+input[type=range]{width:100%}
+.muted{color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:.82rem;margin:.3rem 0}
+td,th{border-bottom:1px solid var(--line);padding:.18rem .3rem;text-align:left}
+th{color:var(--muted);font-weight:600}
+a.cell{color:var(--accent);cursor:pointer;text-decoration:underline}
+#tools{position:absolute;top:.6rem;right:.6rem;display:flex;gap:.3rem;flex-wrap:wrap;
+  justify-content:flex-end;max-width:70%}
+#tools button{background:var(--bg);opacity:.92}
+#status{position:absolute;left:.6rem;bottom:.5rem;font-size:.8rem;color:var(--muted);
+  background:var(--bg);opacity:.9;padding:.15rem .45rem;border-radius:5px}
+#fatal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  padding:2rem;text-align:center;color:var(--bad)}
+@media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto 60vh}
+  aside{max-height:40vh}}
+</style>
+<script type="importmap">
+{"imports":{"three":"/static/three/three.module.min.js",
+            "three/addons/":"/static/three/addons/"}}
+</script>
+</head>
+<body>
+<div id="app">
+ <aside>
+  <h1>LEGOLAS <small id="title"></small></h1>
+  <div class="stats" id="stats"></div>
+  <div class="row" style="margin-top:.45rem"><button id="lang">EN</button></div>
+  <div id="warnings"></div>
+
+  <h2 data-t="zones"></h2>
+  <div class="row"><button id="all" data-t="all"></button><button id="none" data-t="none"></button></div>
+  <div id="zones"></div>
+
+  <h2 data-t="display"></h2>
+  <div class="row" id="mode">
+   <button data-mode="both" data-t="both"></button>
+   <button data-mode="solid" data-t="solid"></button>
+   <button data-mode="edges" data-t="edges"></button>
+  </div>
+  <div class="row"><span class="muted" data-t="opacity"></span></div>
+  <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1">
+
+  <h2 data-t="section"></h2>
+  <div class="row" id="secmode">
+   <button data-sec="none" data-t="sec_none"></button>
+   <button data-sec="slice" data-t="sec_slice"></button>
+   <button data-sec="clip" data-t="sec_clip"></button>
+  </div>
+  <div class="row" id="axes">
+   <button data-axis="0">X</button><button data-axis="1">Y</button><button data-axis="2">Z</button>
+   <button id="side" data-t="flip"></button>
+  </div>
+  <input type="range" id="plane" min="0" max="1000" step="1" value="500">
+  <div class="row"><span class="mono" id="planeval"></span><span class="muted" id="secinfo"></span></div>
+  <label class="row"><input type="checkbox" id="hidezones"> <span data-t="hide_zones"></span></label>
+
+  <h2 data-t="cell"></h2>
+  <div id="cell" class="muted"></div>
+ </aside>
+ <div id="view">
+  <div id="tools">
+   <button id="fit" data-t="fit"></button>
+   <button data-view="+x">+X</button><button data-view="-x">−X</button>
+   <button data-view="+y">+Y</button><button data-view="-y">−Y</button>
+   <button data-view="+z">+Z</button><button data-view="-z">−Z</button>
+   <button id="shot" data-t="shot"></button>
+  </div>
+  <div id="status"></div>
+  <div id="fatal"></div>
+ </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+/* ── texts ─────────────────────────────────────────────────────────────── */
+const TXT={
+ es:{zones:'Zonas',all:'todas',none:'ninguna',display:'Dibujo',both:'superficie + aristas',
+  solid:'superficie',edges:'aristas',opacity:'Opacidad',section:'Corte',sec_none:'ninguno',
+  sec_slice:'capa',sec_clip:'recorte',flip:'⇄ lado',hide_zones:'ocultar zonas durante el corte',
+  cell:'Celda',fit:'Encuadrar',shot:'Captura',pick:'Haz clic en una celda para ver sus datos.',
+  faces:'caras',interior:'interior',decimated:'1 de cada',nodes:'nodos',cells:'celdas',
+  loading:'cargando',drawn:'triángulos dibujados',stopped:'el servidor se ha parado: relanza lg.viewer.show()',
+  nowebgl:'Este navegador no puede crear un contexto WebGL.',face:'cara',neighbour:'vecina',
+  boundary:'frontera',file_cell:'elemento en el fichero',horses:'nº HORSES3D',centre:'centrar',
+  centroid:'centroide',zone:'zona',focus:'encuadrar esta zona',section_faces:'caras en el corte',unassigned:'sin BC',
+  exterior:'exteriores',warn:'avisos del lector',big:'demasiado grande: se dibuja diezmada'},
+ en:{zones:'Zones',all:'all',none:'none',display:'Drawing',both:'surface + edges',
+  solid:'surface',edges:'edges',opacity:'Opacity',section:'Section',sec_none:'none',
+  sec_slice:'layer',sec_clip:'clip',flip:'⇄ side',hide_zones:'hide zones while cutting',
+  cell:'Cell',fit:'Fit',shot:'Screenshot',pick:'Click a cell to see its data.',
+  faces:'faces',interior:'interior',decimated:'1 in',nodes:'nodes',cells:'cells',
+  loading:'loading',drawn:'triangles drawn',stopped:'the server has stopped: run lg.viewer.show() again',
+  nowebgl:'This browser cannot create a WebGL context.',face:'face',neighbour:'neighbour',
+  boundary:'boundary',file_cell:'element in the file',horses:'HORSES3D no.',centre:'centre',
+  centroid:'centroid',zone:'zone',focus:'frame this zone',section_faces:'faces in the section',unassigned:'no BC',
+  exterior:'exterior',warn:'reader warnings',big:'too big: drawn decimated'},
+};
+let LANG='es';
+const t=k=>TXT[LANG][k]||k;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>Number(n).toLocaleString(LANG);
+const PALETTE=['#4e79a7','#f28e2b','#59a14f','#76b7b2','#edc948','#b07aa1','#ff9da7',
+               '#9c755f','#bab0ac','#8cd17d','#86bcb6','#d4a6c8'];
+const SPECIAL={'__unassigned__':'#e15759','__exterior__':'#4e79a7'};
+const SECTION_COLOR='#c9b37e';
+
+/* ── state ─────────────────────────────────────────────────────────────── */
+let INFO=null;
+const ZONES=new Map();          // name -> {on, color, obj:{mesh,lines,triCell}|null, loading, stride}
+let DRAW='both', OPACITY=1, SEC={mode:'none', axis:0, t:0.5, side:-1, obj:null, seq:0};
+let PICKED=null, HIGHLIGHT=null;
+
+/* ── three.js ──────────────────────────────────────────────────────────── */
+const view=$('view');
+let renderer;
+try{
+ renderer=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+}catch(e){
+ $('fatal').style.display='flex'; $('fatal').textContent=TXT.es.nowebgl+' / '+TXT.en.nowebgl;
+ throw e;
+}
+renderer.setPixelRatio(window.devicePixelRatio||1);
+renderer.autoClear=false;
+renderer.localClippingEnabled=true;
+/* in clip mode the boundaries are cut by the same plane, on the GPU, so the
+   staircase of whole cells sent by the server shows through the opening */
+const CLIP=new THREE.Plane(new THREE.Vector3(1,0,0),0);
+view.prepend(renderer.domElement);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(35,1,0.01,1000);
+camera.up.set(0,0,1);
+const controls=new OrbitControls(camera, renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.12; controls.screenSpacePanning=true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x8090a0,1.6));
+const sun=new THREE.DirectionalLight(0xffffff,1.4); sun.position.set(0.4,0.6,1);
+camera.add(sun); scene.add(camera);
+
+/* small axes gizmo in the lower-right corner */
+const gScene=new THREE.Scene(), gCam=new THREE.OrthographicCamera(-1.6,1.6,1.6,-1.6,0.1,10);
+function label(txt,color){
+ const c=document.createElement('canvas'); c.width=c.height=64;
+ const g=c.getContext('2d'); g.fillStyle=color; g.font='bold 44px sans-serif';
+ g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,32,34);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));
+ s.scale.set(.55,.55,1); return s;
+}
+[[1,0,0,'#e15759','X'],[0,1,0,'#59a14f','Y'],[0,0,1,'#4e79a7','Z']].forEach(([x,y,z,col,n])=>{
+ const dir=new THREE.Vector3(x,y,z);
+ gScene.add(new THREE.ArrowHelper(dir,new THREE.Vector3(),1,col,.25,.14));
+ const l=label(n,col); l.position.copy(dir.clone().multiplyScalar(1.3)); gScene.add(l);
+});
+
+function cssColor(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+function resize(){
+ const w=view.clientWidth, h=view.clientHeight;
+ renderer.setSize(w,h,false); camera.aspect=w/Math.max(h,1); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+
+function frame(){
+ requestAnimationFrame(frame);
+ controls.update();
+ const w=view.clientWidth, h=view.clientHeight;
+ renderer.setClearColor(new THREE.Color(cssColor('--canvas')),1);
+ renderer.setViewport(0,0,w,h); renderer.setScissorTest(false); renderer.clear();
+ renderer.render(scene,camera);
+ const s=Math.min(110,Math.floor(Math.min(w,h)/4));
+ renderer.setScissorTest(true); renderer.setScissor(w-s-8,8,s,s); renderer.setViewport(w-s-8,8,s,s);
+ renderer.clearDepth();
+ gCam.position.copy(camera.position).sub(controls.target).normalize().multiplyScalar(4);
+ gCam.up.copy(camera.up); gCam.lookAt(0,0,0);
+ renderer.render(gScene,gCam);
+ renderer.setScissorTest(false);
+}
+
+/* ── data ──────────────────────────────────────────────────────────────── */
+async function fetchOk(url){
+ const r=await fetch(url);
+ if(!r.ok){let m=r.status; try{m=(await r.json()).error||m;}catch(e){} throw new Error(m);}
+ return r;
+}
+async function getBin(url){
+ const buf=await (await fetchOk(url)).arrayBuffer();
+ const n=new DataView(buf).getUint32(0,true);
+ const head=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,4,n)));
+ const arr={};
+ for(const [k,a] of Object.entries(head.arrays)){
+  const T={float32:Float32Array,uint32:Uint32Array,int32:Int32Array}[a.dtype];
+  arr[k]=new T(buf,a.offset,a.count);
+ }
+ return {head,arr};
+}
+
+function buildObject(arr,color){
+ const geo=new THREE.BufferGeometry();
+ geo.setAttribute('position',new THREE.BufferAttribute(arr.positions,3));
+ geo.setIndex(new THREE.BufferAttribute(arr.indices,1));
+ geo.computeVertexNormals();
+ const mat=new THREE.MeshStandardMaterial({color,side:THREE.DoubleSide,roughness:.75,metalness:0,
+   polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1});
+ const mesh=new THREE.Mesh(geo,mat);
+ const lg=new THREE.BufferGeometry();
+ lg.setAttribute('position',new THREE.BufferAttribute(arr.edges,3));
+ const lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({transparent:true,opacity:.55}));
+ mesh.userData.triCell=arr.tri_cell;
+ return {mesh,lines};
+}
+function disposeObject(o){
+ if(!o)return;
+ for(const x of [o.mesh,o.lines]){scene.remove(x); x.geometry.dispose(); x.material.dispose();}
+}
+
+function updateClip(){
+ if(!INFO)return;
+ const n=new THREE.Vector3(); n.setComponent(SEC.axis,SEC.side<0?-1:1);
+ const rel=planeValue()-INFO.origin[SEC.axis];
+ CLIP.normal.copy(n); CLIP.constant=SEC.side<0?rel:-rel;
+}
+function applyStyle(){
+ const edge=new THREE.Color(cssColor('--edge'));
+ const cutting=SEC.mode!=='none'&&$('hidezones').checked;
+ updateClip();
+ const style=(o,on,clip)=>{
+  if(!o)return;
+  const planes=clip?[CLIP]:[];
+  o.mesh.material.clippingPlanes=planes; o.lines.material.clippingPlanes=planes;
+  o.mesh.visible=on&&DRAW!=='edges';
+  o.lines.visible=on&&DRAW!=='solid';
+  o.mesh.material.opacity=OPACITY; o.mesh.material.transparent=OPACITY<1;
+  o.mesh.material.depthWrite=OPACITY>=1;
+  o.lines.material.color=edge;
+ };
+ for(const z of ZONES.values())style(z.obj,z.on&&!cutting,SEC.mode==='clip');
+ style(SEC.obj,SEC.mode!=='none',false);
+ document.querySelectorAll('#mode button').forEach(b=>b.classList.toggle('on',b.dataset.mode===DRAW));
+ document.querySelectorAll('#secmode button').forEach(b=>b.classList.toggle('on',b.dataset.sec===SEC.mode));
+ document.querySelectorAll('#axes button[data-axis]').forEach(b=>{
+  b.classList.toggle('on',+b.dataset.axis===SEC.axis); b.disabled=SEC.mode==='none';});
+ $('side').disabled=SEC.mode!=='clip'; $('plane').disabled=SEC.mode==='none';
+ updateStatus();
+}
+
+async function loadZone(name){
+ const z=ZONES.get(name);
+ if(z.obj||z.loading)return;
+ z.loading=true; renderZones(); updateStatus();
+ try{
+  const {head,arr}=await getBin('/api/surface?zone='+encodeURIComponent(name));
+  z.obj=buildObject(arr,z.color); z.stride=head.stride;
+  scene.add(z.obj.mesh); scene.add(z.obj.lines);
+ }catch(e){z.error=String(e.message||e);}
+ z.loading=false; renderZones(); applyStyle();
+}
+
+let secTimer=null;
+function requestSection(){
+ clearTimeout(secTimer);
+ secTimer=setTimeout(doSection,120);
+}
+async function doSection(){
+ updatePlaneLabel();
+ if(SEC.mode==='none'){disposeObject(SEC.obj); SEC.obj=null; $('secinfo').textContent=''; applyStyle(); return;}
+ const seq=++SEC.seq, v=planeValue();
+ $('secinfo').textContent=' · '+t('loading')+'…';
+ try{
+  const {head,arr}=await getBin(`/api/section?axis=${SEC.axis}&value=${v}&mode=${SEC.mode}&side=${SEC.side}`);
+  if(seq!==SEC.seq)return;                       // a newer request is on its way
+  disposeObject(SEC.obj);
+  SEC.obj=buildObject(arr,SECTION_COLOR); scene.add(SEC.obj.mesh); scene.add(SEC.obj.lines);
+  $('secinfo').textContent=` · ${fmt(head.n_faces)} ${t('section_faces')}`
+    +(head.stride>1?` (${t('decimated')} ${head.stride})`:'');
+ }catch(e){$('secinfo').textContent=' · '+e.message;}
+ applyStyle();
+}
+function planeValue(){
+ const a=SEC.axis, lo=INFO.bbox.min[a], hi=INFO.bbox.max[a];
+ return lo+(hi-lo)*SEC.t;
+}
+function updatePlaneLabel(){
+ if(!INFO)return;
+ $('planeval').textContent=SEC.mode==='none'?'':'xyz'[SEC.axis]+' = '+planeValue().toPrecision(6);
+}
+
+/* ── picking ───────────────────────────────────────────────────────────── */
+const ray=new THREE.Raycaster(), mouse=new THREE.Vector2();
+let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];});
+renderer.domElement.addEventListener('pointerup',e=>{
+ if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>4)return;
+ const r=renderer.domElement.getBoundingClientRect();
+ mouse.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
+ ray.setFromCamera(mouse,camera);
+ const targets=[...ZONES.values()].map(z=>z.obj&&z.obj.mesh).concat(SEC.obj?[SEC.obj.mesh]:[])
+   .filter(m=>m&&m.visible);
+ const hit=ray.intersectObjects(targets,false)[0];
+ if(hit)pick(hit.object.userData.triCell[hit.faceIndex]);
+});
+async function pick(cell){
+ try{ PICKED=await (await fetchOk('/api/cell?id='+cell)).json(); }
+ catch(e){ $('cell').textContent=e.message; return; }
+ if(HIGHLIGHT){scene.remove(HIGHLIGHT); HIGHLIGHT.geometry.dispose();}
+ const g=new THREE.BufferGeometry();
+ g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(PICKED.outline.flat(2)),3));
+ HIGHLIGHT=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:cssColor('--accent'),depthTest:false}));
+ HIGHLIGHT.renderOrder=999; scene.add(HIGHLIGHT);
+ renderCell();
+}
+function renderCell(){
+ const c=PICKED, box=$('cell');
+ if(!c){box.className='muted'; box.textContent=t('pick'); return;}
+ box.className='';
+ const o=INFO.origin;
+ let h=`<div><b>#${fmt(c.cell)}</b> · ${esc(c.kind)} ${esc(c.order)} · ${t('zone')} <code>${esc(c.zone)}</code></div>`;
+ if(c.file_cell!==null)h+=`<div class="muted">${t('file_cell')} ${fmt(c.file_cell)} · ${t('horses')} ${fmt(c.file_cell+1)}</div>`;
+ h+=`<div class="muted">${t('centroid')} (${c.centroid.map(v=>v.toPrecision(5)).join(', ')})
+     <button id="centre" style="margin-left:.3rem">${t('centre')}</button></div>`;
+ h+=`<table><tr><th>${t('face')}</th><th>${t('neighbour')}</th><th>${t('boundary')}</th></tr>`
+   +c.faces.map(f=>`<tr><td>${f.face}</td><td>${f.neighbour===null?'—':`<a class="cell" data-cell="${f.neighbour}">#${fmt(f.neighbour)}</a>`}</td>`
+     +`<td>${f.boundary?'<code>'+esc(f.boundary)+'</code>':'—'}</td></tr>`).join('')+'</table>';
+ box.innerHTML=h;
+ box.querySelectorAll('a.cell').forEach(a=>a.onclick=()=>pick(+a.dataset.cell));
+ $('centre').onclick=()=>{controls.target.set(c.centroid[0]-o[0],c.centroid[1]-o[1],c.centroid[2]-o[2]);};
+}
+
+/* ── camera ────────────────────────────────────────────────────────────── */
+function radius(){const s=INFO.bbox.size; return 0.5*Math.hypot(s[0],s[1],s[2])||1;}
+function setView(dir,up){
+ const r=radius(), d=r/Math.sin(THREE.MathUtils.degToRad(camera.fov/2))*1.05;
+ controls.target.set(0,0,0);
+ camera.up.copy(up); camera.position.copy(dir.clone().normalize().multiplyScalar(d));
+ camera.near=r/1000; camera.far=r*100; camera.updateProjectionMatrix(); controls.update();
+}
+/* frame one zone (a small body inside a big domain), keeping the direction */
+async function focusZone(name){
+ const z=ZONES.get(name);
+ if(!z.on){z.on=true; renderZones();}
+ await loadZone(name); applyStyle();
+ if(!z.obj)return;
+ const g=z.obj.mesh.geometry; g.computeBoundingSphere();
+ const c=g.boundingSphere.center, r=Math.max(g.boundingSphere.radius,1e-9);
+ const dir=camera.position.clone().sub(controls.target).normalize();
+ const d=r/Math.sin(THREE.MathUtils.degToRad(camera.fov/2))*1.1;
+ controls.target.copy(c); camera.position.copy(c.clone().add(dir.multiplyScalar(d)));
+ camera.near=Math.min(camera.near,r/1000); camera.updateProjectionMatrix(); controls.update();
+}
+const VIEWS={'+x':[[1,0,0],[0,0,1]],'-x':[[-1,0,0],[0,0,1]],'+y':[[0,1,0],[0,0,1]],
+ '-y':[[0,-1,0],[0,0,1]],'+z':[[0,0,1],[0,1,0]],'-z':[[0,0,-1],[0,1,0]],
+ iso:[[-1,-1.3,0.9],[0,0,1]]};
+document.querySelectorAll('#tools [data-view]').forEach(b=>b.onclick=()=>{
+ const [d,u]=VIEWS[b.dataset.view]; setView(new THREE.Vector3(...d),new THREE.Vector3(...u));});
+$('fit').onclick=()=>{const [d,u]=VIEWS.iso; setView(new THREE.Vector3(...d),new THREE.Vector3(...u));};
+$('shot').onclick=()=>renderer.domElement.toBlob(b=>{
+ const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+ a.download=(INFO.title||'mesh').replace(/\.[^.]+$/,'')+'.png'; a.click();
+ setTimeout(()=>URL.revokeObjectURL(a.href),2000);});
+
+/* ── panel ─────────────────────────────────────────────────────────────── */
+function zoneLabel(name){
+ if(name==='__unassigned__')return t('unassigned');
+ if(name==='__exterior__')return t('exterior');
+ return name;
+}
+function renderZones(){
+ const box=$('zones'); box.innerHTML='';
+ for(const zi of INFO.zones){
+  const z=ZONES.get(zi.name), row=document.createElement('label'); row.className='zone';
+  const badges=[];
+  if(zi.n_faces&&zi.interior===zi.n_faces)badges.push(`<span class="badge">${t('interior')}</span>`);
+  if(zi.name==='__unassigned__')badges.push(`<span class="badge bad">!</span>`);
+  if(z.stride>1)badges.push(`<span class="badge" title="${t('big')}">${t('decimated')} ${z.stride}</span>`);
+  if(z.loading)badges.push(`<span class="badge">${t('loading')}…</span>`);
+  if(z.error)badges.push(`<span class="badge bad" title="${esc(z.error)}">error</span>`);
+  row.innerHTML=`<input type="checkbox" ${z.on?'checked':''} ${zi.n_faces?'':'disabled'}>`
+   +`<span class="sw" style="background:${z.color}"></span>`
+   +`<span class="nm" title="${esc(zi.name)}${zi.bc_type?' · '+esc(zi.bc_type):''}">${esc(zoneLabel(zi.name))}${badges.join('')}</span>`
+   +`<span class="n">${fmt(zi.n_faces)}</span>`
+   +`<button class="focus" title="${t('focus')}" ${zi.n_faces?'':'disabled'}>⌖</button>`;
+  row.querySelector('input').onchange=e=>{z.on=e.target.checked; if(z.on)loadZone(zi.name); applyStyle();};
+  row.querySelector('.focus').onclick=e=>{e.preventDefault(); focusZone(zi.name);};
+  box.appendChild(row);
+ }
+}
+function renderHeader(){
+ $('title').textContent=INFO.title;
+ const kinds=INFO.cells.map(c=>`${fmt(c.n)} ${c.kind}${c.order>1?' p'+c.order:''}`).join(', ');
+ $('stats').innerHTML=`${esc(INFO.format)} · Ngeo ${INFO.ngeo} · ${fmt(INFO.n_points)} ${t('nodes')}<br>${kinds}`;
+ const w=$('warnings'); w.innerHTML='';
+ const c=INFO.census;
+ if(c.unassigned_faces)w.insertAdjacentHTML('beforeend',`<div class="note">${fmt(c.unassigned_faces)} ${t('faces')} ${t('exterior')} · ${t('unassigned')}</div>`);
+ INFO.warnings.forEach(x=>w.insertAdjacentHTML('beforeend',`<div class="note">${esc(x)}</div>`));
+}
+function applyLang(){
+ document.documentElement.lang=LANG;
+ document.querySelectorAll('[data-t]').forEach(e=>e.textContent=t(e.dataset.t));
+ $('lang').textContent=LANG==='es'?'EN':'ES';
+ if(INFO){renderHeader(); renderZones(); renderCell(); updatePlaneLabel();}
+}
+function updateStatus(){
+ let tris=0;
+ for(const z of ZONES.values())if(z.obj&&z.obj.mesh.visible)tris+=z.obj.mesh.geometry.index.count/3;
+ if(SEC.obj&&SEC.obj.mesh.visible)tris+=SEC.obj.mesh.geometry.index.count/3;
+ const loading=[...ZONES.values()].some(z=>z.loading);
+ $('status').textContent=(loading?t('loading')+'… · ':'')+fmt(tris)+' '+t('drawn');
+}
+
+$('lang').onclick=()=>{LANG=LANG==='es'?'en':'es'; applyLang();};
+$('all').onclick=()=>{for(const [n,z] of ZONES){const zi=INFO.zones.find(x=>x.name===n);
+ if(zi.n_faces){z.on=true; loadZone(n);}} renderZones(); applyStyle();};
+$('none').onclick=()=>{for(const z of ZONES.values())z.on=false; renderZones(); applyStyle();};
+document.querySelectorAll('#mode button').forEach(b=>b.onclick=()=>{DRAW=b.dataset.mode; applyStyle();});
+$('opacity').oninput=e=>{OPACITY=+e.target.value; applyStyle();};
+function setSecMode(mode){
+ /* a layer is buried inside the domain: hide the zones by default; a clip
+    opens the boundaries with the plane, so they stay */
+ if(mode!==SEC.mode)$('hidezones').checked=(mode==='slice');
+ SEC.mode=mode; requestSection(); applyStyle();
+}
+document.querySelectorAll('#secmode button').forEach(b=>b.onclick=()=>setSecMode(b.dataset.sec));
+document.querySelectorAll('#axes button[data-axis]').forEach(b=>b.onclick=()=>{SEC.axis=+b.dataset.axis; requestSection(); applyStyle();});
+$('side').onclick=()=>{SEC.side=-SEC.side; applyStyle(); requestSection();};
+$('plane').oninput=e=>{SEC.t=+e.target.value/1000; updatePlaneLabel(); applyStyle(); requestSection();};
+$('hidezones').onchange=applyStyle;
+
+/* keep the server alive while the page is open */
+setInterval(()=>fetch('/api/ping').catch(()=>{$('status').textContent=t('stopped');}),60000);
+
+/* ── start ─────────────────────────────────────────────────────────────── */
+async function start(){
+ if((navigator.language||'').slice(0,2)!=='es')LANG='en';
+ applyLang(); resize(); frame();
+ INFO=await (await fetchOk('/api/info')).json();
+ document.title='LEGOLAS · '+INFO.title;
+ INFO.zones.forEach((zi,i)=>ZONES.set(zi.name,{on:zi.visible,
+   color:SPECIAL[zi.name]||PALETTE[i%PALETTE.length],obj:null,loading:false,stride:1}));
+ applyLang();
+ $('fit').click();
+ await Promise.all(INFO.zones.filter(z=>z.visible).map(z=>loadZone(z.name)));
+ applyStyle();
+ window.LEGOLAS_READY=true;
+}
+/* hook for automated checks (headless browser): drive the page from outside */
+window.LEGOLAS_API={
+ pick:c=>pick(c),
+ section:(mode,axis,tt)=>{SEC.axis=axis; SEC.t=tt; $('plane').value=tt*1000;
+   setSecMode(mode); clearTimeout(secTimer); return doSection();},
+ view:k=>document.querySelector(`#tools [data-view="${k}"]`).click(),
+ show:names=>{for(const [n,z] of ZONES){z.on=names.includes(n); if(z.on)loadZone(n);} renderZones(); applyStyle();},
+ focus:name=>focusZone(name),
+ state:()=>({zones:[...ZONES].map(([n,z])=>({name:n,on:z.on,loaded:!!z.obj,stride:z.stride,error:z.error||null})),
+   section:SEC.obj?SEC.obj.mesh.geometry.index.count/3:0, picked:PICKED&&PICKED.cell,
+   status:$('status').textContent}),
+};
+start().catch(e=>{$('fatal').style.display='flex'; $('fatal').textContent=e.message;});
+</script>
+</body>
+</html>

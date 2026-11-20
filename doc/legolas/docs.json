@@ -1,0 +1,2739 @@
+{
+  "classes": [
+    {
+      "id": "LEGOLAS",
+      "file": "FotR/characters/legolas/__init__.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "A CFD mesh and the tools to inspect it.",
+        "description": "",
+        "params": [
+          {
+            "name": "source",
+            "type": "str, path-like or Mesh",
+            "desc": "Mesh file (HOPR/PyHOPE ``*_mesh.h5``, CGNS/HDF5 ``.cgns``, gmsh ``.msh``, HORSES3D ``.hmesh``) or an already built :class:`Mesh`."
+          },
+          {
+            "name": "fmt",
+            "type": "str, optional",
+            "desc": "``'hopr'``, ``'cgns'``, ``'gmsh'`` or ``'hmesh'``; guessed from the file when omitted."
+          },
+          {
+            "name": "**read_kwargs",
+            "type": "",
+            "desc": "Passed to the format reader (e.g. ``rtol`` for ``.hmesh``)."
+          }
+        ],
+        "returns": [],
+        "raises": [],
+        "attributes": [
+          {
+            "name": "mesh",
+            "type": "Mesh",
+            "desc": "The mesh, in the canonical layout (see :mod:`FotR.characters.legolas.ordering`)."
+          },
+          {
+            "name": "census",
+            "type": "LEGOLAS.Census",
+            "desc": "Sizes, element kinds, zones and boundaries."
+          },
+          {
+            "name": "viewer",
+            "type": "LEGOLAS.Viewer",
+            "desc": "Web viewer: ``lg.viewer.show()`` returns the address to open."
+          }
+        ],
+        "methods": [],
+        "text_sections": [
+          {
+            "title": "Examples",
+            "text": "::\n\n    from FotR import LEGOLAS\n    lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\n    print(lg.census)\n    lg.mesh.boundaries['inlet']\n    h = lg.viewer.show()      # open h.url in the browser"
+          }
+        ],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "LEGOLAS.__init__",
+          "class": "LEGOLAS",
+          "name": "__init__",
+          "signature": "__init__(source, fmt: str | None = None, **read_kwargs)",
+          "returns": "",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.name",
+          "class": "LEGOLAS",
+          "name": "name",
+          "signature": "name()",
+          "returns": "str",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "File name of the mesh, or ``'<memory>'``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "CellBlock",
+      "file": "FotR/characters/legolas/mesh.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Volume elements of one kind and order.",
+        "description": "",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [
+          {
+            "name": "kind",
+            "type": "str",
+            "desc": "``'hex'``, ``'tet'``, ``'pyramid'`` or ``'prism'``."
+          },
+          {
+            "name": "order",
+            "type": "int",
+            "desc": "Geometric order. Only hexahedra may be above 1."
+          },
+          {
+            "name": "conn",
+            "type": "numpy.ndarray",
+            "desc": "``(n_cells, n_nodes)`` int64 indices into :attr:`Mesh.points`, in the canonical layout (tensor for ``'hex'``, VTK for the rest)."
+          },
+          {
+            "name": "zone",
+            "type": "numpy.ndarray",
+            "desc": "``(n_cells,)`` int zone id of each cell (see :attr:`Mesh.zones`)."
+          }
+        ],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "CellBlock.__len__",
+          "class": "CellBlock",
+          "name": "__len__",
+          "signature": "__len__()",
+          "returns": "int",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Number of cells in the block.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "CellBlock.n_faces",
+          "class": "CellBlock",
+          "name": "n_faces",
+          "signature": "n_faces()",
+          "returns": "int",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "Faces per cell.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "CellBlock.corners",
+          "class": "CellBlock",
+          "name": "corners",
+          "signature": "corners()",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "``(n_cells, n_corners)`` corner nodes, in VTK corner order.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "CellBlock.face_corners",
+          "class": "CellBlock",
+          "name": "face_corners",
+          "signature": "face_corners(face: int)",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Corner nodes of local *face* of every cell (3 or 4 columns).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "CellBlock.face_nodes",
+          "class": "CellBlock",
+          "name": "face_nodes",
+          "signature": "face_nodes(face: int)",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "All nodes of local *face* of every cell.",
+            "description": "Returns ``(n_cells, N+1, N+1)`` for hexahedra (see\n:func:`.ordering.hex_face_grid`) and ``(n_cells, 3 or 4)`` for the\nlinear kinds.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "Boundary",
+      "file": "FotR/characters/legolas/mesh.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "A named set of element faces: a boundary condition or a surface zone.",
+        "description": "Faces are stored as (element, local face) pairs, never as separate\nsurface cells, so their nodes always come from the volume element and\nevery format ends up with the same face layout.",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [
+          {
+            "name": "name",
+            "type": "str",
+            "desc": "Name as written in the file."
+          },
+          {
+            "name": "elem",
+            "type": "numpy.ndarray",
+            "desc": "``(n_faces,)`` global element index (see :meth:`Mesh.locate_cell`)."
+          },
+          {
+            "name": "face",
+            "type": "numpy.ndarray",
+            "desc": "``(n_faces,)`` local face index of each."
+          },
+          {
+            "name": "bc_type",
+            "type": "str or None",
+            "desc": "Type as declared in the file (``'BCWall'``, HOPR code ``'4'``…)."
+          }
+        ],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "Boundary.__len__",
+          "class": "Boundary",
+          "name": "__len__",
+          "signature": "__len__()",
+          "returns": "int",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Number of faces in the boundary.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "Mesh",
+      "file": "FotR/characters/legolas/mesh.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Unstructured volume mesh in the LEGOLAS canonical layout.",
+        "description": "",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [
+          {
+            "name": "points",
+            "type": "numpy.ndarray",
+            "desc": "``(n_points, 3)`` float64 unique node coordinates."
+          },
+          {
+            "name": "blocks",
+            "type": "list[CellBlock]",
+            "desc": "Volume elements, one block per (kind, order). The global index of a cell runs through the blocks in order."
+          },
+          {
+            "name": "boundaries",
+            "type": "dict[str, Boundary]",
+            "desc": "Named face sets."
+          },
+          {
+            "name": "zones",
+            "type": "dict[int, str]",
+            "desc": "Volume zone id → name."
+          },
+          {
+            "name": "meta",
+            "type": "dict",
+            "desc": "``format``, ``path``, ``ngeo`` and whatever the reader keeps; the list ``meta['warnings']`` collects what the reader could not do cleanly."
+          }
+        ],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "Mesh.n_points",
+          "class": "Mesh",
+          "name": "n_points",
+          "signature": "n_points()",
+          "returns": "int",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "Number of nodes.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "Mesh.n_cells",
+          "class": "Mesh",
+          "name": "n_cells",
+          "signature": "n_cells()",
+          "returns": "int",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "Number of volume elements.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "Mesh.offsets",
+          "class": "Mesh",
+          "name": "offsets",
+          "signature": "offsets()",
+          "returns": "np.ndarray",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "Global index of the first cell of each block, plus the total.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "Mesh.ngeo",
+          "class": "Mesh",
+          "name": "ngeo",
+          "signature": "ngeo()",
+          "returns": "int",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "Highest geometric order among the blocks.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "Mesh.locate_cell",
+          "class": "Mesh",
+          "name": "locate_cell",
+          "signature": "locate_cell(cells)",
+          "returns": "tuple",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Split global cell indices into ``(block index, local index)``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "Mesh.warn",
+          "class": "Mesh",
+          "name": "warn",
+          "signature": "warn(message: str)",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Record a reader warning in ``meta['warnings']``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "Mesh.save",
+          "class": "Mesh",
+          "name": "save",
+          "signature": "save(path)",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Write the mesh to a ``.npz`` file (see :meth:`load`).",
+            "description": "``meta`` entries that are numpy arrays are stored as arrays; the\nrest must be JSON-serialisable and are stored as JSON.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "Mesh.load",
+          "class": "Mesh",
+          "name": "load",
+          "signature": "load(path)",
+          "returns": "'Mesh'",
+          "kind": "classmethod",
+          "is_private": false,
+          "doc": {
+            "summary": "Read a mesh written by :meth:`save`.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "ViewerServer",
+      "file": "FotR/characters/legolas/viewer.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "HTTP server for one mesh, plus the idle watchdog.",
+        "description": "",
+        "params": [
+          {
+            "name": "mesh",
+            "type": "Mesh",
+            "desc": "The mesh to show."
+          },
+          {
+            "name": "title",
+            "type": "str",
+            "desc": "Shown in the page header; default the file name."
+          },
+          {
+            "name": "host",
+            "type": "str",
+            "desc": "Interface to listen on. Default ``'127.0.0.1'``."
+          },
+          {
+            "name": "port",
+            "type": "int",
+            "desc": "First port to try; the next 20 are tried if it is taken, 0 lets the system choose. Default 8766."
+          },
+          {
+            "name": "idle_timeout",
+            "type": "float",
+            "desc": "Seconds without any request after which the server stops by itself; 0 never stops. Default 1800. An open page pings every 60 s."
+          },
+          {
+            "name": "max_triangles",
+            "type": "int",
+            "desc": "Budget per request; bigger zones are decimated (every k-th face) and start hidden. Default :data:`.scene.MAX_TRIANGLES`."
+          }
+        ],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "ViewerServer.__init__",
+          "class": "ViewerServer",
+          "name": "__init__",
+          "signature": "__init__(mesh, title: str | None = None, host: str = '127.0.0.1', port: int = DEFAULT_PORT, idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES)",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "ViewerServer._bind",
+          "class": "ViewerServer",
+          "name": "_bind",
+          "signature": "_bind(host: str, port: int)",
+          "returns": "ThreadingHTTPServer",
+          "kind": "staticmethod",
+          "is_private": true,
+          "doc": {
+            "summary": "Listen on ``port`` or on the first free one after it.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer._static_files",
+          "class": "ViewerServer",
+          "name": "_static_files",
+          "signature": "_static_files()",
+          "returns": "dict",
+          "kind": "staticmethod",
+          "is_private": true,
+          "doc": {
+            "summary": "Whitelist ``{url path: file}`` of everything under ``static/``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer.url",
+          "class": "ViewerServer",
+          "name": "url",
+          "signature": "url()",
+          "returns": "str",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "Address of the page.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer._info",
+          "class": "ViewerServer",
+          "name": "_info",
+          "signature": "_info(census: dict)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "ViewerServer._geometry",
+          "class": "ViewerServer",
+          "name": "_geometry",
+          "signature": "_geometry(elem, face, header: dict)",
+          "returns": "bytes",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "ViewerServer.surface",
+          "class": "ViewerServer",
+          "name": "surface",
+          "signature": "surface(zone: str)",
+          "returns": "bytes",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Payload of ``/api/surface`` (cached per zone).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer.section",
+          "class": "ViewerServer",
+          "name": "section",
+          "signature": "section(axis: int, value: float, mode: str, side: int)",
+          "returns": "bytes",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Payload of ``/api/section``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer.cell",
+          "class": "ViewerServer",
+          "name": "cell",
+          "signature": "cell(cell: int)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Payload of ``/api/cell``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer._watch",
+          "class": "ViewerServer",
+          "name": "_watch",
+          "signature": "_watch()",
+          "returns": "None",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "ViewerServer.start",
+          "class": "ViewerServer",
+          "name": "start",
+          "signature": "start()",
+          "returns": "'ViewerServer'",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Serve from background threads and return at once.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer.serve_forever",
+          "class": "ViewerServer",
+          "name": "serve_forever",
+          "signature": "serve_forever()",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Serve until :meth:`stop`, the idle timeout or Ctrl-C.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer.stop",
+          "class": "ViewerServer",
+          "name": "stop",
+          "signature": "stop()",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Stop the watchdog and the HTTP server.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "ViewerHandle",
+      "file": "FotR/characters/legolas/viewer.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "A viewer server running in a process of its own.",
+        "description": "Returned by :meth:`LEGOLAS.Viewer.show <Viewer.show>`. The process\noutlives the Python session that started it and stops by itself after\n``idle_timeout`` seconds with no page open.",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [
+          {
+            "name": "url",
+            "type": "str",
+            "desc": "Address of the page, on the machine that runs the server."
+          },
+          {
+            "name": "pid",
+            "type": "int",
+            "desc": "Process id."
+          },
+          {
+            "name": "log_path",
+            "type": "str",
+            "desc": "Output of the server process."
+          }
+        ],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "ViewerHandle.__init__",
+          "class": "ViewerHandle",
+          "name": "__init__",
+          "signature": "__init__(url: str, process: subprocess.Popen, log_path: str)",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "ViewerHandle.alive",
+          "class": "ViewerHandle",
+          "name": "alive",
+          "signature": "alive()",
+          "returns": "bool",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "True while the server process runs.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerHandle.stop",
+          "class": "ViewerHandle",
+          "name": "stop",
+          "signature": "stop(timeout: float = 5.0)",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Terminate the server process (kill it after ``timeout`` s).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerHandle._repr_html_",
+          "class": "ViewerHandle",
+          "name": "_repr_html_",
+          "signature": "_repr_html_()",
+          "returns": "str",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        }
+      ]
+    }
+  ],
+  "nested": [
+    {
+      "id": "LEGOLAS.Census",
+      "file": "FotR/characters/legolas/census.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Inventory of a mesh: sizes, element kinds, zones and boundaries.",
+        "description": "Reached as ``lg.census`` on a :class:`~FotR.characters.legolas.LEGOLAS`\ninstance. Results are computed once and cached.",
+        "params": [
+          {
+            "name": "legolas",
+            "type": "LEGOLAS",
+            "desc": "The owner; the mesh is ``legolas.mesh``."
+          }
+        ],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "LEGOLAS.Census.__init__",
+          "class": "LEGOLAS.Census",
+          "name": "__init__",
+          "signature": "__init__(legolas)",
+          "returns": "",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.mesh",
+          "class": "LEGOLAS.Census",
+          "name": "mesh",
+          "signature": "mesh()",
+          "returns": "",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "The mesh being counted.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.summary",
+          "class": "LEGOLAS.Census",
+          "name": "summary",
+          "signature": "summary()",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Count everything in the mesh.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``path``, ``format``, ``ngeo``, ``n_points``, ``n_cells``, ``cells`` (one entry per kind and order), ``bbox`` (``min``, ``max``, ``size``), ``zones`` (name → cells), ``boundaries`` (one entry per boundary: ``name``, ``bc_type``, ``n_faces``, ``area``, ``interior_faces``, the faces that have a cell on each side), ``exterior_faces``, ``unassigned_faces`` (exterior faces in no boundary), ``nonmanifold_faces`` (shared by more than two cells), ``orphan_nodes`` (used by no cell) and the reader's ``warnings``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    lg = LEGOLAS('MESH/my_esphere_v1g2_mesh.h5')\n    s = lg.census.summary()\n    s['boundaries'][0]['n_faces']\n    print(lg.census)               # the same, as a table"
+              }
+            ],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Census.report",
+          "class": "LEGOLAS.Census",
+          "name": "report",
+          "signature": "report()",
+          "returns": "str",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": ":meth:`summary` as plain text.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "defined_as": "Census"
+    },
+    {
+      "id": "LEGOLAS.Viewer",
+      "file": "FotR/characters/legolas/viewer.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Look at the mesh in the browser: boundaries, element edges, cuts.",
+        "description": "Reached as ``lg.viewer``. :meth:`show` starts a small server in a\nprocess of its own and returns its address; open it in a browser (over\nVS Code Remote-SSH the port is forwarded by itself, see the *Ports*\ntab). three.js ships with FotR, so no internet is needed.\n\nThe page offers: every boundary as a coloured surface with the element\nedges drawn over it; a crinkle *slice* (the layer of cells crossed by a\nplane) or *clip* (the cells on one side) to see inside the volume; and\npicking a cell to see its kind, zone, neighbours and boundary faces.",
+        "params": [
+          {
+            "name": "legolas",
+            "type": "LEGOLAS",
+            "desc": "The owner; the mesh is ``legolas.mesh``."
+          }
+        ],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "LEGOLAS.Viewer.__init__",
+          "class": "LEGOLAS.Viewer",
+          "name": "__init__",
+          "signature": "__init__(legolas)",
+          "returns": "",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.Viewer._manifest",
+          "class": "LEGOLAS.Viewer",
+          "name": "_manifest",
+          "signature": "_manifest(title)",
+          "returns": "",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.Viewer.show",
+          "class": "LEGOLAS.Viewer",
+          "name": "show",
+          "signature": "show(port: int = DEFAULT_PORT, host: str = '127.0.0.1', idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, timeout: float = 120.0)",
+          "returns": "ViewerHandle",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Start the viewer in its own process and return its handle.",
+            "description": "A mesh read from a file is read again by the server process (it is\nusually faster than shipping it); a mesh built in memory is saved\nto ``~/.cache/FotR/legolas/`` first.",
+            "params": [
+              {
+                "name": "port",
+                "type": "int",
+                "desc": "First port to try (the next 20 too). Default 8766."
+              },
+              {
+                "name": "host",
+                "type": "str",
+                "desc": "Default ``'127.0.0.1'``: only this machine can connect."
+              },
+              {
+                "name": "idle_timeout",
+                "type": "float",
+                "desc": "Seconds without the page open before the server stops. Default 1800; 0 never."
+              },
+              {
+                "name": "max_triangles",
+                "type": "int",
+                "desc": "Budget per request; bigger zones are decimated and start hidden. Default 1 000 000."
+              },
+              {
+                "name": "title",
+                "type": "str, optional",
+                "desc": "Page title; default the file name."
+              },
+              {
+                "name": "timeout",
+                "type": "float",
+                "desc": "Seconds to wait for the server. Default 120."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "ViewerHandle",
+                "desc": "``url``, ``stop()``; shown as a link in Jupyter."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\n    h = lg.viewer.show()\n    h.url              # 'http://127.0.0.1:8766/'\n    h.stop()"
+              }
+            ],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Viewer.server",
+          "class": "LEGOLAS.Viewer",
+          "name": "server",
+          "signature": "server(port: int = 0, host: str = '127.0.0.1', idle_timeout: float = 0.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None)",
+          "returns": "ViewerServer",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "A server in this process, bound but not started.",
+            "description": "Call ``.start()`` (background threads) or ``.serve_forever()``\n(blocking, Ctrl-C to stop). Useful in scripts and tests; in a\nnotebook prefer :meth:`show`, which does not tie up the kernel.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Viewer.stop",
+          "class": "LEGOLAS.Viewer",
+          "name": "stop",
+          "signature": "stop()",
+          "returns": "None",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Stop the server started by :meth:`show`, if any.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "defined_as": "Viewer"
+    }
+  ],
+  "modules": [
+    {
+      "id": "legolas.io",
+      "file": "FotR/characters/legolas/io/__init__.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Mesh readers: one module per format, one entry point, :func:`read`.",
+        "description": "Every reader returns a :class:`~FotR.characters.legolas.mesh.Mesh` in the\ncanonical layout. Format modules import their libraries inside the\nfunction, so ``import`` of this package costs nothing beyond numpy.",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "legolas.io._hdf5_flavour",
+          "class": "legolas.io",
+          "name": "_hdf5_flavour",
+          "signature": "_hdf5_flavour(path: str)",
+          "returns": "str | None",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "'cgns' or 'hopr' for an HDF5 file, None if it is neither.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.io.detect_format",
+          "class": "legolas.io",
+          "name": "detect_format",
+          "signature": "detect_format(path: str)",
+          "returns": "str",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Guess the format of *path* from its extension and, for HDF5, content.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [
+              {
+                "name": "",
+                "type": "ValueError",
+                "desc": "If the format cannot be told, or a ``.cgns`` file is not HDF5 (the old ADF flavour, which needs the CGNS library to read)."
+              }
+            ],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.io.read",
+          "class": "legolas.io",
+          "name": "read",
+          "signature": "read(path, fmt: str | None = None, **kwargs)",
+          "returns": "",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Read a mesh file into a canonical :class:`Mesh`.",
+            "description": "",
+            "params": [
+              {
+                "name": "path",
+                "type": "str or path-like",
+                "desc": "Mesh file: HOPR/PyHOPE ``*_mesh.h5``, CGNS/HDF5 ``.cgns``, gmsh ``.msh`` (v2.2 or v4) or HORSES3D ``.hmesh``."
+              },
+              {
+                "name": "fmt",
+                "type": "str, optional",
+                "desc": "``'hopr'``, ``'cgns'``, ``'gmsh'`` or ``'hmesh'``. Guessed when omitted (:func:`detect_format`)."
+              },
+              {
+                "name": "**kwargs",
+                "type": "",
+                "desc": "Passed to the format reader."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "Mesh",
+                "desc": ""
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.io._check_order",
+          "class": "legolas.io",
+          "name": "_check_order",
+          "signature": "_check_order(mesh, sample: int = 2000)",
+          "returns": "None",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Warn when high-order hexahedra fail the tensor-order screen.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "module": true
+    },
+    {
+      "id": "legolas.ordering",
+      "file": "FotR/characters/legolas/ordering.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Node orderings: the canonical layout of LEGOLAS and how each format maps to it.",
+        "description": "",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [
+          {
+            "title": "Canonical layout",
+            "text": "* **Hexahedra and quadrilaterals of any order** are stored in *tensor* order,\n  ``i`` fastest: node ``(i, j, k)`` of an order-``N`` hexahedron is at\n  position ``i + (N+1) j + (N+1)**2 k``. This is the layout of HOPR/PyHOPE\n  ``*_mesh.h5`` files and of HORSES3D, and it makes interpolation and\n  Jacobians a matter of tensor products. It applies to linear hexahedra too,\n  so the 8 corners are **not** in VTK order (use :func:`hex_corners`).\n* **Tetrahedra, pyramids and prisms** are linear only and keep the VTK/CGNS\n  corner order (they coincide for these elements).\n\nLocal faces of a hexahedron follow the CGNS face order, which is also the\nlocal side order of HOPR (``SideInfo``)::\n\n    0: zeta = 0 (k = 0)   1: eta = 0 (j = 0)   2: xi = 1 (i = N)\n    3: eta = 1 (j = N)    4: xi = 0 (i = 0)    5: zeta = 1 (k = N)"
+          },
+          {
+            "title": "Permutation tables",
+            "text": "Each table ``perm`` maps a native element to the canonical one:\n``canonical = native[perm]``. They were measured, not transcribed: gmsh\n4.13.1 meshed a unit cube with a single element of order 1-4 and wrote it as\n``.msh`` (v2.2 and v4.1) and ``.cgns``; rounding each node's coordinates to\nthe ``1/N`` grid gives its tensor index. The same reference files live in\n``FotR/tests/data/legolas/`` and the tests repeat the measurement.\n\nTwo traps the tables encode:\n\n* meshio reorders ``hexahedron27`` to the VTK layout but leaves\n  ``hexahedron64`` and ``hexahedron125`` in gmsh's native order, so the\n  meshio tables differ from the gmsh ones at order 2 only.\n* CGNS and gmsh agree on corners and on the order-1 element, and differ\n  from order 2 on (edges, faces and interior are numbered differently)."
+          }
+        ],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "legolas.ordering.linear_conn",
+          "class": "legolas.ordering",
+          "name": "linear_conn",
+          "signature": "linear_conn(kind: str, corners: np.ndarray)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Canonical order-1 connectivity from VTK-ordered corners.",
+            "description": "Only hexahedra change (VTK → tensor); the other kinds are returned as\nthey come. Use it whenever a reader keeps just the corners of an\nelement (serendipity or unsupported high-order types).",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.ordering.tensor_index",
+          "class": "legolas.ordering",
+          "name": "tensor_index",
+          "signature": "tensor_index(i, j, k, order: int)",
+          "returns": "",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Position of node ``(i, j, k)`` in a canonical hexahedron of *order*.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.ordering._corner_ijk",
+          "class": "legolas.ordering",
+          "name": "_corner_ijk",
+          "signature": "_corner_ijk(order: int)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "``(8, 3)`` tensor indices of the corners, in VTK corner order.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.ordering.hex_corners",
+          "class": "legolas.ordering",
+          "name": "hex_corners",
+          "signature": "hex_corners(order: int)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Canonical positions of the 8 corners of a hexahedron, in VTK order.",
+            "description": "",
+            "params": [
+              {
+                "name": "order",
+                "type": "int",
+                "desc": "Geometric order ``N`` of the element."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "numpy.ndarray",
+                "desc": "``(8,)`` indices into the ``(N+1)**3`` canonical nodes."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.ordering.quad_corners",
+          "class": "legolas.ordering",
+          "name": "quad_corners",
+          "signature": "quad_corners(order: int)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Canonical positions of the 4 corners of a tensor quadrilateral.",
+            "description": "Returns ``[0, N, (N+1)**2 - 1, N (N+1)]``: counter-clockwise from the\nfirst node.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.ordering.hex_face_corners",
+          "class": "legolas.ordering",
+          "name": "hex_face_corners",
+          "signature": "hex_face_corners(order: int)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "``(6, 4)`` canonical corner positions of each local face.",
+            "description": "Faces in CGNS/HOPR order, each counter-clockwise seen from outside.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.ordering.hex_face_grid",
+          "class": "legolas.ordering",
+          "name": "hex_face_grid",
+          "signature": "hex_face_grid(order: int, face: int)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Canonical positions of all the nodes of one local face, as a grid.",
+            "description": "",
+            "params": [
+              {
+                "name": "order",
+                "type": "int",
+                "desc": "Geometric order ``N``."
+              },
+              {
+                "name": "face",
+                "type": "int",
+                "desc": "Local face, 0-5 (CGNS/HOPR order)."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "numpy.ndarray",
+                "desc": "``(N+1, N+1)`` array ``g``; ``g[a, b]`` runs from the face's first corner along its first edge with ``a`` and along its last edge with ``b``, so ``(d/da) x (d/db)`` points outward."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.ordering.tensor_monotonic",
+          "class": "legolas.ordering",
+          "name": "tensor_monotonic",
+          "signature": "tensor_monotonic(points: np.ndarray, conn: np.ndarray, order: int, sample: int | None = 20000, seed: int = 0)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Check that hexahedra really are in tensor order.",
+            "description": "Along every grid line of a correctly ordered element, consecutive nodes\nadvance in the direction of that line (``x[i+1] - x[i]`` has a positive\nprojection on ``x[N] - x[0]``), however curved the element is. A wrong\npermutation sends some node backwards. It is a cheap screen, not a proof:\na permutation that happens to keep every line monotone would pass.",
+            "params": [
+              {
+                "name": "points",
+                "type": "numpy.ndarray",
+                "desc": "``(n_points, 3)`` node coordinates."
+              },
+              {
+                "name": "conn",
+                "type": "numpy.ndarray",
+                "desc": "``(n_cells, (N+1)**3)`` connectivity, supposedly canonical."
+              },
+              {
+                "name": "order",
+                "type": "int",
+                "desc": "Geometric order ``N``. Order 1 always passes (no inner nodes)."
+              },
+              {
+                "name": "sample",
+                "type": "int or None",
+                "desc": "Check at most this many elements, picked at random; ``None`` checks all of them."
+              },
+              {
+                "name": "seed",
+                "type": "int",
+                "desc": "Seed of the random pick."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "numpy.ndarray",
+                "desc": "Indices (into *conn*) of the checked elements that fail."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "module": true
+    },
+    {
+      "id": "legolas.topology",
+      "file": "FotR/characters/legolas/topology.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Faces, exterior faces and face matching, by corner nodes.",
+        "description": "Two faces are the same face when they share the same corner nodes; the key\nof a face is its sorted corners (a triangle is padded with ``-1``). That\nworks for every order, because high-order nodes never decide identity.\nResults are cached on the mesh (``mesh._cache``).",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "legolas.topology.face_keys",
+          "class": "legolas.topology",
+          "name": "face_keys",
+          "signature": "face_keys(corners: np.ndarray)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "``(m, 4)`` sorted keys of faces given by 3 or 4 corner nodes.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology.group_keys",
+          "class": "legolas.topology",
+          "name": "group_keys",
+          "signature": "group_keys(keys: np.ndarray)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Group identical face keys.",
+            "description": "Each ``(m, 4)`` key is packed into two uint64 words (node ids up to\n2**32 - 2), which sorts about four times faster than\n``np.unique(axis=0)``.",
+            "params": [],
+            "returns": [
+              {
+                "name": "inverse, count",
+                "type": "numpy.ndarray",
+                "desc": "Group of each row (groups numbered in sorted key order) and the size of each group."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology.all_faces",
+          "class": "legolas.topology",
+          "name": "all_faces",
+          "signature": "all_faces(mesh: Mesh)",
+          "returns": "dict",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Every face of every cell, interior faces twice.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``elem`` (global cell), ``face`` (local face) and ``key`` (see :func:`face_keys`), one row per (cell, face)."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology.face_index",
+          "class": "legolas.topology",
+          "name": "face_index",
+          "signature": "face_index(mesh: Mesh)",
+          "returns": "dict",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Unique faces of the mesh and how many cells share each.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``inverse`` (row of :func:`all_faces` → unique face) and ``count`` (cells per unique face: 1 exterior, 2 interior, more non-manifold)."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology.face_rows",
+          "class": "legolas.topology",
+          "name": "face_rows",
+          "signature": "face_rows(mesh: Mesh, elem, face)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Row of :func:`all_faces` that holds each (elem, face) pair.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology.exterior_faces",
+          "class": "legolas.topology",
+          "name": "exterior_faces",
+          "signature": "exterior_faces(mesh: Mesh)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "``(elem, face)`` of the faces that belong to a single cell.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology.match_faces",
+          "class": "legolas.topology",
+          "name": "match_faces",
+          "signature": "match_faces(mesh: Mesh, corners: np.ndarray)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Find the cell faces that have the given corners.",
+            "description": "",
+            "params": [
+              {
+                "name": "mesh",
+                "type": "Mesh",
+                "desc": ""
+              },
+              {
+                "name": "corners",
+                "type": "numpy.ndarray",
+                "desc": "``(m, 3)`` or ``(m, 4)`` corner nodes of surface elements; in the 4-column form a triangle carries ``-1`` in one column."
+              }
+            ],
+            "returns": [
+              {
+                "name": "elem, face, shared",
+                "type": "numpy.ndarray",
+                "desc": "For each surface element, the first cell face found (``-1`` when none matches) and how many cells share that face (2 means the surface lies inside the domain)."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology._tri_area",
+          "class": "legolas.topology",
+          "name": "_tri_area",
+          "signature": "_tri_area(a, b, c)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "legolas.topology.face_area",
+          "class": "legolas.topology",
+          "name": "face_area",
+          "signature": "face_area(mesh: Mesh, elem: np.ndarray, face: np.ndarray)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Area of each (elem, face), following the high-order nodes.",
+            "description": "High-order faces are split along their node grid into ``N**2``\nquadrilaterals and each into two triangles: exact for planar faces,\na close approximation for curved ones (it converges with ``N``).",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.topology.used_nodes",
+          "class": "legolas.topology",
+          "name": "used_nodes",
+          "signature": "used_nodes(mesh: Mesh)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Boolean mask of the nodes referenced by at least one cell.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "module": true
+    },
+    {
+      "id": "legolas.scene",
+      "file": "FotR/characters/legolas/scene.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Geometry for the viewer: what gets drawn, as plain numpy arrays.",
+        "description": "Everything here is independent of HTTP and of the browser, so it is tested\nwithout either. The server (:mod:`.viewer`) only packs these arrays.\n\nSurfaces are lists of element faces (see :class:`.mesh.Boundary`). A\nhigh-order face is drawn through its own node grid, ``N x N`` quadrilaterals\nsplit into two triangles each, so curvature shows at the nodes without any\ninterpolation. Next to the triangles go the **element edges** (the four\nsides of every face, following the nodes), which is what shows the\nconnectivity; the diagonals of the triangulation are never drawn.\n\nPositions are sent relative to :func:`origin` (the centre of the bounding\nbox) and in float32, which keeps sub-millimetre detail on domains of\nkilometres.",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "legolas.scene.origin",
+          "class": "legolas.scene",
+          "name": "origin",
+          "signature": "origin(mesh: Mesh)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Centre of the bounding box, subtracted from every position sent.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene._tris_per_face",
+          "class": "legolas.scene",
+          "name": "_tris_per_face",
+          "signature": "_tris_per_face(block)",
+          "returns": "int",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "legolas.scene._row_boundary",
+          "class": "legolas.scene",
+          "name": "_row_boundary",
+          "signature": "_row_boundary(mesh: Mesh)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Boundary index of every row of :func:`.topology.all_faces` (-1 none).",
+            "description": "A face in several boundaries keeps the first one.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene.zone_faces",
+          "class": "legolas.scene",
+          "name": "zone_faces",
+          "signature": "zone_faces(mesh: Mesh, name: str)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "``(elem, face)`` of a boundary, or of a pseudo-zone.",
+            "description": "",
+            "params": [
+              {
+                "name": "name",
+                "type": "str",
+                "desc": "A key of ``mesh.boundaries``, :data:`EXTERIOR` or :data:`UNASSIGNED`."
+              }
+            ],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene.zone_list",
+          "class": "legolas.scene",
+          "name": "zone_list",
+          "signature": "zone_list(mesh: Mesh)",
+          "returns": "list",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "The zones the viewer offers, with their sizes.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "list[dict]",
+                "desc": "``name``, ``bc_type``, ``n_faces``, ``interior`` (faces with a cell on each side) and ``triangles`` (what drawing it costs). Includes :data:`UNASSIGNED` when there are such faces, and :data:`EXTERIOR` when the mesh has no boundaries at all."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene.face_geometry",
+          "class": "legolas.scene",
+          "name": "face_geometry",
+          "signature": "face_geometry(mesh: Mesh, elem, face, max_triangles: int = MAX_TRIANGLES)",
+          "returns": "dict",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Triangles and element edges of a set of faces.",
+            "description": "",
+            "params": [
+              {
+                "name": "mesh",
+                "type": "Mesh",
+                "desc": ""
+              },
+              {
+                "name": "elem, face",
+                "type": "array_like",
+                "desc": "Global cell index and local face of every face to draw."
+              },
+              {
+                "name": "max_triangles",
+                "type": "int",
+                "desc": "Budget. Above it every ``stride``-th face is kept."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``positions`` ``(nv, 3)`` float32 relative to :func:`origin`; ``indices`` ``(nt, 3)`` uint32; ``tri_cell`` ``(nt,)`` uint32 cell of each triangle (for picking); ``edges`` ``(ns, 2, 3)`` float32 segment end points; ``stride`` (1 unless decimated) and ``n_faces`` drawn."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene._corner_range",
+          "class": "legolas.scene",
+          "name": "_corner_range",
+          "signature": "_corner_range(mesh: Mesh, axis: int)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Per-cell min, max and mean of the corner coordinates along *axis*.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene.section_faces",
+          "class": "legolas.scene",
+          "name": "section_faces",
+          "signature": "section_faces(mesh: Mesh, axis: int, value: float, mode: str = 'slice', side: int = -1)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Faces that show the volume mesh around a plane ``x[axis] = value``.",
+            "description": "",
+            "params": [
+              {
+                "name": "axis",
+                "type": "int",
+                "desc": "0, 1 or 2."
+              },
+              {
+                "name": "value",
+                "type": "float",
+                "desc": "Plane position, in mesh coordinates."
+              },
+              {
+                "name": "mode",
+                "type": "str",
+                "desc": "``'slice'``: the layer of cells the plane crosses (a *crinkle* slice), drawn through all its outer faces — one cell thick, so every cell and its neighbours along the plane are visible. ``'clip'``: the cells whose corner centroid lies on *side* of the plane; only the faces where the cut opened the mesh are returned (the boundaries draw the rest), so the volume shows as a staircase."
+              },
+              {
+                "name": "side",
+                "type": "int",
+                "desc": "-1 keeps ``x < value``, +1 keeps ``x > value`` (``'clip'`` only)."
+              }
+            ],
+            "returns": [
+              {
+                "name": "elem, face",
+                "type": "numpy.ndarray",
+                "desc": ""
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene._hex_edges",
+          "class": "legolas.scene",
+          "name": "_hex_edges",
+          "signature": "_hex_edges(order: int)",
+          "returns": "list",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Canonical node positions along the 12 edges of a hexahedron.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene.cell_info",
+          "class": "legolas.scene",
+          "name": "cell_info",
+          "signature": "cell_info(mesh: Mesh, cell: int)",
+          "returns": "dict",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "What the viewer shows when a cell is picked.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``cell``, ``kind``, ``order``, ``block``, ``local``, ``file_cell`` (index in the file, when the reader keeps it), ``zone``, ``centroid`` and ``corners`` (mesh coordinates), ``faces`` (per local face: ``neighbour`` cell or None and ``boundary`` name or None) and ``outline``: the element edges as segments relative to :func:`origin`, for highlighting."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.scene.pack",
+          "class": "legolas.scene",
+          "name": "pack",
+          "signature": "pack(header: dict, arrays: dict)",
+          "returns": "bytes",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Binary payload: ``uint32`` header length, JSON header, then arrays.",
+            "description": "Every array starts on a 4-byte boundary, little-endian. The header gets\nan ``arrays`` entry ``{name: {dtype, offset, count, shape}}`` with the\nbyte offset from the start of the payload, so the browser can wrap each\none in a typed array without copying.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "module": true
+    }
+  ],
+  "formats": [
+    {
+      "name": "hopr",
+      "file": "FotR/characters/legolas/io/hopr.py",
+      "card": {
+        "id": "legolas.io.hopr",
+        "file": "FotR/characters/legolas/io/hopr.py",
+        "parent": null,
+        "bases": [],
+        "doc": {
+          "summary": "HOPR / PyHOPE ``*_mesh.h5`` meshes (the input mesh of HORSES3D and FLEXI).",
+          "description": "Layout (checked against PyHOPE 0.11 files on 20/11/2026):\n\n* ``NodeCoords`` repeats every node once per element that uses it;\n  ``GlobalNodeIDs`` (1-based) says which unique node each row is.\n* ``ElemInfo`` rows: ``[type, zone, first side, last side, first node,\n  last node]``, ranges half-open and 0-based. Types: ``104/204`` tetra,\n  ``105/115/205`` pyramid, ``106/116/206`` prism, ``108/118/208`` hexa\n  (``1xx`` straight, ``2xx`` curved).\n* Hexahedron nodes are in tensor order, ``i`` fastest, **also for the linear\n  108/118** — LEGOLAS's canonical layout, no permutation needed. Verified by\n  matching every element face with its neighbour's (100 % on the sphere\n  g1/g2 and the wind-turbine g4 meshes).\n* ``SideInfo`` rows: ``[side type, global side, neighbour elem (1-based,\n  0 none), 10*neighbour local side + flip, BC id (1-based, 0 none)]``.\n  The sides of an element come in CGNS face order.\n* ``BCNames`` / ``BCType`` (``[type, curved, state, alpha]``); type 100 is\n  an inner zone (it marks faces with an element on each side). Such a face\n  carries the BC id on **both** of its sides; LEGOLAS keeps it once, on the\n  element with the lower index.",
+          "params": [],
+          "returns": [],
+          "raises": [],
+          "attributes": [],
+          "methods": [],
+          "text_sections": [],
+          "has_doc": true
+        },
+        "methods": [
+          {
+            "id": "legolas.io.hopr._decode",
+            "class": "legolas.io.hopr",
+            "name": "_decode",
+            "signature": "_decode(names)",
+            "returns": "list",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.hopr.read",
+            "class": "legolas.io.hopr",
+            "name": "read",
+            "signature": "read(path: str)",
+            "returns": "Mesh",
+            "kind": "function",
+            "is_private": false,
+            "doc": {
+              "summary": "Read a HOPR/PyHOPE mesh.",
+              "description": "",
+              "params": [
+                {
+                  "name": "path",
+                  "type": "str",
+                  "desc": "``*_mesh.h5`` file."
+                }
+              ],
+              "returns": [
+                {
+                  "name": "",
+                  "type": "Mesh",
+                  "desc": "``meta`` keeps ``ngeo``, the file's root attributes (``meta['attrs']``), ``bc_type_codes`` (``BCType`` rows) and ``file_cell_index`` (LEGOLAS cell → 0-based element of the file; add 1 for the element number HORSES3D prints)."
+                }
+              ],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          }
+        ],
+        "module": true
+      }
+    },
+    {
+      "name": "cgns",
+      "file": "FotR/characters/legolas/io/cgns.py",
+      "card": {
+        "id": "legolas.io.cgns",
+        "file": "FotR/characters/legolas/io/cgns.py",
+        "parent": null,
+        "bases": [],
+        "doc": {
+          "summary": "CGNS meshes, read with h5py (CGNS/HDF5 only; no CGNS library needed).",
+          "description": "A CGNS/HDF5 file is an HDF5 tree where every CGNS node is a group with\nattributes ``label`` and ``name`` and, if it carries data, a dataset called\n``\" data\"`` (leading space). Strings are stored as int8 arrays.\n\nSupported: unstructured zones, element sections of any fixed type or\n``MIXED`` (with or without ``ElementStartOffset``), and boundaries given\nby ``ZoneBC/BC_t`` (``PointList``/``PointRange`` on faces or on vertices).\nWithout ``ZoneBC``, each surface section becomes a boundary named after\nit, which is what ANSA writes. Not supported: structured zones,\n``NGON_n``/``NFACE_n`` polyhedra, CGNS/ADF files.\n\nHexahedra in tensor-product types (HEXA_8/27/64/125) are permuted to the\ncanonical layout; serendipity hexahedra (HEXA_20/32/56/44/98) and\nhigh-order tetrahedra, pyramids and prisms keep their corners only, with a\nwarning.",
+          "params": [],
+          "returns": [],
+          "raises": [],
+          "attributes": [],
+          "methods": [],
+          "text_sections": [],
+          "has_doc": true
+        },
+        "methods": [
+          {
+            "id": "legolas.io.cgns._label",
+            "class": "legolas.io.cgns",
+            "name": "_label",
+            "signature": "_label(g)",
+            "returns": "str",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.cgns._name",
+            "class": "legolas.io.cgns",
+            "name": "_name",
+            "signature": "_name(g, key)",
+            "returns": "str",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.cgns._string",
+            "class": "legolas.io.cgns",
+            "name": "_string",
+            "signature": "_string(g)",
+            "returns": "str",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.cgns._children",
+            "class": "legolas.io.cgns",
+            "name": "_children",
+            "signature": "_children(g, label)",
+            "returns": "",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.cgns._section",
+            "class": "legolas.io.cgns",
+            "name": "_section",
+            "signature": "_section(sec)",
+            "returns": "dict",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "Elements of one ``Elements_t``: {code: (ids, conn)} with 1-based ids.",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.cgns.read",
+            "class": "legolas.io.cgns",
+            "name": "read",
+            "signature": "read(path: str)",
+            "returns": "Mesh",
+            "kind": "function",
+            "is_private": false,
+            "doc": {
+              "summary": "Read every unstructured zone of a CGNS/HDF5 file.",
+              "description": "",
+              "params": [
+                {
+                  "name": "path",
+                  "type": "str",
+                  "desc": "``.cgns`` file in HDF5 flavour."
+                }
+              ],
+              "returns": [
+                {
+                  "name": "",
+                  "type": "Mesh",
+                  "desc": "Zones of the file become volume zones; with several zones their nodes are not merged (a warning says so), so the interfaces between zones show up as exterior faces."
+                }
+              ],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.cgns._stack_corners",
+            "class": "legolas.io.cgns",
+            "name": "_stack_corners",
+            "signature": "_stack_corners(parts)",
+            "returns": "np.ndarray",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "Stack corner arrays of triangles and quads into ``(m, 4)``, -1 pad.",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.cgns._add_boundaries",
+            "class": "legolas.io.cgns",
+            "name": "_add_boundaries",
+            "signature": "_add_boundaries(mesh, items)",
+            "returns": "None",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "Turn surface elements into boundaries, matching all of them at once.",
+              "description": "",
+              "params": [
+                {
+                  "name": "mesh",
+                  "type": "Mesh",
+                  "desc": ""
+                },
+                {
+                  "name": "items",
+                  "type": "list of (name, bc_type, corners)",
+                  "desc": "``corners`` is ``(m, 4)``, triangles padded with ``-1``. Entries with the same name are joined."
+                }
+              ],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.cgns._face_corner_check",
+            "class": "legolas.io.cgns",
+            "name": "_face_corner_check",
+            "signature": "_face_corner_check(mesh, elem, face, inside)",
+            "returns": "",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.cgns._merge_block",
+            "class": "legolas.io.cgns",
+            "name": "_merge_block",
+            "signature": "_merge_block(mesh, block)",
+            "returns": "None",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "Append *block*, joining it to an existing one of the same kind/order.",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          }
+        ],
+        "module": true
+      }
+    },
+    {
+      "name": "gmsh",
+      "file": "FotR/characters/legolas/io/gmsh.py",
+      "card": {
+        "id": "legolas.io.gmsh",
+        "file": "FotR/characters/legolas/io/gmsh.py",
+        "parent": null,
+        "bases": [],
+        "doc": {
+          "summary": "Gmsh ``.msh`` meshes: v2.2 with an own parser, v4 through meshio.",
+          "description": "Why an own parser for v2.2: ANSA writes binary v2.2 files in **big-endian**\nbyte order. The format allows it (the integer ``1`` after the header tells\nthe byte order, and gmsh honours it), but meshio assumes little-endian and\nfails with a bare \"Couldn't read file\". The v2.2 parser below reads ASCII\nand binary files in either byte order; v4 files go to meshio.\n\nPhysical groups give the names: dimension-3 groups become volume zones and\ndimension-2 groups become boundaries (a physical surface declared without\nelements becomes an empty boundary). Surfaces without a physical group are\ngrouped by their geometrical entity (``entity_<tag>``).\n\nNode orders: the v2.2 parser keeps gmsh's native order\n(:data:`..ordering.GMSH_HEX`); meshio hands back ``hexahedron27`` in VTK\norder but ``hexahedron64``/``hexahedron125`` in gmsh's\n(:data:`..ordering.MESHIO_HEX`). Serendipity hexahedra and high-order\ntetrahedra, pyramids and prisms keep their corners only, with a warning.\n\nFiles exported by ANSA at order 4 have been seen with a node ordering of\ntheir own (neither gmsh nor CGNS); the tensor-order screen in\n:func:`..io.read` then warns.",
+          "params": [],
+          "returns": [],
+          "raises": [],
+          "attributes": [],
+          "methods": [],
+          "text_sections": [],
+          "has_doc": true
+        },
+        "methods": [
+          {
+            "id": "legolas.io.gmsh._sections",
+            "class": "legolas.io.gmsh",
+            "name": "_sections",
+            "signature": "_sections(raw: bytes)",
+            "returns": "dict",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "Byte range of the body of every ``$Section``: {name: (start, end)}.",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.gmsh.read_msh22",
+            "class": "legolas.io.gmsh",
+            "name": "read_msh22",
+            "signature": "read_msh22(path: str)",
+            "returns": "dict",
+            "kind": "function",
+            "is_private": false,
+            "doc": {
+              "summary": "Parse a v2.2 ``.msh`` file (ASCII or binary, either byte order).",
+              "description": "",
+              "params": [
+                {
+                  "name": "path",
+                  "type": "str",
+                  "desc": "``.msh`` file whose ``$MeshFormat`` says 2.x."
+                }
+              ],
+              "returns": [
+                {
+                  "name": "",
+                  "type": "dict",
+                  "desc": "``points`` ``(n, 3)``; ``elements``: list of ``(gmsh type, conn, physical, elementary)`` with ``conn`` 0-based rows of ``points`` in gmsh's native node order; ``names`` ``{(dim, tag): name}``; ``binary`` and ``byteorder`` (``'<'`` or ``'>'``)."
+                }
+              ],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.gmsh._npe",
+            "class": "legolas.io.gmsh",
+            "name": "_npe",
+            "signature": "_npe(path, etype)",
+            "returns": "int",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.gmsh._tag",
+            "class": "legolas.io.gmsh",
+            "name": "_tag",
+            "signature": "_tag(tags, i)",
+            "returns": "np.ndarray",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "",
+              "description": "",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": false
+            }
+          },
+          {
+            "id": "legolas.io.gmsh._read_meshio",
+            "class": "legolas.io.gmsh",
+            "name": "_read_meshio",
+            "signature": "_read_meshio(path)",
+            "returns": "dict",
+            "kind": "function",
+            "is_private": true,
+            "doc": {
+              "summary": "Cells of a v4 file as ``(kind, dim, order, conn, phys, geom, label)``.",
+              "description": "``order`` is set (and ``conn`` canonical) for tensor hexahedra only.",
+              "params": [],
+              "returns": [],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.gmsh.read",
+            "class": "legolas.io.gmsh",
+            "name": "read",
+            "signature": "read(path: str)",
+            "returns": "Mesh",
+            "kind": "function",
+            "is_private": false,
+            "doc": {
+              "summary": "Read a gmsh mesh.",
+              "description": "",
+              "params": [
+                {
+                  "name": "path",
+                  "type": "str",
+                  "desc": "``.msh`` file, version 2.2 (own parser) or 4.x (meshio)."
+                }
+              ],
+              "returns": [
+                {
+                  "name": "",
+                  "type": "Mesh",
+                  "desc": "``meta['msh_version']`` and, for binary v2.2, ``meta['byteorder']``."
+                }
+              ],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          }
+        ],
+        "module": true
+      }
+    },
+    {
+      "name": "hmesh",
+      "file": "FotR/characters/legolas/io/hmesh.py",
+      "card": {
+        "id": "legolas.io.hmesh",
+        "file": "FotR/characters/legolas/io/hmesh.py",
+        "parent": null,
+        "bases": [],
+        "doc": {
+          "summary": "HORSES3D ``.hmesh`` files: the solution nodes the solver actually used.",
+          "description": "The file stores, per element, the ``(N+1)**3`` solution nodes in tensor\norder and nothing else: no connectivity, no boundary names. LEGOLAS rebuilds\nthe connectivity by merging coincident nodes, which only works for\nGauss-Lobatto nodes (they sit on the element faces); with Gauss nodes the\nelements share nothing, so every face counts as exterior and a warning says\nso. The order here is the polynomial order ``p`` of the solution, not the\ngeometric order of the mesh. Reading goes through\n:func:`FotR.solver_tools.horses3d.read_mesh`.",
+          "params": [],
+          "returns": [],
+          "raises": [],
+          "attributes": [],
+          "methods": [],
+          "text_sections": [],
+          "has_doc": true
+        },
+        "methods": [
+          {
+            "id": "legolas.io.hmesh.merge_points",
+            "class": "legolas.io.hmesh",
+            "name": "merge_points",
+            "signature": "merge_points(x: np.ndarray, rtol: float = 1e-09)",
+            "returns": "tuple",
+            "kind": "function",
+            "is_private": false,
+            "doc": {
+              "summary": "Merge points closer than ``rtol`` times the bounding-box diagonal.",
+              "description": "",
+              "params": [],
+              "returns": [
+                {
+                  "name": "points, index",
+                  "type": "numpy.ndarray",
+                  "desc": "Unique points and, for every input point, its row in ``points``."
+                }
+              ],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          },
+          {
+            "id": "legolas.io.hmesh.read",
+            "class": "legolas.io.hmesh",
+            "name": "read",
+            "signature": "read(path: str, rtol: float = 1e-09)",
+            "returns": "Mesh",
+            "kind": "function",
+            "is_private": false,
+            "doc": {
+              "summary": "Read a ``.hmesh`` file.",
+              "description": "",
+              "params": [
+                {
+                  "name": "path",
+                  "type": "str",
+                  "desc": "``MESH/<solution>_<iteration>.hmesh`` (HORSES3D file type 1)."
+                },
+                {
+                  "name": "rtol",
+                  "type": "float",
+                  "desc": "Merge tolerance relative to the bounding-box diagonal."
+                }
+              ],
+              "returns": [
+                {
+                  "name": "",
+                  "type": "Mesh",
+                  "desc": "One hexahedral block of order ``p``; no boundaries."
+                }
+              ],
+              "raises": [],
+              "attributes": [],
+              "methods": [],
+              "text_sections": [],
+              "has_doc": true
+            }
+          }
+        ],
+        "module": true
+      }
+    }
+  ]
+}

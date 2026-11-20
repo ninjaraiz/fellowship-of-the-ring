@@ -441,7 +441,7 @@
           [
             "**LEGOLAS**",
             "`FotR.LEGOLAS`",
-            "Pinta. Es el único consumidor externo de FRODO."
+            "Lee y analiza mallas CFD (HOPR `.h5`, CGNS, Gmsh `.msh`): censo, y en camino visor, calidad y resolución LES. Desde el 20/11/2026 ya no pinta datos de FRODO. Tiene [su propia documentación](../legolas/index.html)."
           ],
           [
             "**GIMLI**",
@@ -946,7 +946,7 @@
           [
             "**LEGOLAS**",
             "`FotR.LEGOLAS`",
-            "Draws. The only external consumer of FRODO."
+            "Reads and analyses CFD meshes (HOPR `.h5`, CGNS, Gmsh `.msh`): census, with a viewer, quality and LES resolution on the way. Since 20/11/2026 it no longer plots FRODO data. It has [its own documentation](../legolas/index.html)."
           ],
           [
             "**GIMLI**",

@@ -4,7 +4,14 @@ setup(
     name="fellowship-of-the-ring",
     version="1.0",
     packages=find_packages(),
-    package_data={"FotR.solver_tools": ["coda_monitor.html"]},
+    package_data={
+        "FotR.solver_tools": ["coda_monitor.html"],
+        "FotR.characters.legolas": [
+            "viewer.html",
+            "static/three/*",
+            "static/three/addons/controls/*",
+        ],
+    },
     install_requires=[
         "numpy",
         "torch",

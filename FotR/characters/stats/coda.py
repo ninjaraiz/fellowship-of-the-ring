@@ -1659,8 +1659,7 @@ class CODAStats(BaseStats):
 
         If ``flcc_vars_use`` has two (or more) entries, the first two are
         used as the ``x``/``y`` axes and ``case_metric`` colours each
-        point (with a colourbar) — mirroring the convention used by
-        ``LEGOLAS.Residuals.plot_vs_params``. If only one entry is given,
+        point (with a colourbar). If only one entry is given,
         a simple 2-D scatter of ``flcc_vars_use[0]`` vs. ``case_metric``
         is drawn instead.
 

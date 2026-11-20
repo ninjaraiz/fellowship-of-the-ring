@@ -1,0 +1,998 @@
+{
+  "es": {
+    "map": [
+      {
+        "t": "p",
+        "x": "Legolas cuenta jinetes a cinco leguas («ciento cinco», y les ve hasta el color del pelo). Aquí cuenta nodos, caras y zonas, y ve lo que no cuadra antes de que el solver se estrelle. **LEGOLAS** lee una malla, la pasa a un formato neutro y deja que cada herramienta trabaje sobre ese formato, sin saber de dónde vino."
+      },
+      {
+        "t": "code",
+        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
+      },
+      {
+        "t": "p",
+        "x": "Hasta el 18/11/2026 LEGOLAS era el personaje de los gráficos de FRODO. Se vació entero y se rehízo para mallas; de aquel no queda nada. El plan completo, con decisiones e hitos, está en `doc/PLAN_LEGOLAS.md`."
+      },
+      {
+        "t": "note",
+        "x": "Solo hacen falta **numpy y h5py** para importar y leer. meshio se carga solo para `.msh` v4 y scipy solo para `.hmesh`; torch, pandas, pyvista o VTK no se cargan nunca (un test lo vigila)."
+      }
+    ],
+    "plan": [
+      {
+        "t": "table",
+        "head": [
+          "hito",
+          "contenido",
+          "estado"
+        ],
+        "rows": [
+          [
+            "L0",
+            "plan en `doc/PLAN_LEGOLAS.md` y HANDOFF",
+            "**hecho**"
+          ],
+          [
+            "L1",
+            "paquete `legolas/`, malla neutra, lectores HOPR/CGNS/Gmsh/hmesh, topología, `Census.summary`",
+            "**hecho** (20/11/2026)"
+          ],
+          [
+            "L2",
+            "`LEGOLAS.Viewer`: superficies por zona, aristas, corte, selección",
+            "**hecho** (20/11/2026)"
+          ],
+          [
+            "L3",
+            "`Census` completo: BC frente a `.control`/`parameter.ini`, estanqueidad, duplicados, comparar mallas",
+            "pendiente"
+          ],
+          [
+            "L4",
+            "`LEGOLAS.Quality` y coloreado en el visor",
+            "pendiente"
+          ],
+          [
+            "L5",
+            "`LEGOLAS.Resolution` (LES)",
+            "pendiente"
+          ],
+          [
+            "L6",
+            "`Convert` (VTU), detección de orden de nodos, `Locate`",
+            "pendiente"
+          ],
+          [
+            "L7",
+            "`LEGOLAS(db, case)` desde FRODO y README",
+            "pendiente"
+          ]
+        ]
+      }
+    ],
+    "cross": [
+      {
+        "t": "p",
+        "x": "[GANDALF](../gandalf/index.html) copia la malla `MESH/*.h5` en cada caso de HORSES3D; [FRODO](../frodo_sam/index.html) lee de ese mismo fichero solo las coordenadas. LEGOLAS lo lee entero: elementos, caras y condiciones de contorno. Es el mismo fichero que mira HORSES3D, así que lo que LEGOLAS cuenta es lo que el solver va a ver."
+      },
+      {
+        "t": "p",
+        "x": "Todavía no hay puente con FRODO: `LEGOLAS(db, case=…)` llega en L7. Mientras, basta pasarle la ruta: `LEGOLAS(os.path.join(caso, 'MESH', malla))`."
+      }
+    ],
+    "facade": [
+      {
+        "t": "h",
+        "x": "Construir"
+      },
+      {
+        "t": "code",
+        "x": "from FotR import LEGOLAS\n\nlg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')   # formato por extensión y contenido\nlg = LEGOLAS('malla.cgns', fmt='cgns')                         # o explícito\nlg = LEGOLAS(mesh)                                             # una Mesh ya construida\n\nlg.mesh            # la malla neutra\nlg.census          # LEGOLAS.Census\nprint(lg.census)   # el censo como tabla"
+      },
+      {
+        "t": "h",
+        "x": "Clases anidadas"
+      },
+      {
+        "t": "p",
+        "x": "Cada herramienta es una clase anidada (`LEGOLAS.Census`, y en los hitos siguientes `Viewer`, `Quality`, `Resolution`…) y cada instancia lleva la suya en minúscula (`lg.census`). La clase vive en su propio módulo y se cuelga de LEGOLAS como atributo: `LEGOLAS.Census is Census`. Por eso puedes hacer `isinstance(lg.census, LEGOLAS.Census)`."
+      },
+      {
+        "t": "h",
+        "x": "Los avisos no son excepciones"
+      },
+      {
+        "t": "p",
+        "x": "Un lector solo lanza una excepción si no puede leer el fichero. Todo lo que puede leer a medias, lo lee, y apunta la queja en `lg.mesh.meta['warnings']`. Esa lista sale también al final de `print(lg.census)`. **Mírala siempre**: ahí aparecen el orden de nodos sospechoso, las BC que no encajan con ninguna cara y los elementos de los que solo se guardan las esquinas."
+      }
+    ],
+    "nested_Census": [
+      {
+        "t": "p",
+        "x": "En el Abismo de Helm, Gimli acabó con cuarenta y dos y Legolas con uno menos, y ninguno de los dos se equivocó al contar. `Census` cuenta igual de bien, y sin rivalidad: tamaños, tipos de elemento, zonas y, sobre todo, condiciones de contorno."
+      },
+      {
+        "t": "table",
+        "head": [
+          "campo",
+          "qué es"
+        ],
+        "rows": [
+          [
+            "`cells`",
+            "elementos por tipo y orden geométrico"
+          ],
+          [
+            "`boundaries`",
+            "por BC: tipo declarado, nº de caras, área (siguiendo los nodos de alto orden) y `interior_faces`"
+          ],
+          [
+            "`interior_faces`",
+            "caras de esa BC que tienen celda a los dos lados: una zona interior (en HOPR, `BCType` 100), no una frontera"
+          ],
+          [
+            "`exterior_faces`",
+            "caras con una sola celda: la frontera real del dominio"
+          ],
+          [
+            "`unassigned_faces`",
+            "caras exteriores que no están en ninguna BC. Deberían ser 0: si no lo son, el solver no sabrá qué hacer con ellas"
+          ],
+          [
+            "`nonmanifold_faces`",
+            "caras compartidas por más de dos celdas. Malla rota"
+          ],
+          [
+            "`orphan_nodes`",
+            "nodos que no usa ninguna celda. Con HEXA_20 son los nodos de arista, que no se usan porque solo se guardan las esquinas"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Las áreas son la prueba de fuego del orden de nodos: con un orden equivocado las caras de alto orden se retuercen y el área se dispara. Con la turbina g4 en `.msh` de ANSA, el área de `inlet` sale 8,86 en lugar de 4,88."
+      }
+    ],
+    "formats": [
+      {
+        "t": "p",
+        "x": "Los cuatro formatos que salen del flujo de COMAC: ANSA exporta `.cgns` y `.msh`, PyHOPE los convierte al `*_mesh.h5` de HOPR (que lee HORSES3D) y HORSES3D escribe `.hmesh` con los nodos de solución."
+      },
+      {
+        "t": "table",
+        "head": [
+          "formato",
+          "cómo se lee",
+          "lectura (20/11/2026)"
+        ],
+        "rows": [
+          [
+            "HOPR `*_mesh.h5`",
+            "h5py; el orden de HOPR ya es el canónico",
+            "turbina g4 (38 718 hex de orden 4, 2,5 M nodos): 0,6 s"
+          ],
+          [
+            "CGNS",
+            "h5py: un CGNS/HDF5 es un árbol HDF5, no hace falta la librería CGNS",
+            "turbina g4: 0,9 s"
+          ],
+          [
+            "Gmsh `.msh` v2.2",
+            "parser propio (ASCII y binario, las dos endianidades)",
+            "turbina g4: 0,6 s"
+          ],
+          [
+            "Gmsh `.msh` v4",
+            "meshio",
+            "esfera v1g2 (2,2 M nodos): 8,8 s"
+          ],
+          [
+            "`.hmesh`",
+            "`solver_tools.horses3d.read_mesh` + fusión de nodos coincidentes",
+            "esfera v2g2: 0,5 s"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Comprobado el 20/11/2026: la misma malla en `.h5`, `.cgns` y `.msh` (esfera v1g2, turbina g1 y g2) da las mismas caras por BC y las mismas áreas en los tres formatos. Está en los tests (`FotR/tests/test_legolas_io.py`)."
+      }
+    ],
+    "fmt_hopr": [
+      {
+        "t": "p",
+        "x": "El formato de entrada de HORSES3D y FLEXI, el que escribe PyHOPE. Es el más cómodo: los hexaedros ya vienen en orden tensorial, que es el canónico de LEGOLAS, y cada elemento trae sus seis caras en orden CGNS con el vecino y la BC."
+      },
+      {
+        "t": "p",
+        "x": "Dos detalles que el lector resuelve por ti. `NodeCoords` repite cada nodo una vez por elemento que lo usa; los únicos salen de `GlobalNodeIDs`. Y una zona interior (BCType 100, como `rotor_cylinder`) lleva la BC escrita en **las dos** caras que se tocan: LEGOLAS la guarda una sola vez."
+      },
+      {
+        "t": "p",
+        "x": "`meta['file_cell_index']` da, para cada celda de LEGOLAS, el elemento del fichero (desde 0). Súmale uno y tienes el número que imprime HORSES3D, por ejemplo el «peor elemento» de una prueba FSP."
+      }
+    ],
+    "fmt_cgns": [
+      {
+        "t": "p",
+        "x": "Un `.cgns` moderno es un fichero HDF5 con un árbol de nodos CGNS dentro, así que se lee con h5py y no hace falta instalar la librería CGNS. Se leen las zonas no estructuradas, las secciones de cualquier tipo o `MIXED` y las BC de `ZoneBC` (por caras o por vértices). Si no hay `ZoneBC`, cada sección de superficie se convierte en una BC con su nombre."
+      },
+      {
+        "t": "p",
+        "x": "Los hexaedros tensoriales (HEXA_8/27/64/125) se reordenan al orden canónico. Los serendípitos (HEXA_20…) solo conservan las esquinas, y lo avisan."
+      },
+      {
+        "t": "note",
+        "x": "Lo que no se lee: CGNS/ADF (el formato antiguo, que no es HDF5: se convierte con `adf2hdf`), zonas estructuradas y poliedros NGON/NFACE."
+      }
+    ],
+    "fmt_gmsh": [
+      {
+        "t": "p",
+        "x": "La versión 2.2 se lee con un parser propio porque **ANSA escribe el binario en big-endian**. El formato lo permite: el entero `1` de la cabecera indica el orden de bytes, y gmsh lo respeta. meshio no, y falla con un escueto «Couldn't read file». `meta['byteorder']` te dice cuál era. La versión 4 sigue pasando por meshio."
+      },
+      {
+        "t": "p",
+        "x": "Los grupos físicos dan los nombres: los de dimensión 3 son zonas y los de dimensión 2 son BC. Un grupo físico declarado sin elementos aparece igualmente, como BC vacía. Las superficies que no están en ningún grupo físico se agrupan por entidad geométrica (`entity_<n>`)."
+      }
+    ],
+    "fmt_hmesh": [
+      {
+        "t": "p",
+        "x": "Los nodos de **solución** que usó HORSES3D, elemento a elemento. No hay conectividad ni BC: LEGOLAS la reconstruye fusionando los nodos que coinciden. Eso solo funciona con nodos de Gauss-Lobatto, que caen sobre las caras; con nodos de Gauss los elementos no comparten nada y lo avisa."
+      },
+      {
+        "t": "p",
+        "x": "Ojo: aquí el orden es el de la solución (`p`), no el geométrico de la malla."
+      }
+    ],
+    "mesh": [
+      {
+        "t": "h",
+        "x": "Contenedores"
+      },
+      {
+        "t": "p",
+        "x": "`Mesh` guarda `points` (los nodos únicos), `blocks` (una `CellBlock` por tipo y orden de elemento), `boundaries` (una `Boundary` por nombre), `zones` y `meta`. El índice global de una celda recorre los bloques en orden; para pasarlo a (bloque, local) está `mesh.locate_cell`."
+      },
+      {
+        "t": "p",
+        "x": "Una `Boundary` **no tiene celdas de superficie**: guarda pares (elemento, cara local). Los nodos de la cara salen siempre del elemento de volumen, así que todos los formatos acaban con la misma disposición de caras, aunque el fichero escribiera las superficies a su manera."
+      },
+      {
+        "t": "h",
+        "x": "Orden canónico de nodos"
+      },
+      {
+        "t": "table",
+        "head": [
+          "elemento",
+          "orden",
+          "disposición"
+        ],
+        "rows": [
+          [
+            "hexaedro",
+            "1 a 4",
+            "tensorial, i más rápido: el nodo (i, j, k) está en i + (N+1) j + (N+1)² k. **También el lineal**: sus 8 esquinas NO están en orden VTK (para eso, `ordering.hex_corners`)"
+          ],
+          [
+            "tetraedro, pirámide, prisma",
+            "solo 1",
+            "orden VTK (coincide con CGNS)"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "Es el orden de HOPR y de HORSES3D, y con él la interpolación y los jacobianos son productos tensoriales."
+      },
+      {
+        "t": "h",
+        "x": "Caras de un hexaedro"
+      },
+      {
+        "t": "table",
+        "head": [
+          "cara",
+          "plano",
+          "nodos"
+        ],
+        "rows": [
+          [
+            "0",
+            "ζ = 0",
+            "k = 0"
+          ],
+          [
+            "1",
+            "η = 0",
+            "j = 0"
+          ],
+          [
+            "2",
+            "ξ = 1",
+            "i = N"
+          ],
+          [
+            "3",
+            "η = 1",
+            "j = N"
+          ],
+          [
+            "4",
+            "ξ = 0",
+            "i = 0"
+          ],
+          [
+            "5",
+            "ζ = 1",
+            "k = N"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "Es el orden de caras de CGNS y el de `SideInfo` en HOPR. `ordering.hex_face_grid(N, cara)` da todos los nodos de la cara como una rejilla (N+1)×(N+1) orientada hacia fuera."
+      },
+      {
+        "t": "h",
+        "x": "De dónde salen las tablas de permutación"
+      },
+      {
+        "t": "p",
+        "x": "Se midieron, no se copiaron de ningún manual. gmsh 4.13.1 malló un cubo unidad con un solo elemento de orden 1 a 4 y lo escribió en `.msh` v2.2, `.msh` v4.1 y `.cgns`. Redondeando las coordenadas de cada nodo a la rejilla 1/N sale su índice tensorial. Esos ficheros están en `FotR/tests/data/legolas/` y los tests repiten la medida."
+      },
+      {
+        "t": "note",
+        "x": "La trampa que esconden: meshio entrega el `hexahedron27` en orden VTK, pero el `hexahedron64` y el `hexahedron125` en el orden nativo de gmsh. Por eso hay una tabla para meshio y otra para gmsh."
+      },
+      {
+        "t": "h",
+        "x": "Control del orden"
+      },
+      {
+        "t": "p",
+        "x": "Al leer, `io.read` coge 2000 hexaedros de alto orden al azar y comprueba que, a lo largo de cada línea de la rejilla, los nodos avanzan siempre en el mismo sentido (`ordering.tensor_monotonic`). Una permutación equivocada manda algún nodo hacia atrás, y el lector lo deja en `meta['warnings']`."
+      }
+    ],
+    "trouble": [
+      {
+        "t": "table",
+        "head": [
+          "síntoma",
+          "causa",
+          "qué hace LEGOLAS"
+        ],
+        "rows": [
+          [
+            "meshio: «Couldn't read file …msh as gmsh»",
+            "`.msh` 2.2 binario en big-endian (ANSA)",
+            "lo lee con su parser propio y lo indica en `meta['byteorder']`"
+          ],
+          [
+            "aviso «fail the tensor-order check» y áreas casi dobles",
+            "la g4 en `.msh` de ANSA usa un orden de nodos propio (61 de 125 no coinciden con gmsh)",
+            "avisa; usa el `.cgns`, que sí trae el orden CGNS, o regenera la malla. La detección automática del orden llega en L6"
+          ],
+          [
+            "`rotor_cylinder` con el doble de caras en el `.h5` que en el `.cgns`",
+            "HOPR escribe la BC de una zona interior en las dos caras que se tocan",
+            "ya no pasa: se guarda una sola vez"
+          ],
+          [
+            "«is not an HDF5 file: probably a CGNS/ADF file»",
+            "CGNS en formato ADF",
+            "conviértelo con `adf2hdf`"
+          ],
+          [
+            "cientos de miles de `orphan_nodes`",
+            "HEXA_20 (serendípito): solo se guardan las esquinas",
+            "normal; lo dice el aviso del lector"
+          ],
+          [
+            "el `.cgns` o el `.msh` elevados tienen más nodos que el `.h5`",
+            "nodos coincidentes que PyHOPE fusiona y el `.cgns` no (322 297 frente a 319 317 en la turbina g2)",
+            "de momento solo se ve en el censo; el recuento de duplicados llega en L3"
+          ],
+          [
+            "`entity_1` con 1,5 M caras interiores y una BC `fluid` vacía",
+            "el `.msh` de la esfera trae las caras interiores con etiqueta física 0, y el grupo `fluid` está declarado sin elementos",
+            "inofensivo: son caras interiores con nombre de entidad"
+          ],
+          [
+            "un `.msh` v4 tarda ~9 s",
+            "va por meshio",
+            "solo el v2.2 tiene parser propio; si hace falta, se escribe el del v4"
+          ],
+          [
+            "en un CGNS con varias zonas, las interfaces salen como caras exteriores",
+            "los nodos de zonas distintas no se fusionan",
+            "lo avisa"
+          ],
+          [
+            "la página dice que no puede crear un contexto WebGL",
+            "el navegador tiene WebGL desactivado o sin aceleración",
+            "actívalo (en Brave/Chrome, aceleración por hardware); con WebGL por software también funciona, más lento"
+          ],
+          [
+            "conexión rechazada al abrir la dirección",
+            "el servidor se paró (30 min sin la página abierta) o murió: su salida está en `h.log_path`",
+            "vuelve a lanzar `lg.viewer.show()`"
+          ],
+          [
+            "una zona aparece como «1 de cada k» y desmarcada",
+            "supera `max_triangles` (1 M)",
+            "márcala si la quieres igualmente, o sube el tope en `show()`"
+          ],
+          [
+            "en el recorte no se ve la escalera",
+            "las caras del corte miran hacia el lado quitado",
+            "gira la cámara o pulsa ⇄"
+          ]
+        ]
+      }
+    ],
+    "nested_Viewer": [
+      {
+        "t": "p",
+        "x": "En Lothlórien los elfos vigilan desde los flets, plataformas en lo alto de los mallorn: desde arriba se ve el bosque entero y nadie pasa sin que lo sepan. El visor es eso, un flet sobre la malla. Un servidor pequeño en un proceso aparte y una página con three.js en tu navegador; sin ParaView, sin VTK y sin internet."
+      },
+      {
+        "t": "code",
+        "x": "lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\nh = lg.viewer.show()        # http://127.0.0.1:8766/  (VS Code reenvía el puerto: pestaña Ports)\nh.stop()                    # o déjalo: se apaga solo 30 min después de cerrar la pestaña\n\n# desde la terminal, sin Python interactivo\npython -m FotR.characters.legolas.viewer MESH/malla.h5 --port 8766"
+      },
+      {
+        "t": "table",
+        "head": [
+          "qué",
+          "cómo"
+        ],
+        "rows": [
+          [
+            "**Zonas**",
+            "una casilla por BC, con su color y nº de caras. ⌖ encuadra la zona (un cuerpo pequeño dentro de un dominio grande). `interior` marca las zonas con celda a los dos lados; `sin BC` (en rojo) son caras exteriores que no están en ninguna BC"
+          ],
+          [
+            "**Dibujo**",
+            "superficie, aristas o ambas. Las aristas son las de los **elementos**, siguiendo los nodos de alto orden; las diagonales de la triangulación no se dibujan nunca. Opacidad ajustable"
+          ],
+          [
+            "**Capa**",
+            "la capa de celdas que cruza un plano X, Y o Z (crinkle slice): una celda de espesor, con todas sus caras, así que se ve cada celda y sus vecinas. Al entrar oculta las zonas, que si no la tapan"
+          ],
+          [
+            "**Recorte**",
+            "las celdas cuyo centroide queda a un lado del plano, enteras, en escalera. Las fronteras se recortan por el mismo plano en la GPU, así que el dominio se abre. ⇄ cambia de lado"
+          ],
+          [
+            "**Celda**",
+            "clic en cualquier cara: tipo, orden, zona, centroide, elemento en el fichero y su nº en HORSES3D (el mismo más uno), y por cara la vecina (clicable) o la frontera. centrar gira la cámara alrededor de ella"
+          ],
+          [
+            "**Vistas**",
+            "+X … −Z, encuadrar, captura en PNG; el triedro de la esquina dice hacia dónde miras"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Funciona sin internet: three.js 0.160.0 viene dentro del paquete (`static/three/`, licencia MIT), copiado sin tocar del paquete oficial de npm, con su sha256 comprobado en los tests. La página no pide nada fuera del propio servidor."
+      },
+      {
+        "t": "h",
+        "x": "Lo que cuesta"
+      },
+      {
+        "t": "p",
+        "x": "El servidor manda superficies, nunca el volumen: fronteras por nombre y las celdas alrededor del plano. Cada petición tiene un tope de **1 millón de triángulos** (unos 55 MB con las aristas); una zona mayor se dibuja diezmada (1 de cada k caras) y arranca oculta. Le pasa a `entity_1` en el `.msh` de la esfera: 1,5 M caras interiores, 12 M triángulos. Se cambia con `show(max_triangles=…)`."
+      },
+      {
+        "t": "p",
+        "x": "`show()` lanza un proceso aparte que vuelve a leer el fichero, porque leerlo es más rápido que enviárselo. Si la malla se construyó en memoria, se guarda antes en `~/.cache/FotR/legolas/` y el servidor la borra al leerla. Escucha solo en 127.0.0.1, es de solo lectura y se apaga a los 30 minutos sin la página abierta (la página le hace ping cada minuto). Si quieres el servidor dentro de tu proceso, `lg.viewer.server().start()`."
+      },
+      {
+        "t": "note",
+        "x": "Comprobado el 20/11/2026 en un Chromium sin pantalla (QtWebEngine sobre un Xvnc, con WebGL por software) con la turbina g2 y la esfera v1g2: zonas, capa, recorte, selección de celdas y vistas, sin errores de consola. La prueba en tu navegador sigue siendo tuya."
+      }
+    ]
+  },
+  "en": {
+    "map": [
+      {
+        "t": "p",
+        "x": "Legolas counts riders five leagues away (\"a hundred and five\", and he sees the colour of their hair). Here he counts nodes, faces and zones, and spots what does not add up before the solver crashes. **LEGOLAS** reads a mesh, turns it into a neutral form and lets every tool work on that form without knowing where it came from."
+      },
+      {
+        "t": "code",
+        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
+      },
+      {
+        "t": "p",
+        "x": "Until 18/11/2026 LEGOLAS was FRODO's plotting character. It was emptied and rebuilt for meshes; nothing of the old one is left. The full plan, with decisions and milestones, is in `doc/PLAN_LEGOLAS.md`."
+      },
+      {
+        "t": "note",
+        "x": "Only **numpy and h5py** are needed to import and read. meshio is loaded only for `.msh` v4 and scipy only for `.hmesh`; torch, pandas, pyvista or VTK are never loaded (a test watches it)."
+      }
+    ],
+    "plan": [
+      {
+        "t": "table",
+        "head": [
+          "milestone",
+          "content",
+          "status"
+        ],
+        "rows": [
+          [
+            "L0",
+            "plan in `doc/PLAN_LEGOLAS.md` and HANDOFF",
+            "**done**"
+          ],
+          [
+            "L1",
+            "`legolas/` package, neutral mesh, HOPR/CGNS/Gmsh/hmesh readers, topology, `Census.summary`",
+            "**done** (20/11/2026)"
+          ],
+          [
+            "L2",
+            "`LEGOLAS.Viewer`: surfaces per zone, edges, clip, picking",
+            "**done** (20/11/2026)"
+          ],
+          [
+            "L3",
+            "full `Census`: BCs against `.control`/`parameter.ini`, watertightness, duplicates, mesh comparison",
+            "pending"
+          ],
+          [
+            "L4",
+            "`LEGOLAS.Quality` and colouring in the viewer",
+            "pending"
+          ],
+          [
+            "L5",
+            "`LEGOLAS.Resolution` (LES)",
+            "pending"
+          ],
+          [
+            "L6",
+            "`Convert` (VTU), node-order detection, `Locate`",
+            "pending"
+          ],
+          [
+            "L7",
+            "`LEGOLAS(db, case)` from FRODO, and README",
+            "pending"
+          ]
+        ]
+      }
+    ],
+    "cross": [
+      {
+        "t": "p",
+        "x": "[GANDALF](../gandalf/index.html) copies the `MESH/*.h5` mesh into every HORSES3D case; [FRODO](../frodo_sam/index.html) reads only the coordinates from that same file. LEGOLAS reads all of it: elements, faces and boundary conditions. It is the very file HORSES3D opens, so what LEGOLAS counts is what the solver will see."
+      },
+      {
+        "t": "p",
+        "x": "There is no bridge with FRODO yet: `LEGOLAS(db, case=…)` arrives in L7. Meanwhile, pass the path: `LEGOLAS(os.path.join(case, 'MESH', mesh))`."
+      }
+    ],
+    "facade": [
+      {
+        "t": "h",
+        "x": "Building one"
+      },
+      {
+        "t": "code",
+        "x": "from FotR import LEGOLAS\n\nlg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')   # format from extension and content\nlg = LEGOLAS('mesh.cgns', fmt='cgns')                          # or explicit\nlg = LEGOLAS(mesh)                                             # a Mesh built beforehand\n\nlg.mesh            # the neutral mesh\nlg.census          # LEGOLAS.Census\nprint(lg.census)   # the census as a table"
+      },
+      {
+        "t": "h",
+        "x": "Nested classes"
+      },
+      {
+        "t": "p",
+        "x": "Each tool is a nested class (`LEGOLAS.Census`, and in later milestones `Viewer`, `Quality`, `Resolution`…) and every instance carries its own in lower case (`lg.census`). The class lives in its own module and hangs from LEGOLAS as an attribute: `LEGOLAS.Census is Census`. Hence `isinstance(lg.census, LEGOLAS.Census)` works."
+      },
+      {
+        "t": "h",
+        "x": "Warnings are not exceptions"
+      },
+      {
+        "t": "p",
+        "x": "A reader raises only when it cannot read the file. Whatever it can half-read, it reads, and it files the complaint in `lg.mesh.meta['warnings']`. The list also closes `print(lg.census)`. **Always look at it**: suspicious node orders, BCs that match no face and elements kept by their corners only show up there."
+      }
+    ],
+    "nested_Census": [
+      {
+        "t": "p",
+        "x": "At Helm's Deep Gimli ended with forty-two and Legolas with one fewer, and neither miscounted. `Census` counts just as well, without the rivalry: sizes, element kinds, zones and, above all, boundary conditions."
+      },
+      {
+        "t": "table",
+        "head": [
+          "field",
+          "what it is"
+        ],
+        "rows": [
+          [
+            "`cells`",
+            "elements per kind and geometric order"
+          ],
+          [
+            "`boundaries`",
+            "per BC: declared type, number of faces, area (following the high-order nodes) and `interior_faces`"
+          ],
+          [
+            "`interior_faces`",
+            "faces of that BC with a cell on each side: an inner zone (HOPR `BCType` 100), not a boundary"
+          ],
+          [
+            "`exterior_faces`",
+            "faces with a single cell: the real boundary of the domain"
+          ],
+          [
+            "`unassigned_faces`",
+            "exterior faces in no BC. Should be 0: otherwise the solver will not know what to do with them"
+          ],
+          [
+            "`nonmanifold_faces`",
+            "faces shared by more than two cells. Broken mesh"
+          ],
+          [
+            "`orphan_nodes`",
+            "nodes used by no cell. With HEXA_20 these are the edge nodes, unused because only the corners are kept"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Areas are the acid test of the node order: with a wrong order high-order faces twist and the area shoots up. With the turbine g4 in ANSA's `.msh`, the `inlet` area comes out 8.86 instead of 4.88."
+      }
+    ],
+    "formats": [
+      {
+        "t": "p",
+        "x": "The four formats of the COMAC workflow: ANSA exports `.cgns` and `.msh`, PyHOPE turns them into HOPR's `*_mesh.h5` (what HORSES3D reads), and HORSES3D writes `.hmesh` with the solution nodes."
+      },
+      {
+        "t": "table",
+        "head": [
+          "format",
+          "how it is read",
+          "reading (20/11/2026)"
+        ],
+        "rows": [
+          [
+            "HOPR `*_mesh.h5`",
+            "h5py; HOPR's order already is the canonical one",
+            "turbine g4 (38,718 order-4 hexahedra, 2.5 M nodes): 0.6 s"
+          ],
+          [
+            "CGNS",
+            "h5py: a CGNS/HDF5 file is an HDF5 tree, the CGNS library is not needed",
+            "turbine g4: 0.9 s"
+          ],
+          [
+            "Gmsh `.msh` v2.2",
+            "own parser (ASCII and binary, either byte order)",
+            "turbine g4: 0.6 s"
+          ],
+          [
+            "Gmsh `.msh` v4",
+            "meshio",
+            "sphere v1g2 (2.2 M nodes): 8.8 s"
+          ],
+          [
+            "`.hmesh`",
+            "`solver_tools.horses3d.read_mesh` + merging coincident nodes",
+            "sphere v2g2: 0.5 s"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Checked on 20/11/2026: the same mesh as `.h5`, `.cgns` and `.msh` (sphere v1g2, turbine g1 and g2) gives the same faces per BC and the same areas in all three. It is in the tests (`FotR/tests/test_legolas_io.py`)."
+      }
+    ],
+    "fmt_hopr": [
+      {
+        "t": "p",
+        "x": "The input format of HORSES3D and FLEXI, written by PyHOPE. The easiest one: hexahedra already come in tensor order, LEGOLAS's canonical one, and every element brings its six faces in CGNS order with neighbour and BC."
+      },
+      {
+        "t": "p",
+        "x": "Two details the reader handles for you. `NodeCoords` repeats every node once per element using it; the unique ones come from `GlobalNodeIDs`. And an inner zone (BCType 100, like `rotor_cylinder`) has its BC written on **both** touching faces: LEGOLAS keeps it once."
+      },
+      {
+        "t": "p",
+        "x": "`meta['file_cell_index']` gives, for every LEGOLAS cell, the element of the file (from 0). Add one and you get the number HORSES3D prints, e.g. the \"worst element\" of an FSP test."
+      }
+    ],
+    "fmt_cgns": [
+      {
+        "t": "p",
+        "x": "A modern `.cgns` is an HDF5 file holding a tree of CGNS nodes, so h5py reads it and the CGNS library is not needed. Unstructured zones, sections of any type or `MIXED`, and `ZoneBC` boundaries (on faces or vertices) are read. Without `ZoneBC`, every surface section becomes a BC with its name."
+      },
+      {
+        "t": "p",
+        "x": "Tensor hexahedra (HEXA_8/27/64/125) are reordered to the canonical layout. Serendipity ones (HEXA_20…) keep only their corners, and say so."
+      },
+      {
+        "t": "note",
+        "x": "Not read: CGNS/ADF (the old format, not HDF5: convert it with `adf2hdf`), structured zones and NGON/NFACE polyhedra."
+      }
+    ],
+    "fmt_gmsh": [
+      {
+        "t": "p",
+        "x": "Version 2.2 goes through an own parser because **ANSA writes the binary in big-endian**. The format allows it: the integer `1` in the header gives the byte order and gmsh honours it. meshio does not, and fails with a terse \"Couldn't read file\". `meta['byteorder']` tells you which one it was. Version 4 still goes through meshio."
+      },
+      {
+        "t": "p",
+        "x": "Physical groups give the names: dimension 3 are zones, dimension 2 are BCs. A physical group declared without elements still shows up, as an empty BC. Surfaces in no physical group are grouped by geometrical entity (`entity_<n>`)."
+      }
+    ],
+    "fmt_hmesh": [
+      {
+        "t": "p",
+        "x": "The **solution** nodes HORSES3D used, element by element. No connectivity and no BCs: LEGOLAS rebuilds the connectivity by merging coincident nodes. That only works with Gauss-Lobatto nodes, which lie on the faces; with Gauss nodes the elements share nothing, and it warns."
+      },
+      {
+        "t": "p",
+        "x": "Mind that the order here is the solution order (`p`), not the geometric order of the mesh."
+      }
+    ],
+    "mesh": [
+      {
+        "t": "h",
+        "x": "Containers"
+      },
+      {
+        "t": "p",
+        "x": "`Mesh` holds `points` (unique nodes), `blocks` (one `CellBlock` per element kind and order), `boundaries` (one `Boundary` per name), `zones` and `meta`. A cell's global index runs through the blocks in order; `mesh.locate_cell` turns it into (block, local)."
+      },
+      {
+        "t": "p",
+        "x": "A `Boundary` **has no surface cells**: it stores (element, local face) pairs. Face nodes always come from the volume element, so every format ends up with the same face layout, however the file wrote its surfaces."
+      },
+      {
+        "t": "h",
+        "x": "Canonical node order"
+      },
+      {
+        "t": "table",
+        "head": [
+          "element",
+          "order",
+          "layout"
+        ],
+        "rows": [
+          [
+            "hexahedron",
+            "1 to 4",
+            "tensor, i fastest: node (i, j, k) sits at i + (N+1) j + (N+1)² k. **The linear one too**: its 8 corners are NOT in VTK order (use `ordering.hex_corners`)"
+          ],
+          [
+            "tetrahedron, pyramid, prism",
+            "1 only",
+            "VTK order (same as CGNS)"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "It is the order of HOPR and HORSES3D, and with it interpolation and Jacobians are tensor products."
+      },
+      {
+        "t": "h",
+        "x": "Faces of a hexahedron"
+      },
+      {
+        "t": "table",
+        "head": [
+          "face",
+          "plane",
+          "nodes"
+        ],
+        "rows": [
+          [
+            "0",
+            "ζ = 0",
+            "k = 0"
+          ],
+          [
+            "1",
+            "η = 0",
+            "j = 0"
+          ],
+          [
+            "2",
+            "ξ = 1",
+            "i = N"
+          ],
+          [
+            "3",
+            "η = 1",
+            "j = N"
+          ],
+          [
+            "4",
+            "ξ = 0",
+            "i = 0"
+          ],
+          [
+            "5",
+            "ζ = 1",
+            "k = N"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "This is CGNS's face order and HOPR's `SideInfo` order. `ordering.hex_face_grid(N, face)` returns all the nodes of a face as an outward-oriented (N+1)×(N+1) grid."
+      },
+      {
+        "t": "h",
+        "x": "Where the permutation tables come from"
+      },
+      {
+        "t": "p",
+        "x": "They were measured, not copied from a manual. gmsh 4.13.1 meshed a unit cube with a single element of order 1 to 4 and wrote it as `.msh` v2.2, `.msh` v4.1 and `.cgns`. Rounding each node's coordinates to the 1/N grid gives its tensor index. Those files live in `FotR/tests/data/legolas/` and the tests repeat the measurement."
+      },
+      {
+        "t": "note",
+        "x": "The trap they hide: meshio returns `hexahedron27` in VTK order but `hexahedron64` and `hexahedron125` in gmsh's native order. Hence one table for meshio and another for gmsh."
+      },
+      {
+        "t": "h",
+        "x": "Order screen"
+      },
+      {
+        "t": "p",
+        "x": "On reading, `io.read` picks 2000 random high-order hexahedra and checks that, along every grid line, nodes always move the same way (`ordering.tensor_monotonic`). A wrong permutation sends some node backwards, and the reader records it in `meta['warnings']`."
+      }
+    ],
+    "trouble": [
+      {
+        "t": "table",
+        "head": [
+          "symptom",
+          "cause",
+          "what LEGOLAS does"
+        ],
+        "rows": [
+          [
+            "meshio: \"Couldn't read file …msh as gmsh\"",
+            "binary `.msh` 2.2 in big-endian (ANSA)",
+            "reads it with its own parser and reports `meta['byteorder']`"
+          ],
+          [
+            "warning \"fail the tensor-order check\" and almost doubled areas",
+            "the g4 `.msh` from ANSA uses a node order of its own (61 of 125 differ from gmsh)",
+            "warns; use the `.cgns`, which has CGNS order, or regenerate. Automatic order detection comes in L6"
+          ],
+          [
+            "`rotor_cylinder` with twice the faces in the `.h5` than in the `.cgns`",
+            "HOPR writes an inner zone's BC on both touching faces",
+            "fixed: kept once"
+          ],
+          [
+            "\"is not an HDF5 file: probably a CGNS/ADF file\"",
+            "CGNS in ADF format",
+            "convert it with `adf2hdf`"
+          ],
+          [
+            "hundreds of thousands of `orphan_nodes`",
+            "HEXA_20 (serendipity): only the corners are kept",
+            "expected; the reader's warning says so"
+          ],
+          [
+            "the elevated `.cgns` or `.msh` have more nodes than the `.h5`",
+            "coincident nodes PyHOPE merges and the `.cgns` does not (322,297 vs 319,317 for the turbine g2)",
+            "visible in the census for now; counting duplicates comes in L3"
+          ],
+          [
+            "`entity_1` with 1.5 M interior faces and an empty `fluid` BC",
+            "the sphere `.msh` brings its interior faces with physical tag 0, and the `fluid` group is declared empty",
+            "harmless: interior faces named after their entity"
+          ],
+          [
+            "a `.msh` v4 takes ~9 s",
+            "it goes through meshio",
+            "only v2.2 has an own parser; a v4 one gets written if needed"
+          ],
+          [
+            "multi-zone CGNS shows interfaces as exterior faces",
+            "nodes of different zones are not merged",
+            "it warns"
+          ],
+          [
+            "the page says it cannot create a WebGL context",
+            "the browser has WebGL disabled or no acceleration",
+            "turn it on (in Brave/Chrome, hardware acceleration); software WebGL also works, slower"
+          ],
+          [
+            "connection refused when opening the address",
+            "the server stopped (30 min with no page open) or died: its output is in `h.log_path`",
+            "run `lg.viewer.show()` again"
+          ],
+          [
+            "a zone shows \"1 in k\" and starts unticked",
+            "it exceeds `max_triangles` (1 M)",
+            "tick it anyway, or raise the budget in `show()`"
+          ],
+          [
+            "the staircase does not show in a clip",
+            "the cut faces look towards the removed side",
+            "orbit the camera or press ⇄"
+          ]
+        ]
+      }
+    ],
+    "nested_Viewer": [
+      {
+        "t": "p",
+        "x": "In Lothlórien the Elves keep watch from the flets, platforms high in the mallorn trees: from up there the whole wood is in sight and nobody passes unseen. The viewer is that, a flet above the mesh. A small server in a process of its own and a three.js page in your browser; no ParaView, no VTK, no internet."
+      },
+      {
+        "t": "code",
+        "x": "lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\nh = lg.viewer.show()        # http://127.0.0.1:8766/  (VS Code forwards the port: Ports tab)\nh.stop()                    # or leave it: it stops by itself 30 min after the tab closes\n\n# from a shell, no interactive Python\npython -m FotR.characters.legolas.viewer MESH/mesh.h5 --port 8766"
+      },
+      {
+        "t": "table",
+        "head": [
+          "what",
+          "how"
+        ],
+        "rows": [
+          [
+            "**Zones**",
+            "one checkbox per BC, with its colour and face count. ⌖ frames the zone (a small body inside a big domain). `interior` tags zones with a cell on each side; `no BC` (in red) are exterior faces in no BC"
+          ],
+          [
+            "**Drawing**",
+            "surface, edges or both. Edges are the **elements'** edges, following the high-order nodes; the diagonals of the triangulation are never drawn. Adjustable opacity"
+          ],
+          [
+            "**Layer**",
+            "the layer of cells a plane X, Y or Z goes through (crinkle slice): one cell thick, with all its faces, so every cell and its neighbours are visible. It hides the zones on entry, since they would cover it"
+          ],
+          [
+            "**Clip**",
+            "the cells whose centroid lies on one side of the plane, whole, as a staircase. The boundaries are clipped by the same plane on the GPU, so the domain opens up. ⇄ flips the side"
+          ],
+          [
+            "**Cell**",
+            "click any face: kind, order, zone, centroid, element in the file and its HORSES3D number (the same plus one), and per face the neighbour (clickable) or the boundary. centre orbits the camera around it"
+          ],
+          [
+            "**Views**",
+            "+X … −Z, fit, PNG screenshot; the corner gizmo tells you where you are looking"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Works without internet: three.js 0.160.0 ships inside the package (`static/three/`, MIT licence), copied untouched from the official npm package, with its sha256 checked by the tests. The page asks for nothing outside its own server."
+      },
+      {
+        "t": "h",
+        "x": "What it costs"
+      },
+      {
+        "t": "p",
+        "x": "The server sends surfaces, never the volume: boundaries by name and the cells around the plane. Each request has a budget of **1 million triangles** (about 55 MB with edges); a bigger zone is drawn decimated (1 in k faces) and starts hidden. That happens to `entity_1` in the sphere `.msh`: 1.5 M interior faces, 12 M triangles. Change it with `show(max_triangles=…)`."
+      },
+      {
+        "t": "p",
+        "x": "`show()` starts a separate process that reads the file again, because reading it is faster than shipping it. A mesh built in memory is saved first to `~/.cache/FotR/legolas/` and the server deletes it once read. It listens on 127.0.0.1 only, is read-only and stops after 30 minutes with no page open (the page pings it every minute). For a server inside your own process, `lg.viewer.server().start()`."
+      },
+      {
+        "t": "note",
+        "x": "Checked on 20/11/2026 in a headless Chromium (QtWebEngine on an Xvnc display, software WebGL) with the turbine g2 and the sphere v1g2: zones, layer, clip, cell picking and views, no console errors. Trying it in your own browser is still yours to do."
+      }
+    ]
+  }
+}

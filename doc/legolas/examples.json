@@ -1,0 +1,64 @@
+{
+  "sections": {
+    "quickstart": [
+      {
+        "title": {
+          "es": "La misma malla en los tres formatos de COMAC",
+          "en": "The same mesh in the three COMAC formats"
+        },
+        "source": "examples/legolas/census_turbine.py",
+        "code": "import os\nfrom FotR import LEGOLAS\n\nsources = '/home/m.jaraiz/Documentos/COMAC/wind_turbine_ansa/sources'\n\n# La misma malla g2 de la turbina en los tres formatos que salen de ANSA y PyHOPE.\nfiles = ['Wind_turbine_disk_fluid_cgns_g2_mesh.h5',   # HOPR/PyHOPE (lo que lee HORSES3D)\n         'Wind_turbine_disk_fluid_g2.cgns',           # CGNS/HDF5 de ANSA\n         'Wind_turbine_disk_fluid_g2.msh']            # gmsh 2.2 binario big-endian de ANSA\n\nfor f in files:\n    lg = LEGOLAS(os.path.join(sources, f))\n    print(lg.census)                                  # tabla: BC, caras, área, caras interiores\n    print()",
+        "note": {
+          "es": "Las tres tablas salen iguales: 478 caras en `inlet`, 2560 en `rotor_cylinder` (todas interiores), áreas idénticas. Solo cambian los nombres (`sidea` en HOPR, `sideA` en ANSA) y los nodos: 319 317 en el `.h5` frente a 322 297, porque PyHOPE fusiona nodos coincidentes.",
+          "en": "The three tables come out equal: 478 faces in `inlet`, 2560 in `rotor_cylinder` (all interior), identical areas. Only the names differ (`sidea` in HOPR, `sideA` in ANSA) and the nodes: 319,317 in the `.h5` against 322,297, because PyHOPE merges coincident nodes."
+        }
+      }
+    ],
+    "nested_Census": [
+      {
+        "title": {
+          "es": "El censo como dict",
+          "en": "The census as a dict"
+        },
+        "source": "examples/legolas/census_turbine.py",
+        "code": "# El resumen también es un dict, para comparar sin mirar tablas.\ns = LEGOLAS(os.path.join(sources, files[0])).census.summary()\ninner = [b['name'] for b in s['boundaries'] if b['interior_faces']]\nprint('zonas interiores (caras con celda a cada lado):', inner)"
+      },
+      {
+        "title": {
+          "es": "Lo que el censo ve en la g4 de ANSA",
+          "en": "What the census sees in ANSA's g4"
+        },
+        "source": "examples/legolas/census_turbine.py",
+        "code": "# La g4 en .msh de ANSA trae un orden de nodos propio: LEGOLAS lo dice al leer.\ng4 = LEGOLAS(os.path.join(sources, 'Wind_turbine_disk_fluid_g4.msh'))\nfor w in g4.mesh.meta['warnings']:\n    print('aviso:', w)",
+        "note": {
+          "es": "Sale «2000 of 2000 sampled order-4 hexahedra fail the tensor-order check». El `.cgns` de la misma malla pasa limpio.",
+          "en": "It prints \"2000 of 2000 sampled order-4 hexahedra fail the tensor-order check\". The `.cgns` of the same mesh passes clean."
+        }
+      }
+    ],
+    "formats": [
+      {
+        "title": {
+          "es": "Leer cualquier formato",
+          "en": "Reading any format"
+        },
+        "source": "examples/legolas/census_turbine.py",
+        "code": "import os\nfrom FotR import LEGOLAS\n\nsources = '/home/m.jaraiz/Documentos/COMAC/wind_turbine_ansa/sources'\n\n# La misma malla g2 de la turbina en los tres formatos que salen de ANSA y PyHOPE.\nfiles = ['Wind_turbine_disk_fluid_cgns_g2_mesh.h5',   # HOPR/PyHOPE (lo que lee HORSES3D)\n         'Wind_turbine_disk_fluid_g2.cgns',           # CGNS/HDF5 de ANSA\n         'Wind_turbine_disk_fluid_g2.msh']            # gmsh 2.2 binario big-endian de ANSA\n\nfor f in files:\n    lg = LEGOLAS(os.path.join(sources, f))\n    print(lg.census)                                  # tabla: BC, caras, área, caras interiores\n    print()"
+      }
+    ],
+    "nested_Viewer": [
+      {
+        "title": {
+          "es": "Abrir el visor desde Python",
+          "en": "Opening the viewer from Python"
+        },
+        "source": "examples/legolas/viewer_turbine.py",
+        "code": "from FotR import LEGOLAS\n\nmesh = '/home/m.jaraiz/Documentos/COMAC/wind_turbine_ansa/sources/Wind_turbine_disk_fluid_cgns_g2_mesh.h5'\n\n# El visor corre en un proceso aparte y sobrevive a este script; se apaga solo\n# 30 minutos después de cerrar la pestaña. Desde VS Code el puerto se reenvía solo.\nlg = LEGOLAS(mesh)\nh = lg.viewer.show()\nprint(h.url)\n\n# Una malla grande se dibuja diezmada por encima de max_triangles (1 millón por\n# defecto), y sus zonas arrancan ocultas.\n# h = lg.viewer.show(max_triangles=3_000_000)\n\n# Para pararlo antes de tiempo:\n# h.stop()",
+        "note": {
+          "es": "Imprime algo como `http://127.0.0.1:8766/`; si el puerto está ocupado prueba los 20 siguientes.",
+          "en": "Prints something like `http://127.0.0.1:8766/`; if the port is taken it tries the next 20."
+        }
+      }
+    ]
+  }
+}
