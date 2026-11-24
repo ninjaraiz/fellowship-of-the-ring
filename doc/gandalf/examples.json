@@ -201,6 +201,32 @@
           "en": "`num_stages` is required even though the signature says `None`: without it, `ValueError`. `root_dir` and `root_dir/metadata` are created right away; `outputs/` waits for `generate_folders`."
         }
       }
+    ],
+    "horses3d": [
+      {
+        "title": {
+          "es": "Turbina del Blind Test: escalera p2 → p3 y prueba FSP",
+          "en": "Blind Test turbine: p2 → p3 ladder and FSP test"
+        },
+        "source": "examples/gandalf/horses3d_wind_turbine.py",
+        "code": "gdf = GANDALF(root_dir=root, ring='horses3d')\ngdf.define_cases(method='external', external_dataframe=pd.DataFrame({'tsr': [6.0]}))\ngdf.compute_param(name='omega', formula=f'tsr*{U}/{R}')\n\n# La plantilla es un .control que ya funciona: el ring cambia las claves, no hay marcadores.\n# Malla, p, nombre de la solución y escalera de restart (p2 -> p3) los pone el ring.\ngdf.generate_folders(\n    control_template=os.path.join(sources, 'wind_turbine.control'),\n    mesh_path=os.path.join(sources, 'Wind_turbine_disk_fluid_cgns_g2_mesh.h5'),\n    tag='wt',\n    folder_fmt='tsr_{tsr:.1f}',\n    p_levels=[2, 3],\n    control_values={'mach number': 0.02934, 'final time': 20.0},\n    p_values={3: {'final time': 25.0}},\n    extra_dirs=[os.path.join(sources, 'ActuatorDef')],\n    data_to_update={'OMEGA_PLACEHOLDER': 'omega'},\n    run_script=os.path.join(utils, 'run.sh'),\n)\n\n# Primero la prueba FSP (Inflow en todas las fronteras): la malla tiene que conservar la\n# corriente libre. Sin dry_run=False solo muestra los comandos.\nprint(gdf.submit_cases(2, repo, fsp=True))\n# gdf.submit_cases(2, repo, fsp=True, dry_run=False)\n# gdf.fsp_report(2)                      # cuando termine: la solución no debe moverse (< 1e-6)\n# gdf.submit_cases(2, repo, dry_run=False)     # la simulación de verdad",
+        "note": {
+          "es": "Ω se calcula por caso con `compute_param` y entra en `ActuatorDef/` por su marcador; el resto del control cambia por claves. Las condiciones físicas del caso real están aún por decidir.",
+          "en": "Ω is computed per case with `compute_param` and enters `ActuatorDef/` through its placeholder; the rest of the control changes by key. The physical conditions of the real case are still to be decided."
+        }
+      },
+      {
+        "title": {
+          "es": "Esfera: Mach y Reynolds por caso, p2 → p3",
+          "en": "Sphere: Mach and Reynolds per case, p2 → p3"
+        },
+        "source": "examples/gandalf/horses3d_sphere_re_mach.py",
+        "code": "import itertools\n\n# Malla completa de Mach y Reynolds: 2 x 2 = 4 casos.\ncases = pd.DataFrame(list(itertools.product([0.2, 0.3], [200.0, 400.0])), columns=['M', 'Re'])\n\ngdf = GANDALF(root_dir=root, ring='horses3d')\ngdf.define_cases(method='external', external_dataframe=cases)\n\n# Plantilla: un .control que ya ha corrido. Lo que no se nombra aquí se queda como está.\ngdf.generate_folders(\n    control_template=os.path.join(reference, 'file_control_p2.control'),\n    mesh_path=os.path.join(reference, 'MESH', 'my_esphere_v2g2_mesh.h5'),\n    tag='sph',\n    folder_fmt='M_{M:.2f}_Re_{Re:.0f}',\n    p_levels=[2, 3],\n    control_values={\n        'mach number': 'M',                  # columna de df_cases: un valor por caso\n        'Reynolds number': 'Re',             # columna de df_cases: un valor por caso\n        'final time': 150.0,                 # valor fijo para todos\n        'Number of time steps': 3000000,\n        'autosave mode': '\"time\"',           # las cadenas se escriben tal cual: comillas incluidas\n        'autosave interval': 10.0,\n        'save gradients with solution': True,  # bool -> .true.\n        'write dt restriction': None,        # None borra la clave\n    },\n    p_values={3: {'final time': 200.0, 'cfl': 0.3, 'dcfl': 0.3}},   # solo el control de p=3\n    run_script=os.path.join(utils, 'run.sh'),\n)\n\n# p=2 arranca de cero; p=3 reinicia desde la solución de p=2 (restart polorder = 2).\nprint(gdf.submit_cases(2, repo, fsp=True))          # primero la prueba FSP de la malla\n# gdf.submit_cases(2, repo, fsp=True, dry_run=False); gdf.fsp_report(2)\n# gdf.submit_cases(2, repo, dry_run=False)          # cuando termine p=2:\n# gdf.submit_cases(3, repo, dry_run=False)",
+        "note": {
+          "es": "Los cuatro casos salen con su `mach number` y su `Reynolds number` en los dos controles. `file_control_p3.control` solo difiere de `p2` en lo que pone el ring (`Polynomial order = 3`, `solution file name = \"RESULTS/sph_g2p3.hsol\"`, `restart = .true.`, `restart polorder = 2`, con `restart file name` apuntando a la solución de p=2) y en lo que fija `p_values[3]` (`final time = 200.0`, `cfl` y `dcfl` = 0.3). `final time` es absoluto: el restart hereda el tiempo de p=2.",
+          "en": "The four cases get their own `mach number` and `Reynolds number` in both controls. `file_control_p3.control` differs from `p2` only in what the ring sets (`Polynomial order = 3`, `solution file name = \"RESULTS/sph_g2p3.hsol\"`, `restart = .true.`, `restart polorder = 2`, with `restart file name` pointing at the p=2 solution) and in what `p_values[3]` sets (`final time = 200.0`, `cfl` and `dcfl` = 0.3). `final time` is absolute: the restart inherits the time of p=2."
+        }
+      }
     ]
   }
 }

@@ -1,7 +1,8 @@
 {
   "rings": {
     "coda": "CODARing",
-    "coda_single": "CODASingleRing"
+    "coda_single": "CODASingleRing",
+    "horses3d": "Horses3DRing"
   },
   "modules": [
     {
@@ -34,7 +35,7 @@
               {
                 "name": "ring",
                 "type": "str",
-                "desc": "Case-generation ring: ``'coda'`` (single shared mesh, default) or ``'coda_single'`` (one mesh per case via ``mesh_paths``). Keyword-only; historical positional calls are unaffected."
+                "desc": "Case-generation ring: ``'coda'`` (single shared mesh, default), ``'coda_single'`` (one mesh per case via ``mesh_paths``) or ``'horses3d'`` (HORSES3D, one mesh and a ``p`` ladder; it ignores ``eq_type`` and ``num_stages``). Keyword-only; historical positional calls are unaffected."
               },
               {
                 "name": "**kwargs",
@@ -124,7 +125,7 @@
                   {
                     "name": "**kwargs",
                     "type": "",
-                    "desc": "``ring`` selects the generation policy: ``'coda'`` (one shared mesh, the default) or ``'coda_single'`` (one mesh per case). It is popped here; **everything else is forwarded verbatim to the ring constructor**, where only ``version`` is read."
+                    "desc": "``ring`` selects the generation policy: ``'coda'`` (one shared mesh, the default), ``'coda_single'`` (one mesh per case) or ``'horses3d'``. It is popped here; **everything else is forwarded verbatim to the ring constructor**, where only ``version`` is read."
                   }
                 ],
                 "returns": [],
@@ -1109,6 +1110,623 @@
                     "desc": "``{PLACEHOLDER: df_cases column or literal}``."
                   }
                 ],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "FotR/characters/rings/horses3d.py",
+      "classes": [
+        {
+          "id": "Horses3DRing",
+          "file": "FotR/characters/rings/horses3d.py",
+          "parent": null,
+          "bases": [
+            "BaseRing"
+          ],
+          "doc": {
+            "summary": "HORSES3D case generator with one shared mesh and a ``p`` ladder.",
+            "description": "Cases come from :meth:`define_cases` (and :meth:`add_param` /\n:meth:`compute_param`) as in every ring; :meth:`generate_folders`\nwrites them, :meth:`submit_cases` launches them through\n``utils_H3d/run.sh`` and :meth:`fsp_report` checks the free-stream\npreservation tests.",
+            "params": [
+              {
+                "name": "root_dir",
+                "type": "str",
+                "desc": "Campaign root (``metadata/`` and ``outputs/``)."
+              },
+              {
+                "name": "eq_type, num_stages",
+                "type": "",
+                "desc": "Accepted for the GANDALF facade and ignored: the flow equations come from the control template, and the stages of a HORSES3D case are its polynomial orders (``p_levels``)."
+              }
+            ],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    gdf = GANDALF(root_dir='~/Documentos/COMAC/wind_turbine_ansa',\n                  ring='horses3d')\n    gdf.define_cases(method='external', external_dataframe=df)"
+              }
+            ],
+            "has_doc": true
+          },
+          "methods": [
+            {
+              "id": "Horses3DRing.__init__",
+              "class": "Horses3DRing",
+              "name": "__init__",
+              "signature": "__init__(root_dir: str, eq_type: Optional[str] = None, num_stages: Optional[int] = None, **kwargs)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Create the ring and ``root_dir/metadata``.",
+                "description": "``outputs/`` is created by :meth:`generate_folders`.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing.solution_name",
+              "class": "Horses3DRing",
+              "name": "solution_name",
+              "signature": "solution_name(p: int, fsp: bool = False)",
+              "returns": "str",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Path of the solution of order ``p``, relative to the case folder.",
+                "description": "``RESULTS/<tag>_g<g>p<p>.hsol``, or\n``RESULTS/FSP/<tag>_g<g>p<p>_fsp.hsol`` for the FSP test.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing.control_name",
+              "class": "Horses3DRing",
+              "name": "control_name",
+              "signature": "control_name(p: int, fsp: bool = False)",
+              "returns": "str",
+              "kind": "staticmethod",
+              "is_private": false,
+              "doc": {
+                "summary": "``file_control_p<p>.control``, or ``fsp_p<p>.control``.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing.generate_folders",
+              "class": "Horses3DRing",
+              "name": "generate_folders",
+              "signature": "generate_folders(control_template: str, mesh_path: str, tag: str, folder_fmt: str, p_levels: Union[list, tuple] = (2,), control_values: Optional[dict] = None, p_values: Optional[dict] = None, extra_dirs: Optional[list] = None, data_to_update: Optional[dict] = None, setup_dir: Optional[str] = None, run_script: Optional[str] = None, fsp: bool = True, fsp_steps: int = 200, strip_comments: bool = True, overwrite: bool = False)",
+              "returns": "pd.DataFrame",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Write one folder per case under ``outputs/`` and the metadata.",
+                "description": "Per case: ``MESH/<mesh>`` (copy), ``RESULTS/``, ``LOG/``, one\n``file_control_p<p>.control`` per entry of ``p_levels``, the FSP\ncontrols (``fsp=True``), ``extra_dirs``, ``SETUP/`` and a\n``run.sh`` link. Existing folders are skipped (``exist = True``)\nunless ``overwrite``.\n\nEvery control starts from ``control_template`` and is changed key\nby key, in this order: ``control_values``, the restart ladder,\n``p_values[p]``, and the keys the ring owns (``mesh file name``,\n``Polynomial order``, ``solution file name``).",
+                "params": [
+                  {
+                    "name": "control_template",
+                    "type": "str",
+                    "desc": "A working ``.control``. Its ``#define`` blocks (boundaries, monitors…) are copied untouched. It must declare every boundary of the mesh; the inner zones (``BCType`` 100, e.g. refinement surfaces) may be left out: HORSES3D still wants a ``type`` for them, so the ring adds a ``#define boundary`` block with ``type = FreeSlipWall`` and says so. That type is never applied: faces with an element on each side stay interior (``Number of faces: 0`` for those zones in the solver log)."
+                  },
+                  {
+                    "name": "mesh_path",
+                    "type": "str",
+                    "desc": "HOPR/PyHOPE ``.h5`` mesh. Its name must carry ``g<Ngeo>``."
+                  },
+                  {
+                    "name": "tag",
+                    "type": "str",
+                    "desc": "Short campaign label for the solution names (``RESULTS/<tag>_g<g>p<p>.hsol``). Letters, digits, ``-`` and ``_``; it must not end in ``_<digits>`` (autosave pattern)."
+                  },
+                  {
+                    "name": "folder_fmt",
+                    "type": "str",
+                    "desc": "Case folder name, formatted with the design variables, e.g. ``'tsr_{tsr:.1f}_M_{M:.4f}'``."
+                  },
+                  {
+                    "name": "p_levels",
+                    "type": "list of int",
+                    "desc": "Polynomial orders, ascending, each ``>= g``. The first starts from scratch; each next one restarts from the previous solution (``restart polorder`` = previous ``p``)."
+                  },
+                  {
+                    "name": "control_values",
+                    "type": "dict, optional",
+                    "desc": "``{control key: df_cases column or value}`` for every ``p``, e.g. ``{'mach number': 'M', 'final time': 20.0}``. A string naming a column takes the case's value; ``None`` removes the key."
+                  },
+                  {
+                    "name": "p_values",
+                    "type": "dict, optional",
+                    "desc": "``{p: {control key: value}}`` for one level, e.g. a later absolute ``final time`` for ``p=3``. Overrides the ladder."
+                  },
+                  {
+                    "name": "extra_dirs",
+                    "type": "list of str, optional",
+                    "desc": "Folders copied into each case (e.g. ``ActuatorDef``). Text files in them get ``data_to_update`` substituted."
+                  },
+                  {
+                    "name": "data_to_update",
+                    "type": "dict, optional",
+                    "desc": "``{PLACEHOLDER: df_cases column or literal}``, as in the CODA ring, for the files of ``extra_dirs``."
+                  },
+                  {
+                    "name": "setup_dir",
+                    "type": "str, optional",
+                    "desc": "``SETUP`` folder (``ProblemFile.f90``, ``Makefile``) copied as ``SETUP/``. Compile it afterwards with ``build_setup.sh``."
+                  },
+                  {
+                    "name": "run_script",
+                    "type": "str, optional",
+                    "desc": "Launcher linked as ``run.sh`` (``utils_H3d/run.sh``). Needed by :meth:`submit_cases`."
+                  },
+                  {
+                    "name": "fsp",
+                    "type": "bool",
+                    "desc": "Also write ``fsp_p<p>.control`` (see :meth:`fsp_control`). Default True."
+                  },
+                  {
+                    "name": "fsp_steps",
+                    "type": "int",
+                    "desc": "Time steps of the FSP test. Default 200."
+                  },
+                  {
+                    "name": "strip_comments",
+                    "type": "bool",
+                    "desc": "Remove ``!`` comments from the controls. Default True."
+                  },
+                  {
+                    "name": "overwrite",
+                    "type": "bool",
+                    "desc": "Rewrite the controls, mesh, ``extra_dirs``, ``SETUP`` and ``run.sh`` of existing case folders. ``RESULTS/`` and ``LOG/`` are never deleted. Default False (existing folders are skipped)."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "pd.DataFrame",
+                    "desc": "``df_cases`` with ``folder`` and ``exist``."
+                  }
+                ],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "RuntimeError",
+                    "desc": "Without :meth:`define_cases`."
+                  },
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "Bad ``tag``, ``p_levels`` not ascending or below ``g``, a mesh name without ``g<Ngeo>``, a ring-owned key in ``control_values`` or ``p_values``, a control that would miss a key HORSES3D requires, or a mesh zone without a ``#define boundary`` block (all checked before writing anything)."
+                  },
+                  {
+                    "name": "",
+                    "type": "FileNotFoundError",
+                    "desc": "Missing template, mesh, extra folder, SETUP or run script."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Examples",
+                    "text": "::\n\n    gdf.generate_folders(\n        control_template='sources/turbine.control',\n        mesh_path='sources/Wind_turbine_disk_fluid_cgns_g2_mesh.h5',\n        tag='wt', folder_fmt='tsr_{tsr:.1f}',\n        p_levels=[2, 3],\n        control_values={'mach number': 0.02934, 'final time': 20.0},\n        p_values={3: {'final time': 25.0}},\n        extra_dirs=['sources/ActuatorDef'],\n        data_to_update={'OMEGA_PLACEHOLDER': 'omega'},\n        run_script='/home/m.jaraiz/Documentos/utils_H3d/run.sh',\n    )"
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._case_value",
+              "class": "Horses3DRing",
+              "name": "_case_value",
+              "signature": "_case_value(value, case_dict: dict, i: int)",
+              "returns": "",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "A ``control_values`` entry for case ``i``: a column, or itself.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._control_text",
+              "class": "Horses3DRing",
+              "name": "_control_text",
+              "signature": "_control_text(template: str, case_values: dict, p: int, p_prev: Optional[int], level_values: dict, mesh_name: str, strip_comments: bool, auto_inner: Optional[list] = None)",
+              "returns": "str",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "The ``file_control_p<p>.control`` of one case; ``auto_inner`` zones get a ``#define boundary`` block of their own.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing.fsp_control",
+              "class": "Horses3DRing",
+              "name": "fsp_control",
+              "signature": "fsp_control(control_text: str, p: int, zones: list, steps: int = 200)",
+              "returns": "str",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Free-stream preservation test derived from a case control.",
+                "description": "The same flow, the same mesh and order, but ``Inflow`` on every\nboundary of the mesh and nothing else: no restart, actuator line or\ndisk, IBM, monitors, probes or saved surfaces. The uniform initial\nstate is then an exact solution, and a valid mesh (consistent\nmetric terms, no inverted elements) keeps it to round-off (judge\nit with :meth:`fsp_report`). It checks the mesh, not any\nphysics.",
+                "params": [
+                  {
+                    "name": "control_text",
+                    "type": "str",
+                    "desc": "The ``file_control_p<p>.control`` of the case."
+                  },
+                  {
+                    "name": "p",
+                    "type": "int",
+                    "desc": "Polynomial order."
+                  },
+                  {
+                    "name": "zones",
+                    "type": "list of str",
+                    "desc": "Every zone name of the mesh (``BCNames``). HORSES3D wants a ``type`` for each, inner surfaces included; those have no boundary faces, so ``Inflow`` there changes nothing."
+                  },
+                  {
+                    "name": "steps",
+                    "type": "int",
+                    "desc": "Time steps. Default 200."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "str",
+                    "desc": "Text of ``fsp_p<p>.control``."
+                  }
+                ],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._check_zones",
+              "class": "Horses3DRing",
+              "name": "_check_zones",
+              "signature": "_check_zones(text: str, name: str, zones: list)",
+              "returns": "None",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "Every mesh zone needs a ``#define boundary`` block (HORSES3D stops with \"Missing boundary condition type\" otherwise); by now the inner ones were added by the ring, so a missing zone is a real boundary.",
+                "description": "A surface monitor whose ``marker`` is not a zone is an error: HORSES3D\ndisables it but still updates it with zone -1 and crashes\n(SIGSEGV in ``VectorSurfaceIntegral``). An unknown name in\n``boundaries to save`` is skipped by HORSES3D, so it only warns.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._check_mandatory",
+              "class": "Horses3DRing",
+              "name": "_check_mandatory",
+              "signature": "_check_mandatory(text: str, name: str)",
+              "returns": "None",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "Raise if a control misses a key HORSES3D refuses to start without.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._update_tree",
+              "class": "Horses3DRing",
+              "name": "_update_tree",
+              "signature": "_update_tree(root: str, data_to_update: dict, case_dict: dict, i: int, df_cases=None)",
+              "returns": "None",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "Substitute placeholders in every text file under ``root``.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing.load_campaign",
+              "class": "Horses3DRing",
+              "name": "load_campaign",
+              "signature": "load_campaign()",
+              "returns": "None",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Recover a campaign written earlier from ``cases_metadata.json``.",
+                "description": "Restores ``tag``, the mesh ``g``, ``p_levels``, ``folder_fmt``,\n``design_vars``, ``df_cases`` and the folder names, so that\n:meth:`submit_cases` and :meth:`fsp_report` work in a new session\nwithout calling :meth:`generate_folders` again.",
+                "params": [],
+                "returns": [],
+                "raises": [
+                  {
+                    "name": "",
+                    "type": "FileNotFoundError",
+                    "desc": "Without ``metadata/cases_metadata.json``."
+                  },
+                  {
+                    "name": "",
+                    "type": "ValueError",
+                    "desc": "If the metadata was not written by this ring."
+                  }
+                ],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._case_dirs",
+              "class": "Horses3DRing",
+              "name": "_case_dirs",
+              "signature": "_case_dirs()",
+              "returns": "list",
+              "kind": "method",
+              "is_private": true,
+              "doc": {
+                "summary": "",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": false
+              }
+            },
+            {
+              "id": "Horses3DRing.assign_jobs",
+              "class": "Horses3DRing",
+              "name": "assign_jobs",
+              "signature": "assign_jobs(*args, **kwargs)",
+              "returns": "",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Not used by HORSES3D: ``run.sh`` takes node and resources as arguments. Use :meth:`submit_cases`.",
+                "description": "",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing.submit_cases",
+              "class": "Horses3DRing",
+              "name": "submit_cases",
+              "signature": "submit_cases(p: Union[int, list, tuple], repo: str, arch: str = 'GPU', node: str = 'n001', ngpu: Union[int, dict] = 1, cpus_per_gpu: int = 16, ncpus: Union[int, dict] = 48, branch: Optional[str] = None, solver: str = 'ns', fsp: bool = False, cases: Optional[list] = None, dry_run: bool = True)",
+              "returns": "pd.DataFrame",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Launch the control of order ``p`` of every case through ``run.sh``.",
+                "description": "Runs ``HORSES3D_REPO=<repo> SOLVER=<solver> ./run.sh <control>\n<branch> GPU <node> <ngpu> <cpus_per_gpu>`` (or ``… CPU <node>\n<ncpus>``) inside each case folder; ``run.sh`` checks the control,\nthe solver and ``SETUP`` before calling ``sbatch``. A case whose\nsolution already has a ``.hsol`` or a ``.residuals`` is skipped.\n\n``p`` may be a list of ascending orders, e.g. ``[2, 3, 4, 5]``: the\nrestart ladder is then chained. In each case, every order is\nsubmitted with ``DEPENDENCY=afterok:<job of the previous order>``,\nso Slurm starts it only when the previous one ends well and cancels\nit if that one fails (``run.sh`` adds ``--kill-on-invalid-dep=yes``).\nAn order already started (skipped) leaves no job to wait for: the\nnext one is submitted without a dependency and ``run.sh`` then needs\nits restart file. If an order fails or has no control, the rest of\nthat case's chain is not submitted.\n\nThe solver repository is always explicit: ``HORSES3D_REPO`` is set\nfrom ``repo`` for every case and any value already in the\nenvironment is ignored. Before planning anything, the repository\nmust have ``Solver/bin/horses3d.<solver>`` and be on ``branch``.\n``SETUP`` must be compiled against the same repository\n(``HORSES3D_REPO=<repo> build_setup.sh``); ``run.sh`` checks it.",
+                "params": [
+                  {
+                    "name": "p",
+                    "type": "int or list of int",
+                    "desc": "Polynomial order to launch, or ascending orders to chain."
+                  },
+                  {
+                    "name": "repo",
+                    "type": "str",
+                    "desc": "Solver repository (``~`` is expanded), e.g. ``'~/repos/horses3d-gpu'`` or a clone of a development branch such as ``'~/repos/horses3d-gpu-ad'``."
+                  },
+                  {
+                    "name": "arch",
+                    "type": "{'GPU', 'CPU'}",
+                    "desc": ""
+                  },
+                  {
+                    "name": "node",
+                    "type": "str",
+                    "desc": "Slurm node list, e.g. ``'n001'`` or ``'n[001,003-007]'``."
+                  },
+                  {
+                    "name": "ngpu",
+                    "type": "int or dict",
+                    "desc": "GPUs of a GPU run. Default 1. A dict ``{p: n}`` sets them per order, e.g. ``{2: 1, 3: 1, 4: 2, 5: 4}``; it must have every order of ``p``."
+                  },
+                  {
+                    "name": "cpus_per_gpu",
+                    "type": "int",
+                    "desc": "CPUs of each MPI task of a GPU run. Default 16."
+                  },
+                  {
+                    "name": "ncpus",
+                    "type": "int or dict",
+                    "desc": "MPI tasks of a CPU run. Default 48. A dict ``{p: n}`` sets them per order, like ``ngpu``."
+                  },
+                  {
+                    "name": "branch",
+                    "type": "str, optional",
+                    "desc": "Branch ``repo`` must be on. Default: the branch it is on. Never checked out, only compared."
+                  },
+                  {
+                    "name": "solver",
+                    "type": "str",
+                    "desc": "``ns``, ``ins``, ``mu`` or ``nssa``. Default ``'ns'``."
+                  },
+                  {
+                    "name": "fsp",
+                    "type": "bool",
+                    "desc": "Launch ``fsp_p<p>.control`` instead (a single order only). Default False."
+                  },
+                  {
+                    "name": "cases",
+                    "type": "list of str, optional",
+                    "desc": "Folder names. Default: every case."
+                  },
+                  {
+                    "name": "dry_run",
+                    "type": "bool",
+                    "desc": "Only report the commands. Default True."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "pd.DataFrame",
+                    "desc": "One row per case and order: ``folder``, ``p``, ``control``, ``status`` (``'planned'``, ``'submitted'``, ``'skipped'``, ``'failed'``), ``command``, ``job_id``, ``depends_on`` (job it waits for; ``'<p2>'`` in a dry run) and ``message``."
+                  }
+                ],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Examples",
+                    "text": "::\n\n    repo = '~/repos/horses3d-gpu'\n    plan = gdf.submit_cases(2, repo, fsp=True)          # what would run\n    gdf.submit_cases(2, repo, fsp=True, dry_run=False)  # from nibbler\n    gdf.submit_cases([2, 3, 4, 5], repo, ngpu={2: 1, 3: 1, 4: 2, 5: 4},\n                     dry_run=False)                       # chained"
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._check_solver_repo",
+              "class": "Horses3DRing",
+              "name": "_check_solver_repo",
+              "signature": "_check_solver_repo(repo: str, solver: str, branch: Optional[str])",
+              "returns": "tuple",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "Resolve and check the solver repository of :meth:`submit_cases`.",
+                "description": "Returns the absolute path of ``repo`` and the branch to pass to\n``run.sh``. Raises if the repository or ``Solver/bin/horses3d.<solver>``\nis missing, if it is not on a branch (detached ``HEAD``) or if it is\nnot on ``branch``.",
+                "params": [],
+                "returns": [],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing.fsp_report",
+              "class": "Horses3DRing",
+              "name": "fsp_report",
+              "signature": "fsp_report(p: int, tol: float = 1e-06)",
+              "returns": "pd.DataFrame",
+              "kind": "method",
+              "is_private": false,
+              "doc": {
+                "summary": "Read the FSP tests of order ``p``: does each mesh keep free stream?",
+                "description": "The verdict comes from the solution, not from the residuals: the\nfinal ``.hsol`` is compared node by node with the uniform state the\nsolver wrote at iteration 0 (``<stem>_0000000000.hsol``). The\nresiduals are reported for information only: at low Mach they are\nfar from zero even for an exact uniform state (round-off of large\nenergy fluxes summed over every degree of freedom: up to 1.6e-4 on\nthe NTNU turbine mesh, whose solution moved by 5e-9 relative).",
+                "params": [
+                  {
+                    "name": "p",
+                    "type": "int",
+                    "desc": "Polynomial order of the test."
+                  },
+                  {
+                    "name": "tol",
+                    "type": "float",
+                    "desc": "Largest relative change of the solution accepted as round-off. Default 1e-6 (a sound mesh gives ~1e-9 after 200 steps; an inverted or badly stitched element gives orders of magnitude more)."
+                  }
+                ],
+                "returns": [
+                  {
+                    "name": "",
+                    "type": "pd.DataFrame",
+                    "desc": "One row per case: ``folder``, ``status`` (``'pending'``, ``'running'`` while the final ``.hsol`` is missing or incomplete, ``'done'``), ``iterations``, ``max_residual``, ``last_residual``, ``max_deviation`` (largest change of any variable, relative to its free-stream scale: density, momentum magnitude, energy), ``worst_element`` (0-based) and ``preserved`` (``max_deviation < tol``)."
+                  }
+                ],
+                "raises": [],
+                "attributes": [],
+                "methods": [],
+                "text_sections": [
+                  {
+                    "title": "Examples",
+                    "text": "::\n\n    gdf.fsp_report(2)"
+                  }
+                ],
+                "has_doc": true
+              }
+            },
+            {
+              "id": "Horses3DRing._fsp_deviation",
+              "class": "Horses3DRing",
+              "name": "_fsp_deviation",
+              "signature": "_fsp_deviation(stem: str)",
+              "returns": "",
+              "kind": "staticmethod",
+              "is_private": true,
+              "doc": {
+                "summary": "``(max relative change, worst element)`` between the iteration-0 and the final solution of an FSP test, or None if either is missing or the final one is incomplete.",
+                "description": "",
+                "params": [],
                 "returns": [],
                 "raises": [],
                 "attributes": [],

@@ -32,6 +32,7 @@ TARGETS = [
     ("FotR/characters/rings/base.py", ["BaseRing"]),
     ("FotR/characters/rings/coda.py", ["CODARing"]),
     ("FotR/characters/rings/coda_single.py", ["CODASingleRing"]),
+    ("FotR/characters/rings/horses3d.py", ["Horses3DRing"]),
 ]
 
 # Secciones numpydoc que se parsean como lista de entradas "nombre : tipo".

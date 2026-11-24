@@ -30,8 +30,10 @@ class GANDALF:
     num_stages : int
         Number of solver stages (required).
     ring : str
-        Case-generation ring: ``'coda'`` (single shared mesh, default)
-        or ``'coda_single'`` (one mesh per case via ``mesh_paths``).
+        Case-generation ring: ``'coda'`` (single shared mesh, default),
+        ``'coda_single'`` (one mesh per case via ``mesh_paths``) or
+        ``'horses3d'`` (HORSES3D, one mesh and a ``p`` ladder; it ignores
+        ``eq_type`` and ``num_stages``).
         Keyword-only; historical positional calls are unaffected.
     **kwargs
         Forwarded to the ring (see :class:`BaseRing`).
@@ -99,8 +101,8 @@ class GANDALF:
             Number of solver stages. Required by the ring.
         **kwargs
             ``ring`` selects the generation policy: ``'coda'`` (one
-            shared mesh, the default) or ``'coda_single'`` (one mesh per
-            case). It is popped here; **everything else is forwarded
+            shared mesh, the default), ``'coda_single'`` (one mesh per
+            case) or ``'horses3d'``. It is popped here; **everything else is forwarded
             verbatim to the ring constructor**, where only ``version``
             is read.
 

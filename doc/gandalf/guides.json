@@ -10,8 +10,12 @@
         "x": "Cuando el solver termina y hay algo que recoger, el trabajo pasa a [FRODO](../frodo_sam/index.html). GANDALF siembra; FRODO carga con la cosecha."
       },
       {
+        "t": "p",
+        "x": "Antes de que corra nada, la malla que GANDALF copia en `MESH/` de cada caso se puede revisar con [LEGOLAS](../legolas/index.html): BC, caras, áreas y orden de nodos, en el mismo formato que lee HORSES3D."
+      },
+      {
         "t": "code",
-        "x": "GANDALF(root_dir, eq_type, num_stages, ring=…)\n  └─ es una FACHADA: no tiene lógica propia\n     └─ _ring  ──►  CODARing  o  CODASingleRing\n                      └─ hereda de BaseRing\n                           ├─ define_cases        espacio de diseño\n                           ├─ define_geom_file    geometría del perfil\n                           ├─ add_param           columna desde un array\n                           ├─ compute_param       columna desde una fórmula\n                           ├─ assign_jobs         reparto por nodos\n                           ├─ submit_cases        sbatch\n                           ├─ recover_pending_jobs\n                           └─ Backpack            ◄── NO se delega\n                      └─ generate_folders  ← lo único propio de cada ring"
+        "x": "GANDALF(root_dir, eq_type, num_stages, ring=…)\n  └─ es una FACHADA: no tiene lógica propia\n     └─ _ring  ──►  CODARing, CODASingleRing o Horses3DRing\n                      └─ hereda de BaseRing\n                           ├─ define_cases        espacio de diseño\n                           ├─ define_geom_file    geometría del perfil\n                           ├─ add_param           columna desde un array\n                           ├─ compute_param       columna desde una fórmula\n                           ├─ assign_jobs         reparto por nodos\n                           ├─ submit_cases        sbatch\n                           ├─ recover_pending_jobs\n                           └─ Backpack            ◄── NO se delega\n                      └─ generate_folders  ← lo único propio de cada ring"
       },
       {
         "t": "note",
@@ -108,11 +112,11 @@
       },
       {
         "t": "p",
-        "x": "Tres anillos para los Reyes Elfos, siete para los Señores Enanos, nueve para los Hombres Mortales. Aquí hay dos, y la diferencia entre ellos es bastante menos épica: **la política de mallas**."
+        "x": "Tres anillos para los Reyes Elfos, siete para los Señores Enanos, nueve para los Hombres Mortales. Aquí hay tres, y la diferencia entre ellos es bastante menos épica: **el solver y la política de mallas**."
       },
       {
         "t": "p",
-        "x": "Es lo *único* que cambia de uno a otro. Todo lo demás —casos, geometría, parámetros, SLURM— vive en `BaseRing` y se comparte. Por eso en las pestañas de abajo verás que casi todos los métodos están etiquetados como heredados: lo propio de cada ring es un solo método."
+        "x": "Entre los dos de CODA es lo *único* que cambia. Todo lo demás —casos, geometría, parámetros, SLURM— vive en `BaseRing` y se comparte, por eso en las pestañas verás casi todos los métodos etiquetados como heredados. El de HORSES3D hereda los casos y los parámetros, pero escribe y lanza a su manera: un `.control` por orden polinómico y `run.sh` en vez de plantillas de Slurm."
       },
       {
         "t": "table",
@@ -134,12 +138,165 @@
             "Una por caso",
             "`generate_folders(mesh_paths=[…])`",
             "`format='CODA_SINGLE'`"
+          ],
+          [
+            "`horses3d`",
+            "Una compartida, con `g<n>` en el nombre",
+            "`generate_folders(control_template=…, p_levels=[…])`, `submit_cases`, `fsp_report`",
+            "`format='HORSES3D'`"
           ]
         ]
       },
       {
         "t": "p",
         "x": "Se elige con `ring=` en el constructor. Por defecto es `'coda'`, que es el comportamiento histórico — el anillo que ya llevabas puesto antes de que nadie hablara de rings."
+      },
+      {
+        "t": "h",
+        "x": "El anillo de HORSES3D"
+      },
+      {
+        "t": "p",
+        "x": "Un caso de HORSES3D no es una simulación sino una escalera: el mismo caso físico a varios órdenes polinómicos `p`, cada uno reiniciando desde el anterior. El ring escribe un `file_control_p<p>.control` por peldaño a partir de una plantilla que **ya funciona**, cambiando claves (`mach number = …`) en vez de sustituir marcadores: la plantilla se puede lanzar tal cual y nadie tiene que acordarse de qué `MACH_PLACEHOLDER` iba dónde."
+      },
+      {
+        "t": "table",
+        "head": [
+          "lo pone",
+          "qué"
+        ],
+        "rows": [
+          [
+            "el ring",
+            "`mesh file name`, `Polynomial order`, `solution file name` = `RESULTS/<tag>_g<g>p<p>.hsol` y la escalera de restart"
+          ],
+          [
+            "`control_values`",
+            "claves comunes, con el valor de una columna de `df_cases` o uno fijo"
+          ],
+          [
+            "`p_values`",
+            "claves de un peldaño, p. ej. un `final time` absoluto mayor para `p=3`"
+          ],
+          [
+            "`extra_dirs` + `data_to_update`",
+            "carpetas como `ActuatorDef/`, con marcadores como en CODA"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "La malla manda: su nombre tiene que llevar `g<n>` y coincidir con el atributo `Ngeo` del `.h5`, y ningún `p` puede quedar por debajo. Si no, error antes de escribir nada."
+      },
+      {
+        "t": "note",
+        "x": "**Zonas interiores.** HORSES3D crea una zona por cada nombre de `BCNames` de la malla y exige un `type` para todas, también para las superficies interiores que se dejan en la malla para refinarla (en la turbina, `rotor_cylinder` y `disk_side`). Pero esas superficies tienen un elemento a cada lado, así que el solver las trata como caras interiores y la zona se queda sin caras (`Number of faces: 0` en el log): el tipo que les pongas no se aplica nunca. No hace falta declararlas en la plantilla: si faltan, el ring añade un bloque `#define boundary … type = FreeSlipWall` a cada control y lo dice en la salida. Si lo que falta es una frontera de verdad, error: ahí sí cambiaría la física."
+      },
+      {
+        "t": "h",
+        "x": "Qué se puede cambiar del .control desde GANDALF"
+      },
+      {
+        "t": "p",
+        "x": "El ring no tiene una lista de claves permitidas: cualquier línea `clave = valor` de la plantilla que esté **fuera** de un bloque `#define … #end` se puede cambiar, y si la clave no existe se añade antes del primer bloque. Las mayúsculas y los espacios de la clave dan igual (`'Reynolds number'` y `'reynolds  number'` son la misma). Lo que no cambia es quién manda sobre cada clave:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "clave",
+          "quién la pone",
+          "se puede cambiar"
+        ],
+        "rows": [
+          [
+            "`mesh file name`, `Polynomial order`, `solution file name`",
+            "el ring (malla copiada, p del peldaño, `RESULTS/<tag>_g<g>p<p>.hsol`)",
+            "**no**: pasarlas en `control_values` o en `p_values` es error"
+          ],
+          [
+            "`restart`, `restart file name`, `restart polorder`",
+            "el ring, por la escalera (el primer p desde cero; cada siguiente desde el anterior)",
+            "sí, con `p_values[p]`, p. ej. para que el primer p reinicie desde otro caso"
+          ],
+          [
+            "cualquier otra fuera de `#define` (`mach number`, `Reynolds number`, `final time`, `cfl`, `dcfl`, `Number of time steps`, `autosave …`, `LES model`, `use actuatorline`…)",
+            "la plantilla",
+            "sí: `control_values` (todos los p) y `p_values[p]` (uno solo)"
+          ],
+          [
+            "lo que va dentro de `#define … #end` (fronteras, monitores, sondas, IBM, estadísticas)",
+            "la plantilla",
+            "**no**: se copia tal cual. Para cambiarlo, otra plantilla"
+          ],
+          [
+            "ficheros que no son el control (`ActuatorDef/`, `SETUP/`)",
+            "`extra_dirs`, `setup_dir`",
+            "sí, con marcadores y `data_to_update`, como en CODA"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "El orden en que se aplican: plantilla → `control_values` → escalera de restart → `p_values[p]` → claves del ring. Lo último gana."
+      },
+      {
+        "t": "table",
+        "head": [
+          "valor en Python",
+          "se escribe",
+          "ejemplo"
+        ],
+        "rows": [
+          [
+            "nombre de una columna de `df_cases`",
+            "el valor de ese caso",
+            "`'mach number': 'M'`"
+          ],
+          [
+            "`float`, `int`",
+            "el número",
+            "`'final time': 150.0` → `150.0`"
+          ],
+          [
+            "`True` / `False`",
+            "`.true.` / `.false.`",
+            "`'save gradients with solution': True`"
+          ],
+          [
+            "`str` que no es columna",
+            "tal cual, **comillas incluidas** si el solver las quiere",
+            "`'autosave mode': '\"time\"'`, `'riemann solver': 'roe'`"
+          ],
+          [
+            "`None`",
+            "borra la línea",
+            "`'write dt restriction': None`"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Antes de escribir nada, el ring comprueba que cada control conserva las claves sin las que HORSES3D no arranca (`mesh file name`, `restart`, `restart file name`, `solution file name`, `number of time steps`, `output interval`, `convergence tolerance`; en NS también `mach number` y `reynolds number`), así que borrar una con `None` es un error inmediato, no un job que muere en la cola. Los comentarios (`!`) se quitan: los ficheros de caso van limpios."
+      },
+      {
+        "t": "h",
+        "x": "La prueba FSP"
+      },
+      {
+        "t": "p",
+        "x": "**Free-Stream Preservation**. Junto a cada control, el ring escribe `fsp_p<p>.control`: el mismo flujo, la misma malla y el mismo orden, pero con `Inflow` en todas las fronteras y sin nada más —ni actuador, ni IBM, ni monitores, ni restart—. La corriente uniforme es entonces solución exacta, y una malla sana la conserva hasta el redondeo. No resuelve ninguna física: es Gandalf golpeando la roca antes de entrar en Moria. Se lanza con `submit_cases(p, repo, fsp=True)` y se juzga con `fsp_report(p)`, que compara la solución final con la inicial: si se mueve más que el redondeo (por defecto, 1e-6 relativo), la malla tiene un problema (jacobianos, caras mal cosidas), y te dice en qué elemento. No mires los residuos: a Mach bajo nunca bajan del redondeo de unos flujos de energía enormes, aunque la solución esté quieta. FRODO no lee estos controles."
+      },
+      {
+        "t": "code",
+        "x": "repo = '~/repos/horses3d-gpu'                # el solver, siempre explícito\ngdf = GANDALF(root, ring='horses3d')          # sin eq_type ni num_stages\ngdf.define_cases(method='external', external_dataframe=df)\ngdf.generate_folders(control_template=…, mesh_path=…_g2_mesh.h5,\n                     tag='wt', folder_fmt='tsr_{tsr:.1f}', p_levels=[2, 3])\ngdf.submit_cases(2, repo, fsp=True, dry_run=False)   # prueba de la malla\ngdf.fsp_report(2)\ngdf.submit_cases(2, repo, dry_run=False)             # la de verdad\ngdf.submit_cases([2, 3], repo, ngpu=4, dry_run=False)  # p2 → p3 encadenados"
+      },
+      {
+        "t": "note",
+        "x": "`assign_jobs` no existe en este ring (lanza `NotImplementedError`): `run.sh` ya recibe nodo, GPUs y CPUs como argumentos y comprueba control, solver y `SETUP` antes de llamar a `sbatch`. En una sesión nueva, `submit_cases` y `fsp_report` recuperan la campaña de `cases_metadata.json` solos. **El solver se elige en cada lanzamiento:** `submit_cases(p, repo, …)` exige la ruta del repositorio de HORSES3D (por ejemplo, el clon de una rama de desarrollo como la del disco actuador) y la pasa a `run.sh` como `HORSES3D_REPO`, ignorando lo que haya en el entorno. Antes de planificar nada comprueba que el repositorio tenga `Solver/bin/horses3d.<solver>` y que esté en una rama; `branch` por defecto es la rama en la que esté, y si se la das tiene que coincidir. El `SETUP` de cada caso debe compilarse contra el mismo repositorio (`HORSES3D_REPO=<repo> build_setup.sh GPU`), y `run.sh` lo comprueba. Así no hay forma de lanzar con un binario sin saber cuál: el que lleva el Anillo siempre sabe qué lleva."
+      },
+      {
+        "t": "p",
+        "x": "**Órdenes encadenados.** `p` también acepta una lista ascendente, por ejemplo `[2, 3, 4, 5]`. En cada caso, cada orden se envía con `DEPENDENCY=afterok:<job del orden anterior>`, y `run.sh` se lo pasa a `sbatch` junto con `--kill-on-invalid-dep=yes`. Así Slurm solo arranca p3 cuando p2 termina bien, y lo cancela si p2 falla. Mientras tanto, `run.sh` no exige el fichero de reinicio, porque lo escribirá el trabajo al que espera. Un orden ya empezado se salta y no deja trabajo al que esperar: el siguiente se envía sin dependencia y necesita su fichero de reinicio. Si un orden falla, o no tiene control, el resto de la cadena de ese caso no se envía. El resultado tiene una fila por caso y orden, con las columnas `p` y `depends_on`. Las pruebas FSP no se encadenan. `ngpu` y `ncpus` también aceptan un diccionario `{p: n}`, para dar a cada orden sus recursos (por ejemplo, `ngpu={2: 1, 3: 1, 4: 1, 5: 2}`)."
       },
       {
         "t": "h",
@@ -316,8 +473,12 @@
         "x": "When the solver finishes and there is something to gather, the work passes to [FRODO](../frodo_sam/index.html). GANDALF sows; FRODO carries the harvest."
       },
       {
+        "t": "p",
+        "x": "Before anything runs, the mesh GANDALF copies into every case's `MESH/` can be checked with [LEGOLAS](../legolas/index.html): BCs, faces, areas and node order, in the very format HORSES3D reads."
+      },
+      {
         "t": "code",
-        "x": "GANDALF(root_dir, eq_type, num_stages, ring=…)\n  └─ is a FACADE: it has no logic of its own\n     └─ _ring  ──►  CODARing  or  CODASingleRing\n                      └─ inherits from BaseRing\n                           ├─ define_cases        design space\n                           ├─ define_geom_file    aerofoil geometry\n                           ├─ add_param           column from an array\n                           ├─ compute_param       column from a formula\n                           ├─ assign_jobs         spread across nodes\n                           ├─ submit_cases        sbatch\n                           ├─ recover_pending_jobs\n                           └─ Backpack            ◄── NOT delegated\n                      └─ generate_folders  ← the only ring-specific method"
+        "x": "GANDALF(root_dir, eq_type, num_stages, ring=…)\n  └─ is a FACADE: it has no logic of its own\n     └─ _ring  ──►  CODARing, CODASingleRing or Horses3DRing\n                      └─ inherits from BaseRing\n                           ├─ define_cases        design space\n                           ├─ define_geom_file    aerofoil geometry\n                           ├─ add_param           column from an array\n                           ├─ compute_param       column from a formula\n                           ├─ assign_jobs         spread across nodes\n                           ├─ submit_cases        sbatch\n                           ├─ recover_pending_jobs\n                           └─ Backpack            ◄── NOT delegated\n                      └─ generate_folders  ← the only ring-specific method"
       },
       {
         "t": "note",
@@ -414,11 +575,11 @@
       },
       {
         "t": "p",
-        "x": "Three Rings for the Elven-kings, seven for the Dwarf-lords, nine for Mortal Men. Here there are two, and the difference between them is considerably less epic: **the mesh policy**."
+        "x": "Three Rings for the Elven-kings, seven for the Dwarf-lords, nine for Mortal Men. Here there are three, and the difference between them is considerably less epic: **the solver and the mesh policy**."
       },
       {
         "t": "p",
-        "x": "That is the *only* thing that changes between them. Everything else — cases, geometry, parameters, SLURM — lives on `BaseRing` and is shared. That is why in the tabs below almost every method is tagged as inherited: each ring owns exactly one method."
+        "x": "Between the two CODA rings it is the *only* thing that changes. Everything else — cases, geometry, parameters, SLURM — lives on `BaseRing` and is shared, which is why in the tabs almost every method is tagged as inherited. The HORSES3D one inherits cases and parameters, but writes and launches its own way: one `.control` per polynomial order and `run.sh` instead of Slurm templates."
       },
       {
         "t": "table",
@@ -440,12 +601,165 @@
             "One per case",
             "`generate_folders(mesh_paths=[…])`",
             "`format='CODA_SINGLE'`"
+          ],
+          [
+            "`horses3d`",
+            "One shared, with `g<n>` in its name",
+            "`generate_folders(control_template=…, p_levels=[…])`, `submit_cases`, `fsp_report`",
+            "`format='HORSES3D'`"
           ]
         ]
       },
       {
         "t": "p",
         "x": "It is chosen with `ring=` in the constructor. The default is `'coda'`, the historical behaviour — the ring you were already wearing before anyone mentioned rings."
+      },
+      {
+        "t": "h",
+        "x": "The HORSES3D ring"
+      },
+      {
+        "t": "p",
+        "x": "A HORSES3D case is not one simulation but a ladder: the same physical case at several polynomial orders `p`, each restarting from the previous one. The ring writes one `file_control_p<p>.control` per rung from a template that **already runs**, changing keys (`mach number = …`) instead of replacing placeholders: the template can be launched as it is, and nobody has to remember which `MACH_PLACEHOLDER` went where."
+      },
+      {
+        "t": "table",
+        "head": [
+          "set by",
+          "what"
+        ],
+        "rows": [
+          [
+            "the ring",
+            "`mesh file name`, `Polynomial order`, `solution file name` = `RESULTS/<tag>_g<g>p<p>.hsol` and the restart ladder"
+          ],
+          [
+            "`control_values`",
+            "shared keys, with the value of a `df_cases` column or a fixed one"
+          ],
+          [
+            "`p_values`",
+            "keys of one rung, e.g. a later absolute `final time` for `p=3`"
+          ],
+          [
+            "`extra_dirs` + `data_to_update`",
+            "folders such as `ActuatorDef/`, with placeholders as in CODA"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "The mesh rules: its name must carry `g<n>` matching the `Ngeo` attribute of the `.h5`, and no `p` may fall below it. Otherwise, an error before anything is written."
+      },
+      {
+        "t": "note",
+        "x": "**Inner zones.** HORSES3D creates a zone for every name in the mesh `BCNames` and wants a `type` for all of them, including the inner surfaces left in the mesh to refine it (in the turbine, `rotor_cylinder` and `disk_side`). But those surfaces have an element on each side, so the solver treats them as interior faces and the zone ends up with no faces (`Number of faces: 0` in the log): whatever type you give them is never applied. The template need not declare them: if they are missing, the ring adds a `#define boundary … type = FreeSlipWall` block to every control and says so in its output. If what is missing is a real boundary, it is an error: there the physics would change."
+      },
+      {
+        "t": "h",
+        "x": "What GANDALF can change in the .control"
+      },
+      {
+        "t": "p",
+        "x": "The ring has no list of allowed keys: any `key = value` line of the template **outside** a `#define … #end` block can be changed, and a key that is not there is added before the first block. Case and spacing of the key do not matter (`'Reynolds number'` and `'reynolds  number'` are the same). What does matter is who owns each key:"
+      },
+      {
+        "t": "table",
+        "head": [
+          "key",
+          "set by",
+          "can be changed"
+        ],
+        "rows": [
+          [
+            "`mesh file name`, `Polynomial order`, `solution file name`",
+            "the ring (copied mesh, the rung's p, `RESULTS/<tag>_g<g>p<p>.hsol`)",
+            "**no**: passing them in `control_values` or `p_values` is an error"
+          ],
+          [
+            "`restart`, `restart file name`, `restart polorder`",
+            "the ring, through the ladder (first p from scratch; each next one from the previous)",
+            "yes, with `p_values[p]`, e.g. to restart the first p from another case"
+          ],
+          [
+            "any other outside `#define` (`mach number`, `Reynolds number`, `final time`, `cfl`, `dcfl`, `Number of time steps`, `autosave …`, `LES model`, `use actuatorline`…)",
+            "the template",
+            "yes: `control_values` (every p) and `p_values[p]` (one only)"
+          ],
+          [
+            "whatever is inside `#define … #end` (boundaries, monitors, probes, IBM, statistics)",
+            "the template",
+            "**no**: copied verbatim. Use another template to change it"
+          ],
+          [
+            "files other than the control (`ActuatorDef/`, `SETUP/`)",
+            "`extra_dirs`, `setup_dir`",
+            "yes, with placeholders and `data_to_update`, as in CODA"
+          ]
+        ]
+      },
+      {
+        "t": "p",
+        "x": "Order of application: template → `control_values` → restart ladder → `p_values[p]` → the ring's keys. The last one wins."
+      },
+      {
+        "t": "table",
+        "head": [
+          "Python value",
+          "written as",
+          "example"
+        ],
+        "rows": [
+          [
+            "name of a `df_cases` column",
+            "that case's value",
+            "`'mach number': 'M'`"
+          ],
+          [
+            "`float`, `int`",
+            "the number",
+            "`'final time': 150.0` → `150.0`"
+          ],
+          [
+            "`True` / `False`",
+            "`.true.` / `.false.`",
+            "`'save gradients with solution': True`"
+          ],
+          [
+            "`str` that is not a column",
+            "verbatim, **quotes included** if the solver wants them",
+            "`'autosave mode': '\"time\"'`, `'riemann solver': 'roe'`"
+          ],
+          [
+            "`None`",
+            "removes the line",
+            "`'write dt restriction': None`"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Before writing anything, the ring checks that every control keeps the keys HORSES3D will not start without (`mesh file name`, `restart`, `restart file name`, `solution file name`, `number of time steps`, `output interval`, `convergence tolerance`; for NS also `mach number` and `reynolds number`), so removing one with `None` is an immediate error, not a job that dies in the queue. Comments (`!`) are removed: case files stay clean."
+      },
+      {
+        "t": "h",
+        "x": "The FSP test"
+      },
+      {
+        "t": "p",
+        "x": "**Free-Stream Preservation**. Next to each control the ring writes `fsp_p<p>.control`: same flow, same mesh and order, but `Inflow` on every boundary and nothing else — no actuator, no IBM, no monitors, no restart. Uniform flow is then an exact solution, and a sound mesh keeps it to round-off. It solves no physics: it is Gandalf striking the rock before entering Moria. Launch it with `submit_cases(p, repo, fsp=True)` and judge it with `fsp_report(p)`, which compares the final solution with the initial one: if it moves more than round-off (1e-6 relative by default), the mesh has a problem (Jacobians, badly stitched faces), and it tells you in which element. Do not look at the residuals: at low Mach they never drop below the round-off of huge energy fluxes, even with the solution standing still. FRODO does not read these controls."
+      },
+      {
+        "t": "code",
+        "x": "repo = '~/repos/horses3d-gpu'                # the solver, always explicit\ngdf = GANDALF(root, ring='horses3d')          # no eq_type or num_stages\ngdf.define_cases(method='external', external_dataframe=df)\ngdf.generate_folders(control_template=…, mesh_path=…_g2_mesh.h5,\n                     tag='wt', folder_fmt='tsr_{tsr:.1f}', p_levels=[2, 3])\ngdf.submit_cases(2, repo, fsp=True, dry_run=False)   # mesh test\ngdf.fsp_report(2)\ngdf.submit_cases(2, repo, dry_run=False)             # the real one\ngdf.submit_cases([2, 3], repo, ngpu=4, dry_run=False)  # p2 → p3 chained"
+      },
+      {
+        "t": "note",
+        "x": "`assign_jobs` does not exist in this ring (it raises `NotImplementedError`): `run.sh` already takes node, GPUs and CPUs as arguments and checks control, solver and `SETUP` before calling `sbatch`. In a new session, `submit_cases` and `fsp_report` recover the campaign from `cases_metadata.json` by themselves. **The solver is chosen at every launch:** `submit_cases(p, repo, …)` requires the path of the HORSES3D repository (for example, the clone of a development branch such as the actuator-disk one) and passes it to `run.sh` as `HORSES3D_REPO`, ignoring whatever is in the environment. Before planning anything it checks that the repository has `Solver/bin/horses3d.<solver>` and is on a branch; `branch` defaults to the branch it is on, and if you give it, it must match. The `SETUP` of each case must be compiled against the same repository (`HORSES3D_REPO=<repo> build_setup.sh GPU`), and `run.sh` checks it. So there is no way to launch with a binary without knowing which one: the Ring-bearer always knows what he carries."
+      },
+      {
+        "t": "p",
+        "x": "**Chained orders.** `p` also takes an ascending list, e.g. `[2, 3, 4, 5]`. In each case, every order is submitted with `DEPENDENCY=afterok:<job of the previous order>`, which `run.sh` passes to `sbatch` together with `--kill-on-invalid-dep=yes`. Slurm then starts p3 only when p2 ends well, and cancels it if p2 fails. Meanwhile `run.sh` does not require the restart file, since the job it waits for will write it. An order already started is skipped and leaves no job to wait for: the next one is submitted without a dependency and needs its restart file. If an order fails or has no control, the rest of that case's chain is not submitted. The result has one row per case and order, with the columns `p` and `depends_on`. FSP tests are not chained. `ngpu` and `ncpus` also take a dict `{p: n}` to give each order its own resources (e.g. `ngpu={2: 1, 3: 1, 4: 1, 5: 2}`)."
       },
       {
         "t": "h",

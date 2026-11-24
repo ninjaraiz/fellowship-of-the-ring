@@ -4,35 +4,33 @@
 > localizados, cobertura de tests) → [`doc/frodo_sam/ANALISIS.md`](frodo_sam/ANALISIS.md).
 > Para usar una clase, los visores de `doc/` (§7). No releas el repo entero.
 
-## 1. Estado — `develop` @ `d6dd431` (17/10/2026), **con trabajo sin commitear**
+## 1. Estado — `develop` @ `6126066` (10/11/2026), **con trabajo sin commitear**
 
-Suite: **315 passed** (27/10/2026; 34 son del monitor, `test_coda_monitor.py`).
+Suite: **542 passed** (24/11/2026; 170 son de LEGOLAS, `test_legolas_*.py`; 11 de `horses2plt`).
 
 ```bash
 /home/m.jaraiz/miniconda/envs/envkan_nvidia/bin/python -m pytest FotR/tests/ -q
 ```
 
-Los cuatro bloques que estaban sin commitear se commitearon el 17/10: lector `.hsol`
-(`6316468`), imports perezosos (`18c7002`), documentación (`479efc2`), examples
-(`477d054`), y después la reescritura de EarendilsLight (`e2c6dfe`, `f8a58b0`,
-`4372d1a`, `d6dd431`).
+El reinicio de casos (§10) y el monitor de CODA (§11) están en `6126066`. Sin commitear:
 
-Sin commitear hoy:
-
-1. **`CODAResiduals.restart_stalled_cases`** (21/10/2026, §10) —
-   `FotR/characters/residuals/coda.py` (método, `_prepare_restart`, `_apply_restart`
-   y helpers de módulo `_current_slurm_cluster`, `_slurm_active_workdirs`,
-   `_slurm_node_cpus`, `_sbatch`…), `FotR/tests/test_coda_restart.py` (19 tests, sin
-   trackear) y `doc/frodo_sam/docs.json` regenerado.
-2. **Monitor en directo de casos CODA** (27/10/2026, §11) — nuevos y sin trackear:
-   `FotR/solver_tools/coda_log.py`, `coda_monitor.py`, `coda_monitor.html` y
-   `FotR/tests/test_coda_monitor.py`, más `examples/gandalf/monitor_TIFON.py`. Toca
-   `CODAResiduals.monitor_cases` (en `residuals/coda.py`, que ya tenía el bloque 1),
-   `solver_tools/__init__.py` (docstring), `setup.py` (`package_data` del `.html`),
-   `README.md`, `examples.json` y `docs.json` regenerado.
-3. **Examples** — `examples/gandalf/restart_TIFON.py` (nuevo, sin trackear; usado el
-   27/10 para relanzar casos de rans5), `df_post_analysis.ipynb`, `TIFON2.ipynb` y
-   `codasingle.ipynb` (este último pierde ~23 000 líneas: salidas borradas). Son tuyos.
+1. **graphify** (§12): `CLAUDE.md`, `.claude/`, `.gitattributes`, `.graphifyignore`,
+   `graphify-out/` y `.gitignore`.
+2. **LEGOLAS vaciado** (18/11/2026): `legolas.py` y una referencia en `stats/coda.py`.
+3. **Pipeline HORSES3D** (18/11/2026, §13 y [`PLAN_HORSES3D.md`](PLAN_HORSES3D.md)): ring
+   `rings/horses3d.py` (nuevo), registro y docstrings de GANDALF, reader
+   `readers/horses3d.py`, tests `test_rings_horses3d.py` (nuevo) y `test_horses3d.py`,
+   ejemplo `examples/gandalf/horses3d_wind_turbine.py`, visores regenerados.
+4. Un notebook tuyo (`merge_format_CODA.ipynb`).
+5. **Rama `legolas`** (salida de `develop`; el árbol de trabajo está en ella): LEGOLAS L0–L6
+   en `2208226`, `0fe65c6`, `dd9e591`, `d9e61c4`, `ceaeaa4`, L8 (soluciones) en `3df459d` y el
+   deslizador en `00a1748` ([`PLAN_LEGOLAS.md`](PLAN_LEGOLAS.md)),
+   y **aparte** (24/11/2026, a petición del usuario) el lector HORSES3D con estados y
+   `Horses3DSets`/`horses2plt` en `07f1760`. Del bloque 3 sigue sin commitear el ring de
+   GANDALF (`rings/horses3d.py`, `gandalf.py`, `rings/__init__.py`, sus tests, ejemplos y
+   visor) y `PLAN_HORSES3D.md`. Sin commitear a propósito por mezclarse con otros bloques:
+   esta HANDOFF, `doc/gandalf/guides.json` (un párrafo de LEGOLAS), `.graphifyignore` y
+   `.gitattributes`.
 
 Aviso sobre los tests: los ficheros usan **stubs mutuamente incompatibles** y el
 aislamiento depende del orden de importación. El motivo original (no arrastrar
@@ -45,9 +43,11 @@ siendo frágiles.
   (`readers/coda.py`, `readers/horses3d.py`).
 * HORSES3D: `p` único exigido en `extract_outputs`, `.hsol` header+lazy
   (`HorsesLazyField`, cuyo `load()` lanza `NotImplementedError` hasta M2, §9).
-  **Cambiado el 10/10/2026:** `MESH/*.h5` sigue siendo la geometría por defecto, pero se
-  permite leer el `.hmesh` (coordenadas exactas de los nodos de solución, opción
-  `geometry='hmesh'`) y los snapshots `*_<iter>.hsol` (series). bmesh/pmesh/cgns, nunca.
+  `MESH/*.h5` es la geometría por defecto; se permite leer el `.hmesh` y los autosaves
+  `*_<iter>.hsol`. bmesh/pmesh/cgns, nunca.
+* HORSES3D, desde el 18/11/2026 (§13): la malla lleva `g<n>` en el nombre (= `Ngeo`); la
+  solución de orden p es `RESULTS/<tag>_g<g>p<p>.hsol`; un caso sin ejecutar es
+  `pending`, no un error; los controles se escriben **por claves** y sin comentarios.
 * `GANDALF.Backpack` NO se delega: solo existe `BaseRing.Backpack`
   (`gandalf.py`, `_NON_DELEGATED`). Y `BaseRing` no se re-exporta en
   `FotR/__init__.py`, así que la ruta buena es
@@ -57,7 +57,24 @@ siendo frágiles.
   `mesh`, que colisionaría.
 * `data_dict['CADGroup_X']` en CODA_SINGLE guarda geometría y `Vars` como **listas por
   caso** (los `npts` difieren).
-* Sin tocar a propósito: LEGOLAS (pendiente de reestructuración), columnas 2-D
+* **LEGOLAS vaciado el 18/11/2026** y, desde el 20/11/2026, **dedicado a mallas**:
+  lectura (HOPR `.h5`, CGNS/HDF5, Gmsh `.msh`, `.hmesh`) a una malla neutra en numpy, visor
+  web propio (servidor + three.js, como `coda_monitor`) y censo, calidad, resolución LES y
+  conversión, cada uno en una **clase anidada** (`LEGOLAS.Viewer`, `LEGOLAS.Census`…).
+  L6 (24/11): `lg.convert` (`fix_order` arregla el `.msh` g4 de ANSA para PyHOPE, `to_vtu`,
+  `to_vtm`, `write_msh`) y `lg.locate` (`points`, `horses3d_ad`, réplica de la búsqueda del
+  disco actuador). L8 (24/11): `LEGOLAS.from_control(control)` y `lg.solution` (un `.hsol`
+  evaluado en los nodos de la malla, validado contra el `.hmesh` del solver a 1e-14); el visor
+  pinta la solución por nodo y tiene deslizador de autoguardados.
+  Plan e hitos L0–L7 en [`PLAN_LEGOLAS.md`](PLAN_LEGOLAS.md). L1 hecho: lectores y
+  `LEGOLAS.Census`. L2 hecho: `LEGOLAS.Viewer` (`lg.viewer.show()`), three.js **dentro del
+  paquete**, sin internet. L3 hecho: `census.check_bcs(control=, ini=)`, `watertight`,
+  `duplicates`, `compare`, `check`. L4 hecho: `lg.quality` (jacobianos, oblicuidad,
+  no ortogonalidad…) y coloreado por métrica en el visor. L5 hecho: `lg.resolution` (Δ de DG,
+  primera celda y primer nodo en pared, y⁺ estimado) y `lg.viewer.show(fields=…)` para
+  cualquier campo por celda. Orden canónico: hex tensorial (i más rápido) **también el lineal**; el
+  `.msh` v2.2 con parser propio (ANSA lo escribe big-endian y meshio no lo lee).
+* Sin tocar a propósito: columnas 2-D
   `['x','y']` vs `['x','z']` en `PYLOMSets`, orden de args `(subset,cases_idx)` vs
   `(cases_idx,subset)` entre readers.
 * `xgboost_preliminar.py` es un módulo huérfano: nadie lo importa, hereda de
@@ -82,10 +99,10 @@ del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fich
 | stats | `characters/stats/` | CODA (lo usa también NUMPY) · CODA_SINGLE |
 | residuals | `characters/residuals/` | CODA (lo reusa CODA_SINGLE) · HORSES3D |
 | generadores | `characters/rings/` + `gandalf.py` | DoE, SLURM, `cases_metadata.json` |
-| plots | `characters/legolas.py` | **único consumidor externo de FRODO** |
+| mallas | `characters/legolas/` ([`PLAN_LEGOLAS.md`](PLAN_LEGOLAS.md)) | `LEGOLAS`: lectores HOPR/CGNS/Gmsh/hmesh → malla neutra numpy, `Census`, `Viewer` (web, three.js empaquetado) |
 | imports perezosos | `FotR/_lazy.py` | `lazy_module`, `LazyRegistry` (§8) |
 | monitor en directo | `solver_tools/coda_log.py`, `coda_monitor.py` | logs de CODA y servidor web, solo biblioteca estándar (§11) |
-| documentación | `doc/frodo_sam/` · `doc/gandalf/` | dos visores HTML (§7) |
+| documentación | `doc/frodo_sam/` · `doc/gandalf/` · `doc/legolas/` | tres visores HTML (§7) |
 
 ## 4. Trampas conocidas
 
@@ -116,8 +133,7 @@ del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fich
 * **CODA_SINGLE está completo**: los 14 bugs auditados están arreglados, B12 incluido
   (§8). Catálogo en [`BUGS_CODA_SINGLE.md`](frodo_sam/BUGS_CODA_SINGLE.md); diseño de
   sets en [`DISENO_SETS_CODA_SINGLE.md`](frodo_sam/DISENO_SETS_CODA_SINGLE.md).
-  Lo que **no** se tocó: la misma conectividad errónea sigue en la ruta de CODA y
-  LEGOLAS sigue sin soportar este formato.
+  Lo que **no** se tocó: la misma conectividad errónea sigue en la ruta de CODA.
 * Los dos [ALTO] de ANÁLISIS §4: el de `find_files(file_end=...)` **ya no está** (no
   queda ningún `file_end=` en `readers/coda.py`); el de `CODAReader.extract_inputs`
   **sigue**: un caso que falla avisa «This case was skipped», pero entra en el dataset
@@ -136,12 +152,14 @@ del repo), solo se tocó `alt = ALT_PLACEHOLDER`. No tocar nada más de ese fich
   Probado con un navegador headless (QtWebEngine), no con VS Code + Brave reales.
   Falta que lo abras tú y decidas si `plot_state_calculation` sigue teniendo
   sentido.
+* **Turbina** (§13): falta la plantilla `wind_turbine.control` y las condiciones del
+  caso (modelo de rotor, IBM, condiciones iniciales, M, P, t final), que decide el
+  usuario. Después: FSP, prueba corta y producción.
 * **HORSES3D M2** (§9) sigue pendiente: `HorsesLazyField.load()` aún lanza
-  `NotImplementedError`.
-* **LEGOLAS** — lo último del repo según tu plan. Despacha por `format == "CODA"`
-  exacto, así que CODA_SINGLE cae en la rama NUMPYFILE y muere con «No coordinates
-  found for plotting». Ampliar el despacho no basta: `Coord` es una lista y
-  `_get_coda_variable` hace `arr.ndim`.
+  `NotImplementedError`. Después, monitor en directo para HORSES3D y M3–M5.
+* **LEGOLAS** ([`PLAN_LEGOLAS.md`](PLAN_LEGOLAS.md)): L0–L6, L8 y el deslizador commiteados en
+  `legolas`; falta que pruebes el visor en tu navegador. Pendiente: estadísticas
+  (`.stats.hsol`), dibujar al orden de la solución cuando p > Ngeo, gradientes, superficies, y L7.
 * **La conectividad de CODA** sigue con el defecto que se arregló en la ruta
   CODA_SINGLE. El arreglo está disponible en `SAM.Backpack.cell_connectivity_in_order`.
 * **Declarar pyLOM** en `requirements.txt`/`setup.py` si se quiere que el formato
@@ -160,13 +178,14 @@ python3 -m http.server -d doc 8000     # los visores
 
 ## 7. Documentación
 
-Dos visores HTML, misma maquinaria, cada uno autocontenido. **Sírvelos desde `doc/`**,
+Tres visores HTML, misma maquinaria, cada uno autocontenido. **Sírvelos desde `doc/`**,
 no desde su subcarpeta: se enlazan entre sí con rutas `../` y si no dan 404.
 
 | visor | qué cubre |
 |---|---|
 | `doc/frodo_sam/` | Inicio (mapa + quién es quién + matriz de formatos) · FRODO (una pestaña por formato, dentro una por pieza) · SAM (una por área) · `data_dict` · Flujos · buscador global |
 | `doc/gandalf/` | GANDALF (la fachada) · Rings (una pestaña por ring, dentro una por fase de la campaña) · Backpack · Problemas |
+| `doc/legolas/` | Inicio (mapa, estado de hitos, cruces) · LEGOLAS (fachada + una pestaña por clase anidada; las previstas, deshabilitadas) · Formatos (una por lector) · Malla neutra (contrato y orden canónico) · Problemas |
 
 Reglas de mantenimiento:
 
@@ -183,6 +202,9 @@ Reglas de mantenimiento:
 * No hay node ni deno, pero **sí se puede ejecutar JS**: QtWebEngine de PySide6 en
   modo headless carga la página, devuelve los errores de consola y hace capturas (ver
   la nota de §11). La comprobación en tu navegador sigue siendo tuya.
+* **WebGL** (el visor de LEGOLAS) no funciona con `offscreen`: hace falta una pantalla
+  virtual. Receta en [`PLAN_LEGOLAS.md`](PLAN_LEGOLAS.md), L2 (Xvnc de TurboVNC en `:77`,
+  `QT_QPA_PLATFORM=xcb`, ANGLE/SwiftShader).
 
 ## 8. Imports perezosos (10/10/2026)
 
@@ -333,3 +355,73 @@ numpy ni pandas):
   (`javaScriptConsoleMessage`), ejecuta JS (`runJavaScript`) y hace capturas
   (`view.grab()`). Con `file://` no carga los scripts del CDN. Vale también para los
   visores de `doc/`.
+
+## 12. Grafo de graphify (10/11/2026)
+
+Mapa del código para no releer ficheros: `graphify-out/graph.json` (2035 nodos, 3944
+aristas, 99 comunidades) y `graphify-out/GRAPH_REPORT.md`. Solo código: `FotR/`
+(tests incluidos) y los `.py` de `examples/`. Fuera: notebooks (graphify no lee
+`.ipynb`), `doc/` salvo los `generate_docs.py`, HTML y logs (`.graphifyignore`).
+
+* **Herramienta:** graphify 0.9.105, clonado en `~/repos/graphify`, instalado en el venv
+  `~/.local/share/graphify-venv` (Python de miniconda) y enlazado en `~/.local/bin`.
+  Skill global en `~/.claude/skills/graphify/` (registrada en `~/.claude/CLAUDE.md`).
+* **Construir sin gastar tokens:** `GRAPHIFY_BACKEND=none graphify extract . --code-only`
+  y `GRAPHIFY_BACKEND=none graphify cluster-only .` (unos 5 s). Sin `GRAPHIFY_BACKEND=none`
+  puede usar `claude -p` para poner nombre a las comunidades. Tras cambios: `graphify
+  update .`.
+* **Consultas útiles:** `graphify explain "<símbolo>"` (vecinos exactos con fichero y
+  línea, el más preciso), `graphify path A B`, `graphify query "<pregunta>"` (BFS,
+  más ruidoso: ~4000 tokens en la prueba).
+* **Se commitea** `graphify-out/` para trabajar desde otra máquina, salvo `cache/`,
+  `graph.html` y `.graphify_python` (en `.gitignore`: locales o regenerables).
+* **Integración:** `graphify claude install` (sección en `CLAUDE.md` y hooks
+  `PreToolUse` en `.claude/settings.json`, modo normal) y `graphify hook install`
+  (reconstrucción en cada commit y checkout). Tras un `git pull`, `graphify update .`.
+
+## 13. Pipeline HORSES3D: ring de GANDALF + reader (18/11/2026, sin commitear)
+
+Plan y decisiones en [`PLAN_HORSES3D.md`](PLAN_HORSES3D.md).
+
+* **Tecplot (24/11/2026):** `db.to_tecplot(binary, script, p, kinds, …)` (`Horses3DSets`,
+  núcleo en `solver_tools/horses2plt.py`, ejecutor `utils_H3d/POST/horses2plt_batch.slurm`)
+  convierte finales, estadísticas y autoguardados a `outputs/<caso>/POST/tec/p<p>/`. Validado
+  con Mariño 2024 A p2. Detalles y trampas del binario en el diario del plan y en la guía de
+  HORSES3D §8.1.
+
+* **Ring `horses3d`** (`GANDALF(root, ring='horses3d')`, sin `eq_type` ni `num_stages`):
+  `define_cases`/`compute_param` heredados; `generate_folders(control_template,
+  mesh_path, tag, folder_fmt, p_levels, control_values, p_values, extra_dirs,
+  data_to_update, setup_dir, run_script, fsp, fsp_steps)` escribe por caso `MESH/`
+  (copia), `RESULTS/`, `LOG/`, `run.sh`, un `file_control_p<p>.control` por p (escalera
+  de restart) y `fsp_p<p>.control`; `submit_cases(p, repo, arch, node, …, fsp, dry_run=True)` (`repo` obligatorio: `HORSES3D_REPO` de `run.sh`, 20/11; `p` puede ser una lista ascendente de órdenes encadenados con `afterok`, 22/11)
+  llama a `./run.sh`; `fsp_report(p)` compara la solución de la prueba con la inicial; `load_campaign()`
+  recupera la campaña de `cases_metadata.json` (lo hacen solos los dos anteriores).
+* **FSP (Free-Stream Preservation):** `Inflow` en todas las fronteras de la malla (las
+  `BCType` 100, interiores, fuera), sin actuador, IBM, monitores, superficies ni
+  restart, `fsp_steps` pasos, salida en `RESULTS/FSP/`. Comprueba la malla, no la física.
+  FRODO no lee esos controles.
+* **Reader:** `g` del token `g<n>` del nombre (vale `_cgns_g2_` y `_v2g2_`) o del
+  atributo `Ngeo`; nombre y `Ngeo` distintos → error. Cada solución tiene `status`
+  (`pending`/`started`/`finished`, este por el terminador 99 del `.hsol`), `snapshots`
+  y `actuator_files`; `df_state` añade `p_finished` y `state`. Ya no son error: `.hsol`
+  ausente, restart desde otro p del mismo caso aún sin correr, `restart polorder >= p`
+  (aviso). `extract_outputs` exige soluciones terminadas.
+* **Comprobado con datos reales:** `my_ESPHERE_1` y `fan_duct_AD_pressure` se leen en modo
+  estricto (re_400 pendiente; el fan pasa a `g = 2`). El ring, probado en el scratchpad
+  con la malla g2 de la turbina y el control del tutorial como plantilla.
+* **19/11/2026:** HORSES3D exige `restart file name` aunque `restart = .false.` (el primer
+  intento de FSP murió por eso); el ring la escribe siempre y comprueba las claves
+  obligatorias antes de escribir nada. `overwrite=True` ya no borra la carpeta: nunca toca
+  `RESULTS/` ni `LOG/`. HORSES3D exige también un `type` para **cada zona de la malla**,
+  interiores incluidas, aunque estas no tienen caras (son interiores) y su tipo no se
+  aplica nunca: si la plantilla no las declara, el ring añade `type = FreeSlipWall` y lo
+  imprime; la FSP las declara todas; falta una frontera real → error. `fsp_report` juzga
+  por la desviación de la solución (los residuos a Mach bajo no bajan del redondeo). FSP
+  de la turbina superada (job 4271). Diario del caso de la turbina en
+  [`PLAN_HORSES3D.md`](PLAN_HORSES3D.md).
+* **Qué se puede cambiar del `.control`** desde el ring: guía del visor de GANDALF (pestaña
+  Rings) y ejemplo `examples/gandalf/horses3d_sphere_re_mach.py` (Mach y Re por caso, p2 → p3).
+* **No hay módulo común ring/reader**: como en CODA, cada uno por su lado y
+  `cases_metadata.json` de puente; la regla de `g` está duplicada y la cubre el test de
+  ida y vuelta (`test_rings_horses3d.py`).
