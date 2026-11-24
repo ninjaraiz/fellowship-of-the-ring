@@ -105,6 +105,15 @@ a.cell{color:var(--accent);cursor:pointer;text-decoration:underline}
    <div id="worst" class="mono"></div>
   </div>
 
+  <div id="timebox" style="display:none">
+   <h2 data-t="time"></h2>
+   <div class="row"><button id="prev" title="◀">◀</button><button id="play">▶︎</button>
+    <button id="next" title="▶">▶</button></div>
+   <input type="range" id="frame" min="0" max="0" step="1" value="0">
+   <div class="row"><span class="mono" id="frameinfo"></span></div>
+   <label class="row"><input type="checkbox" id="fixrange" checked> <span data-t="fixrange"></span></label>
+  </div>
+
   <h2 data-t="section"></h2>
   <div class="row" id="secmode">
    <button data-sec="none" data-t="sec_none"></button>
@@ -150,6 +159,7 @@ const TXT={
   nowebgl:'Este navegador no puede crear un contexto WebGL.',face:'cara',neighbour:'vecina',
   boundary:'frontera',file_cell:'elemento en el fichero',horses:'nº HORSES3D',centre:'centrar',
   centroid:'centroide',zone:'zona',focus:'encuadrar esta zona',solution:'Solución',
+  time:'Tiempo',fixrange:'escala de color fija',
   iteration:'iteración',
   color:'Color',by_zone:'por zona',robust:'rango p1–p99 (sin extremos)',good:'mejor',
   bad:'peor',low:'bajo',high:'alto',worst:'Peores celdas',computing:'calculando la calidad…',
@@ -164,6 +174,7 @@ const TXT={
   nowebgl:'This browser cannot create a WebGL context.',face:'face',neighbour:'neighbour',
   boundary:'boundary',file_cell:'element in the file',horses:'HORSES3D no.',centre:'centre',
   centroid:'centroid',zone:'zone',focus:'frame this zone',solution:'Solution',
+  time:'Time',fixrange:'fixed colour scale',
   iteration:'iteration',
   color:'Colour',by_zone:'by zone',robust:'range p1–p99 (no outliers)',good:'better',
   bad:'worse',low:'low',high:'high',worst:'Worst cells',computing:'computing quality…',
@@ -186,6 +197,7 @@ const ZONES=new Map();          // name -> {on, color, obj:{mesh,lines,triCell}|
 let DRAW='both', OPACITY=1, SEC={mode:'none', axis:0, t:0.5, side:-1, obj:null, seq:0};
 let PICKED=null, HIGHLIGHT=null;
 let COLOR={name:'', kind:'cell', values:null, head:null};
+let FRAME=null, PLAYING=false;          // autosave shown, and the player
 
 /* ── three.js ──────────────────────────────────────────────────────────── */
 const view=$('view');
@@ -465,7 +477,13 @@ for(let i=0;i<256;i++){
 }
 const NAN_COLOR=new THREE.Color('#9aa0a6');
 function colorRange(){
+ if(COLOR.kind==='node'&&COLOR.fixed&&$('fixrange').checked)return COLOR.fixed;
  const h=COLOR.head; return $('robust').checked?[h.p01,h.p99]:[h.min,h.max];
+}
+function nodeUrl(key){
+ let u='/api/nodefield?name='+encodeURIComponent(key);
+ if(FRAME!==null&&FRAME!==INFO.frame)u+='&frame='+FRAME;
+ return u;
 }
 function paint(o){
  if(!o)return;
@@ -514,10 +532,12 @@ async function setColor(name){
  if(name){
   $('status').textContent=t('computing');
   try{
-   const {head,arr}=await getBin((node?'/api/nodefield?name=':'/api/field?name=')
-                                 +encodeURIComponent(key));
+   const {head,arr}=await getBin(node?nodeUrl(key):'/api/field?name='+encodeURIComponent(key));
    if(COLOR.name!==name)return;                    // another choice came first
    COLOR.values=arr.values; COLOR.head=head;
+   /* the scale of the instant where a variable is chosen is kept when
+      moving in time, so that colours compare */
+   COLOR.fixed=node?($('robust').checked?[head.p01,head.p99]:[head.min,head.max]):null;
    COLOR.worst=node?[]:await (await fetchOk(`/api/worst?name=${encodeURIComponent(key)}&n=10`)).json();
    if(PICKED)pick(PICKED.cell);                    // its panel gains the metrics
   }catch(e){$('status').textContent=e.message; return;}
@@ -561,6 +581,42 @@ function renderLegend(){
   focusCell(12);
  });
 }
+
+/* ── time series (autosaves) ───────────────────────────────────────────── */
+function renderFrame(){
+ if(FRAME===null)return;
+ const f=INFO.series[FRAME];
+ $('frame').value=FRAME;
+ $('frameinfo').textContent=`${FRAME+1}/${INFO.series.length} · t = ${Number(f.time).toPrecision(5)}`
+   +` · ${t('iteration')} ${fmt(f.iteration)}`;
+ $('frameinfo').title=f.file;
+}
+async function setFrame(k){
+ const n=INFO.series.length; k=Math.max(0,Math.min(n-1,k));
+ FRAME=k; renderFrame();
+ if(COLOR.kind!=='node'||!COLOR.name)return;
+ const name=COLOR.name, key=name.slice(5), want=k;
+ $('status').textContent=t('loading')+'…';
+ try{
+  const {head,arr}=await getBin(nodeUrl(key));
+  if(COLOR.name!==name||FRAME!==want)return;       // superseded
+  COLOR.values=arr.values; COLOR.head=head;
+ }catch(e){$('status').textContent=e.message; return;}
+ paintAll(); updateStatus();
+}
+async function play(){
+ PLAYING=!PLAYING; $('play').textContent=PLAYING?'❚❚':'▶︎';
+ while(PLAYING){
+  const n=INFO.series.length;
+  await setFrame((FRAME+1)%n);
+  await new Promise(r=>setTimeout(r,350));
+ }
+}
+$('frame').oninput=e=>setFrame(+e.target.value);
+$('prev').onclick=()=>setFrame(FRAME-1);
+$('next').onclick=()=>setFrame(FRAME+1);
+$('play').onclick=play;
+$('fixrange').onchange=()=>paintAll();
 
 /* ── panel ─────────────────────────────────────────────────────────────── */
 function zoneLabel(name){
@@ -651,6 +707,12 @@ async function start(){
  $('fit').click();
  await Promise.all(INFO.zones.filter(z=>z.visible).map(z=>loadZone(z.name)));
  applyStyle();
+ if((INFO.series||[]).length>1){                  // autosaves: the time panel
+  $('timebox').style.display='';
+  $('frame').max=INFO.series.length-1;
+  FRAME=INFO.frame===null?INFO.series.length-1:INFO.frame;
+  renderFrame();
+ }
  const nf=INFO.node_fields||[];                    // a solution: show it at once
  if(nf.length){const f=nf.find(x=>x.name==='Mach')||nf[0]; await setColor('node:'+f.name);}
  window.LEGOLAS_READY=true;
@@ -662,6 +724,7 @@ window.LEGOLAS_API={
    setSecMode(mode); clearTimeout(secTimer); return doSection();},
  view:k=>document.querySelector(`#tools [data-view="${k}"]`).click(),
  color:name=>setColor(name),
+ frame:k=>setFrame(k),
  show:names=>{for(const [n,z] of ZONES){z.on=names.includes(n); if(z.on)loadZone(n);} renderZones(); applyStyle();},
  focus:name=>focusZone(name),
  state:()=>({zones:[...ZONES].map(([n,z])=>({name:n,on:z.on,loaded:!!z.obj,stride:z.stride,error:z.error||null})),

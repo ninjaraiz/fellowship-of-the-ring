@@ -229,6 +229,38 @@ class Solution:
         with np.errstate(invalid='ignore'):
             return acc / cnt
 
+    def series(self, path=None, complete_only: bool = True) -> list:
+        """The autosaves of a solution, as a time series.
+
+        Parameters
+        ----------
+        path : str or path-like, optional
+            A ``.hsol``; default the one loaded. Its series is every
+            ``<stem>.hsol`` and ``<stem>_<iteration>.hsol`` in its folder,
+            with ``<stem>`` its name without the iteration (so one order p).
+        complete_only : bool
+            Leave out files the solver is still writing. Default True.
+
+        Returns
+        -------
+        list[dict]
+            ``path``, ``iteration``, ``time`` and ``complete``, by iteration.
+        """
+        import re
+        from FotR.solver_tools import horses3d as h3d
+
+        path = os.fspath(path or self.path or '')
+        if not path:
+            raise RuntimeError('no solution loaded and no path given')
+        name = os.path.basename(path)
+        m = re.match(r'^(?P<stem>.+?)(?:_\d{10})?\.hsol$', name)
+        stem = m.group('stem') if m else name[:-5]
+        out = [{'path': h.path, 'iteration': int(h.iteration),
+                'time': float(h.time), 'complete': bool(h.complete)}
+               for h in h3d.find_solutions(os.path.dirname(os.path.abspath(
+                   path)), stem)]
+        return [r for r in out if r['complete'] or not complete_only]
+
     def viewer_fields(self, variables=None) -> dict:
         """Node fields ready for :meth:`LEGOLAS.Viewer.show` (``node_fields=``)."""
         names = variables or self.variables

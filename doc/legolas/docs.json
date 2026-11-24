@@ -666,6 +666,11 @@
             "name": "solution_info",
             "type": "dict, optional",
             "desc": "Shown in the page header (file, p, time, iteration)."
+          },
+          {
+            "name": "series",
+            "type": "list[dict], optional",
+            "desc": "Autosaves of the solution (``path``, ``iteration``, ``time``), from :meth:`.solution.Solution.series`: the page gets a time slider and reads each frame on demand (the last ones stay in memory)."
           }
         ],
         "returns": [],
@@ -680,7 +685,7 @@
           "id": "ViewerServer.__init__",
           "class": "ViewerServer",
           "name": "__init__",
-          "signature": "__init__(mesh, title: str | None = None, host: str = '127.0.0.1', port: int = DEFAULT_PORT, idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, fields: dict | None = None, node_fields: dict | None = None, solution_info: dict | None = None)",
+          "signature": "__init__(mesh, title: str | None = None, host: str = '127.0.0.1', port: int = DEFAULT_PORT, idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, fields: dict | None = None, node_fields: dict | None = None, solution_info: dict | None = None, series: list | None = None)",
           "returns": "None",
           "kind": "method",
           "is_private": false,
@@ -877,15 +882,75 @@
           }
         },
         {
+          "id": "ViewerServer._frame_values",
+          "class": "ViewerServer",
+          "name": "_frame_values",
+          "signature": "_frame_values(name: str, frame: int)",
+          "returns": "",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "A variable of autosave *frame*, reading it if needed.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
           "id": "ViewerServer.node_field",
           "class": "ViewerServer",
           "name": "node_field",
-          "signature": "node_field(name: str)",
+          "signature": "node_field(name: str, frame: int | None = None)",
           "returns": "bytes",
           "kind": "method",
           "is_private": false,
           "doc": {
             "summary": "Payload of ``/api/nodefield``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer._node_payload",
+          "class": "ViewerServer",
+          "name": "_node_payload",
+          "signature": "_node_payload(name, values)",
+          "returns": "bytes",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "ViewerServer._trim",
+          "class": "ViewerServer",
+          "name": "_trim",
+          "signature": "_trim(keep: int = 24)",
+          "returns": "None",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "Forget the oldest frame payloads beyond *keep*.",
             "description": "",
             "params": [],
             "returns": [],
@@ -2744,6 +2809,43 @@
           }
         },
         {
+          "id": "LEGOLAS.Solution.series",
+          "class": "LEGOLAS.Solution",
+          "name": "series",
+          "signature": "series(path=None, complete_only: bool = True)",
+          "returns": "list",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "The autosaves of a solution, as a time series.",
+            "description": "",
+            "params": [
+              {
+                "name": "path",
+                "type": "str or path-like, optional",
+                "desc": "A ``.hsol``; default the one loaded. Its series is every ``<stem>.hsol`` and ``<stem>_<iteration>.hsol`` in its folder, with ``<stem>`` its name without the iteration (so one order p)."
+              },
+              {
+                "name": "complete_only",
+                "type": "bool",
+                "desc": "Leave out files the solver is still writing. Default True."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "list[dict]",
+                "desc": "``path``, ``iteration``, ``time`` and ``complete``, by iteration."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
           "id": "LEGOLAS.Solution.viewer_fields",
           "class": "LEGOLAS.Solution",
           "name": "viewer_fields",
@@ -2853,7 +2955,7 @@
           "id": "LEGOLAS.Viewer.show",
           "class": "LEGOLAS.Viewer",
           "name": "show",
-          "signature": "show(port: int = DEFAULT_PORT, host: str = '127.0.0.1', idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, timeout: float = 120.0, fields: dict | None = None, solution=None, physical: bool | None = None, node_fields: dict | None = None)",
+          "signature": "show(port: int = DEFAULT_PORT, host: str = '127.0.0.1', idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, timeout: float = 120.0, fields: dict | None = None, solution=None, physical: bool | None = None, node_fields: dict | None = None, series: bool = True)",
           "returns": "ViewerHandle",
           "kind": "method",
           "is_private": false,
@@ -2910,6 +3012,11 @@
                 "name": "node_fields",
                 "type": "dict, optional",
                 "desc": "Other per-(cell, node) fields (see :class:`ViewerServer`)."
+              },
+              {
+                "name": "series",
+                "type": "bool",
+                "desc": "Offer the autosaves of the solution as a time slider (:meth:`.solution.Solution.series`). Default True."
               }
             ],
             "returns": [
@@ -2935,7 +3042,7 @@
           "id": "LEGOLAS.Viewer.server",
           "class": "LEGOLAS.Viewer",
           "name": "server",
-          "signature": "server(port: int = 0, host: str = '127.0.0.1', idle_timeout: float = 0.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, fields: dict | None = None, node_fields: dict | None = None)",
+          "signature": "server(port: int = 0, host: str = '127.0.0.1', idle_timeout: float = 0.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, fields: dict | None = None, node_fields: dict | None = None, series: bool = True)",
           "returns": "ViewerServer",
           "kind": "method",
           "is_private": false,

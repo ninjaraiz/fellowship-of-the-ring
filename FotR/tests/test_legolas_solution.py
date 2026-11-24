@@ -5,6 +5,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import urllib.error
 import urllib.request
 
 import numpy as np
@@ -197,3 +198,62 @@ def test_geometry_at_the_solution_nodes_is_the_solvers(case, mesh):
                      solution_nodes(p, d['header'].node_type))[0]
         X = np.einsum('ck,bj,ai,ekjid->ecbad', L, L, L, G, optimize=True)
         assert np.abs(X - d['x'][fidx]).max() < 1e-10
+
+
+# ---------------------------------------------------------------------------
+# time series (autosaves) and the slider's route
+# ---------------------------------------------------------------------------
+
+def write_series(folder, n=3):
+    """box_g2p2.hsol plus autosaves box_g2p2_<iter>.hsol with q0 = frame,
+    and one autosave still being written (no end marker)."""
+    paths = []
+    for k in range(n):
+        name = 'box_g2p2.hsol' if k == n - 1 else f'box_g2p2_{1000 * k:010d}.hsol'
+        q = [np.full((3, 3, 3, 3), float(k)) for _ in range(NX * NY * NZ)]
+        paths.append(write_horses_file(folder / name, 2, q, iteration=1000 * k,
+                                       time=0.5 * k))
+    q = [np.zeros((3, 3, 3, 3)) for _ in range(NX * NY * NZ)]
+    write_horses_file(folder / 'box_g2p2_0000099999.hsol', 2, q,
+                      iteration=99999, seal=False)
+    # another order of the same case: not part of this series
+    write_horses_file(folder / 'box_g2p3.hsol', 2,
+                      [np.zeros((3, 4, 4, 4)) for _ in range(NX * NY * NZ)])
+    return paths
+
+
+def test_series_lists_complete_autosaves_of_one_order(tmp_path):
+    paths = write_series(tmp_path)
+    lg = LEGOLAS(box_mesh(NX, NY, NZ, order=2, with_bcs=False))
+    lg.solution.load(paths[0])
+    s = lg.solution.series()
+    assert [r['iteration'] for r in s] == [0, 1000, 2000]
+    assert [r['time'] for r in s] == [0.0, 0.5, 1.0]
+    assert len(lg.solution.series(complete_only=False)) == 4
+    assert lg.solution.series(paths[-1]) == s
+
+
+def test_viewer_serves_every_frame(tmp_path):
+    paths = write_series(tmp_path)
+    lg = LEGOLAS(box_mesh(NX, NY, NZ, order=2))
+    lg.solution.load(paths[-1])
+    srv = lg.viewer.server(port=0).start()
+    get = lambda p: urllib.request.urlopen(srv.url.rstrip('/') + p,
+                                           timeout=20).read()
+    try:
+        info = json.loads(get('/api/info'))
+        assert [f['iteration'] for f in info['series']] == [0, 1000, 2000]
+        assert info['frame'] == 2
+        for k in (0, 1, 2):
+            _, arr = _unpack(get(f'/api/nodefield?name=q0&frame={k}'))
+            np.testing.assert_allclose(arr['values'], float(k))
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            get('/api/nodefield?name=q0&frame=9')
+        assert exc.value.code == 400
+    finally:
+        srv.stop()
+    srv = lg.viewer.server(port=0, series=False)
+    try:
+        assert srv.info['series'] == []
+    finally:
+        srv.stop()

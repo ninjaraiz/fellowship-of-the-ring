@@ -357,9 +357,9 @@ tocar código, `graphify update .`.
 ### Pendiente
 
 * L7: `LEGOLAS(db, case)` desde FRODO y README.
-* L8, siguientes pasos (orden del usuario: el deslizador después de L8): deslizador de
-  autoguardados y estadísticas (`.stats.hsol`, que el núcleo aún no descifra), caras dibujadas
-  al orden de la solución cuando p > Ngeo, gradientes (vorticidad, criterio Q), superficies.
+* L8, siguientes pasos: estadísticas (`.stats.hsol`, que el núcleo aún no descifra), caras
+  dibujadas al orden de la solución cuando p > Ngeo, gradientes (vorticidad, criterio Q),
+  superficies.
 
 ## L8 (24/11/2026): soluciones de HORSES3D en el visor
 
@@ -384,6 +384,18 @@ elemento), **entrada por LEGOLAS**, deslizador después.
   acepta `node_fields=` de cualquier origen.
 * Mariño A, p3 (t = 40): u de 0,474 a 1,075; en una capa z = 0,81 se ve la estela del disco.
 * Tests: `test_legolas_solution.py` (15). Ejemplo: `examples/legolas/solution_marino.py`.
+
+### Deslizador (24/11/2026, después de L8, como pidió el usuario)
+
+* `Solution.series()` con `solver_tools.horses3d.find_solutions`: autoguardados completos del
+  mismo nombre y p, por iteración.
+* Servidor: `info['series']`, `info['frame']` y `/api/nodefield?…&frame=k`; cada instante se lee
+  al pedirlo (3 soluciones en memoria y las últimas 24 respuestas). `show(series=False)` y
+  `server(series=False)` lo quitan.
+* Página: panel **Tiempo** (deslizador, ◀ ▶, reproducir) y «escala de color fija», que conserva
+  la escala del instante donde se eligió la variable.
+* Mariño A p2: 11 instantes (t = 0 a 30); la estela nace a t = 3 y llega a la salida a t = 15.
+* Tests: 2 más en `test_legolas_solution.py` (17 en total).
 
 ### Propuesta de la que salió L8 (24/11/2026)
 

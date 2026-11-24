@@ -29,9 +29,10 @@ HTTP API (all ``GET``):
   (:class:`.quality.Quality`), with ``min``, ``max``, ``p01``, ``p99`` and
   ``better`` in the header; NaN where the metric is not defined.
 * ``/api/worst?name=<metric>&n=<k>`` -- JSON, the k worst cells.
-* ``/api/nodefield?name=<var>`` -- binary, one float32 per (cell, node) in
-  the order of :meth:`.mesh.Mesh.cell_node_offsets`; surfaces carry
-  ``vert_index`` into it. Used for solutions (:mod:`.solution`).
+* ``/api/nodefield?name=<var>[&frame=<k>]`` -- binary, one float32 per
+  (cell, node) in the order of :meth:`.mesh.Mesh.cell_node_offsets`;
+  surfaces carry ``vert_index`` into it. Used for solutions
+  (:mod:`.solution`); ``frame`` picks an autosave of ``info['series']``.
 * ``/api/ping`` -- keeps the server alive.
 """
 
@@ -177,6 +178,10 @@ class ViewerServer:
         :meth:`.solution.Solution.viewer_fields` builds them.
     solution_info : dict, optional
         Shown in the page header (file, p, time, iteration).
+    series : list[dict], optional
+        Autosaves of the solution (``path``, ``iteration``, ``time``), from
+        :meth:`.solution.Solution.series`: the page gets a time slider and
+        reads each frame on demand (the last ones stay in memory).
     """
 
     def __init__(self, mesh, title: str | None = None,
@@ -185,7 +190,8 @@ class ViewerServer:
                  max_triangles: int = scene.MAX_TRIANGLES,
                  fields: dict | None = None,
                  node_fields: dict | None = None,
-                 solution_info: dict | None = None) -> None:
+                 solution_info: dict | None = None,
+                 series: list | None = None) -> None:
         from .census import Census
         from .quality import Quality
 
@@ -207,6 +213,13 @@ class ViewerServer:
         self.extra = _normalise_fields(fields, mesh.n_cells)
         self.node_extra = _normalise_node_fields(node_fields, mesh)
         self.solution_info = solution_info
+        self.series = list(series or [])
+        self._frames: dict = {}          # frame -> Solution, few at a time
+        self.base_frame = None
+        if self.series and solution_info:
+            files = [os.path.basename(r['path']) for r in self.series]
+            if solution_info.get('file') in files:
+                self.base_frame = files.index(solution_info['file'])
         self.info = self._info(Census(SimpleNamespace(mesh=mesh)).summary())
         self.httpd = self._bind(host, int(port))
         self.httpd.viewer = self
@@ -273,6 +286,10 @@ class ViewerServer:
                              'better': v['better']}
                             for k, v in self.node_extra.items()],
             'solution': self.solution_info,
+            'series': [{'iteration': r['iteration'], 'time': r['time'],
+                        'file': os.path.basename(r['path'])}
+                       for r in self.series],
+            'frame': self.base_frame,
         }
 
     def _geometry(self, elem, face, header: dict) -> bytes:
@@ -344,9 +361,33 @@ class ViewerServer:
                 self._cache[key] = scene.pack(head, {'values': values})
             return self._cache[key]
 
-    def node_field(self, name: str) -> bytes:
+    def _frame_values(self, name: str, frame: int):
+        """A variable of autosave *frame*, reading it if needed."""
+        from .solution import Solution
+        if not 0 <= frame < len(self.series):
+            raise ValueError(f'no frame {frame}')
+        sol = self._frames.get(frame)
+        if sol is None:
+            physical = bool((self.solution_info or {}).get('physical'))
+            sol = Solution(SimpleNamespace(mesh=self.mesh)).load(
+                self.series[frame]['path'], physical=physical)
+            if len(self._frames) >= 3:
+                self._frames.pop(next(iter(self._frames)))
+            self._frames[frame] = sol
+        return sol.node_field(name)
+
+    def node_field(self, name: str, frame: int | None = None) -> bytes:
         """Payload of ``/api/nodefield``."""
         with self._lock:
+            if frame is not None and frame != self.base_frame:
+                key = f'node:{name}:{frame}'
+                if key not in self._cache:
+                    if name not in self.node_extra:
+                        raise KeyError(f'no node field {name!r}')
+                    values = self._frame_values(name, frame).astype(np.float32)
+                    self._cache[key] = self._node_payload(name, values)
+                    self._trim()
+                return self._cache[key]
             key = 'node:' + name
             if key not in self._cache:
                 if name not in self.node_extra:
@@ -363,6 +404,24 @@ class ViewerServer:
                 head = dict(stats, name=name, better=spec['better'])
                 self._cache[key] = scene.pack(head, {'values': values})
             return self._cache[key]
+
+    def _node_payload(self, name, values) -> bytes:
+        finite = values[np.isfinite(values)].astype(float)
+        stats = {k: 0.0 for k in ('min', 'max', 'p01', 'p99')}
+        if len(finite):
+            p01, p99 = np.percentile(finite, [1, 99])
+            stats = {'min': float(finite.min()), 'max': float(finite.max()),
+                     'p01': float(p01), 'p99': float(p99)}
+        return scene.pack(dict(stats, name=name,
+                               better=self.node_extra[name]['better']),
+                          {'values': values})
+
+    def _trim(self, keep: int = 24) -> None:
+        """Forget the oldest frame payloads beyond *keep*."""
+        framed = [k for k in self._cache if k.startswith('node:')
+                  and k.count(':') == 2]
+        for k in framed[:-keep]:
+            del self._cache[k]
 
     def worst(self, name: str, n: int) -> list:
         """Payload of ``/api/worst``."""
@@ -453,7 +512,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, v.field(arg('name', '')),
                            'application/octet-stream')
             elif url.path == '/api/nodefield':
-                self._send(200, v.node_field(arg('name', '')),
+                frame = arg('frame')
+                self._send(200, v.node_field(arg('name', ''),
+                                             None if frame in (None, '')
+                                             else int(frame)),
                            'application/octet-stream')
             elif url.path == '/api/worst':
                 self._json(v.worst(arg('name', 'scaled_jacobian'),
@@ -637,7 +699,8 @@ class Viewer:
              title: str | None = None, timeout: float = 120.0,
              fields: dict | None = None, solution=None,
              physical: bool | None = None,
-             node_fields: dict | None = None) -> ViewerHandle:
+             node_fields: dict | None = None,
+             series: bool = True) -> ViewerHandle:
         """Start the viewer in its own process and return its handle.
 
         A mesh read from a file is read again by the server process (it is
@@ -672,6 +735,9 @@ class Viewer:
             SI units for the solution; by default as it was loaded.
         node_fields : dict, optional
             Other per-(cell, node) fields (see :class:`ViewerServer`).
+        series : bool
+            Offer the autosaves of the solution as a time slider
+            (:meth:`.solution.Solution.series`). Default True.
 
         Returns
         -------
@@ -697,7 +763,7 @@ class Viewer:
             physical = loaded.physical if physical is None else physical
         if solution:
             manifest.update(solution=os.path.abspath(os.fspath(solution)),
-                            physical=bool(physical))
+                            physical=bool(physical), series=bool(series))
         if node_fields:
             norm = _normalise_node_fields(node_fields, self._lg.mesh)
             os.makedirs(_CACHE_DIR, exist_ok=True)
@@ -718,7 +784,8 @@ class Viewer:
                max_triangles: int = scene.MAX_TRIANGLES,
                title: str | None = None,
                fields: dict | None = None,
-               node_fields: dict | None = None) -> ViewerServer:
+               node_fields: dict | None = None,
+               series: bool = True) -> ViewerServer:
         """A server in this process, bound but not started.
 
         Call ``.start()`` (background threads) or ``.serve_forever()``
@@ -726,14 +793,16 @@ class Viewer:
         notebook prefer :meth:`show`, which does not tie up the kernel.
         """
         sol = getattr(self._lg, 'solution', None)
-        nodes, info = dict(node_fields or {}), None
+        nodes, info, frames = dict(node_fields or {}), None, None
         if sol is not None and sol.path:
             nodes = {**sol.viewer_fields(), **nodes}
             info = _solution_info(sol)
+            frames = sol.series() if series else None
         return ViewerServer(self._lg.mesh, title=title, host=host, port=port,
                             idle_timeout=idle_timeout,
                             max_triangles=max_triangles, fields=fields,
-                            node_fields=nodes, solution_info=info)
+                            node_fields=nodes, solution_info=info,
+                            series=frames)
 
     def stop(self) -> None:
         """Stop the server started by :meth:`show`, if any."""
@@ -767,7 +836,7 @@ def main(argv=None) -> None:
 
     title = args.title
     fields = None
-    node_fields, sol_info = {}, None
+    node_fields, sol_info, frames = {}, None, None
     if args.manifest:
         with open(args.manifest) as fh:
             man = json.load(fh)
@@ -793,6 +862,8 @@ def main(argv=None) -> None:
                                                                   False))
             node_fields = {**sol.viewer_fields(), **node_fields}
             sol_info = _solution_info(sol)
+            if man.get('series', True):
+                frames = sol.series()
     elif args.mesh:
         mesh = read(args.mesh, fmt=args.fmt)
     else:
@@ -800,7 +871,8 @@ def main(argv=None) -> None:
     server = ViewerServer(mesh, title=title, host=args.host, port=args.port,
                           idle_timeout=args.idle_timeout,
                           max_triangles=args.max_triangles, fields=fields,
-                          node_fields=node_fields, solution_info=sol_info)
+                          node_fields=node_fields, solution_info=sol_info,
+                          series=frames)
     print(f'{_READY}{server.url}', flush=True)
     print(f'{mesh!r}, pid {os.getpid()}. Ctrl-C to stop.', flush=True)
     server.serve_forever()

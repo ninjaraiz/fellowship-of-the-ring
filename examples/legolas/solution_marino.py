@@ -15,6 +15,9 @@ print({k: [round(v, 4) for v in r] for k, r in lg.solution.summary()['range'].it
 u = lg.solution.node_field('u')            # (38718, 27): 27 nodos de la malla g2 por celda
 print(u.shape, lg.solution.cell_field('u').min())
 
+# Los autoguardados del mismo p, en orden: el visor los ofrece en el panel Tiempo.
+print([r['time'] for r in lg.solution.series()])
+
 # Al visor: arranca coloreado por Mach; en Color hay un grupo «Solución» con el resto.
 h = lg.viewer.show()
 print(h.url)

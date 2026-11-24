@@ -610,6 +610,10 @@
             "por zona, por la **solución** cargada (`lg.solution`, valores por nodo: cada vértice con el de su elemento), por una métrica de calidad (L4) o por cualquier campo por celda que se pase con `show(fields=…)`; con leyenda y, para los campos por celda, las diez peores celdas, clicables"
           ],
           [
+            "**Tiempo**",
+            "con una solución que tiene autoguardados: deslizador, ◀ ▶ y reproducir, con la escala de color fija"
+          ],
+          [
             "**Capa**",
             "la capa de celdas que cruza un plano X, Y o Z (crinkle slice): una celda de espesor, con todas sus caras, así que se ve cada celda y sus vecinas. Al entrar oculta las zonas, que si no la tapan"
           ],
@@ -943,8 +947,20 @@
         ]
       },
       {
+        "t": "h",
+        "x": "En el tiempo"
+      },
+      {
+        "t": "p",
+        "x": "`lg.solution.series()` lista los autoguardados de la solución cargada: el mismo nombre y el mismo p (`<nombre>.hsol` y `<nombre>_<iteración>.hsol`), completos, ordenados por iteración, con su tiempo. El visor los ofrece en el panel **Tiempo**: deslizador, ◀ ▶ y reproducir. Cada instante se lee al pedirlo y los últimos se quedan en memoria; la escala de color es la del instante donde se eligió la variable, para que los colores se comparen (casilla «escala de color fija»). `show(series=False)` lo quita."
+      },
+      {
         "t": "note",
-        "x": "Todavía no: ficheros de estadísticas (`.stats.hsol`: sus registros llevan más datos de los que dice su cabecera y el núcleo aún no los descifra), soluciones con p-adaptación, gradientes (vorticidad, criterio Q), superficies (`.surf.hsol`), dibujar las caras al orden de la solución cuando p > Ngeo, y el deslizador de autoguardados."
+        "x": "Mariño A, p2: 11 instantes de t = 0 a 30. En una capa z = 0,81 coloreada por u se ve la estela nacer detrás del disco (t = 3) y llegar a la salida (t = 15)."
+      },
+      {
+        "t": "note",
+        "x": "Todavía no: ficheros de estadísticas (`.stats.hsol`: sus registros llevan más datos de los que dice su cabecera y el núcleo aún no los descifra), soluciones con p-adaptación, gradientes (vorticidad, criterio Q), superficies (`.surf.hsol`), dibujar las caras al orden de la solución cuando p > Ngeo (el deslizador de autoguardados ya está: abajo)."
       }
     ]
   },
@@ -1559,6 +1575,10 @@
             "by zone, by the loaded **solution** (`lg.solution`, per-node values: every vertex with its own element's), by a quality metric (L4) or by any per-cell field passed with `show(fields=…)`; with a legend and, for per-cell fields, the ten worst cells, clickable"
           ],
           [
+            "**Time**",
+            "with a solution that has autosaves: slider, ◀ ▶ and play, with a fixed colour scale"
+          ],
+          [
             "**Layer**",
             "the layer of cells a plane X, Y or Z goes through (crinkle slice): one cell thick, with all its faces, so every cell and its neighbours are visible. It hides the zones on entry, since they would cover it"
           ],
@@ -1892,8 +1912,20 @@
         ]
       },
       {
+        "t": "h",
+        "x": "In time"
+      },
+      {
+        "t": "p",
+        "x": "`lg.solution.series()` lists the autosaves of the loaded solution: same name and same p (`<name>.hsol` and `<name>_<iteration>.hsol`), complete, sorted by iteration, with their time. The viewer offers them in the **Time** panel: slider, ◀ ▶ and play. Each instant is read when asked for and the last ones stay in memory; the colour scale is the one of the instant where the variable was chosen, so colours compare (\"fixed colour scale\" box). `show(series=False)` removes it."
+      },
+      {
         "t": "note",
-        "x": "Not yet: statistics files (`.stats.hsol`: their records carry more data than their header says and the core does not decode them yet), p-adaptive solutions, gradients (vorticity, Q criterion), surfaces (`.surf.hsol`), drawing faces at the solution's order when p > Ngeo, and the autosave slider."
+        "x": "Mariño A, p2: 11 instants from t = 0 to 30. On a layer z = 0.81 coloured by u the wake is born behind the disk (t = 3) and reaches the outlet (t = 15)."
+      },
+      {
+        "t": "note",
+        "x": "Not yet: statistics files (`.stats.hsol`: their records carry more data than their header says and the core does not decode them yet), p-adaptive solutions, gradients (vorticity, Q criterion), surfaces (`.surf.hsol`), drawing faces at the solution's order when p > Ngeo (the autosave slider is there: below)."
       }
     ]
   }
