@@ -39,6 +39,8 @@ FUNCTION_MODULES = [
     f"{PKG}/bcfiles.py",
     f"{PKG}/quality.py",
     f"{PKG}/resolution.py",
+    f"{PKG}/convert.py",
+    f"{PKG}/locate.py",
 ]
 
 #: Clases de nivel superior que se documentan, por fichero (None = todas).

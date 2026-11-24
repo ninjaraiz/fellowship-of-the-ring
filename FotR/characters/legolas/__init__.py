@@ -14,7 +14,9 @@ from __future__ import annotations
 import os
 
 from .census import Census
+from .convert import Convert
 from .io import read
+from .locate import Locate
 from .mesh import Boundary, CellBlock, Mesh
 from .quality import Quality
 from .resolution import Resolution
@@ -48,6 +50,10 @@ class LEGOLAS:
         Cell quality metrics (Jacobians, aspect ratio, skewness…).
     resolution : LEGOLAS.Resolution
         Cell sizes, first cells at a wall and estimated y+ (LES).
+    convert : LEGOLAS.Convert
+        Node-order repair, VTK (``.vtu``/``.vtm``) and gmsh writers.
+    locate : LEGOLAS.Locate
+        Cell holding each point; HORSES3D's actuator-disk search.
     viewer : LEGOLAS.Viewer
         Web viewer: ``lg.viewer.show()`` returns the address to open.
 
@@ -68,6 +74,10 @@ class LEGOLAS:
     Quality = Quality
     #: Sizes and wall resolution for an LES (:class:`.resolution.Resolution`).
     Resolution = Resolution
+    #: Node order, VTK and gmsh writers (:class:`.convert.Convert`).
+    Convert = Convert
+    #: Point location (:class:`.locate.Locate`).
+    Locate = Locate
     #: Web viewer of the mesh (:class:`.viewer.Viewer`).
     Viewer = Viewer
 
@@ -83,7 +93,17 @@ class LEGOLAS:
         self.census = LEGOLAS.Census(self)
         self.quality = LEGOLAS.Quality(self)
         self.resolution = LEGOLAS.Resolution(self)
+        self.convert = LEGOLAS.Convert(self)
+        self.locate = LEGOLAS.Locate(self)
         self.viewer = LEGOLAS.Viewer(self)
+
+    def _reset(self) -> None:
+        """Drop every cached result after the mesh has been changed."""
+        self.mesh._cache.clear()
+        self.census._summary = None
+        self.quality._metrics = None
+        self.quality.meta = {}
+        self.resolution._sizes = None
 
     @property
     def name(self) -> str:

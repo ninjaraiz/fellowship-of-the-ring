@@ -7,7 +7,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3, hecho)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4, hecho)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5, hecho)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
+        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3, hecho)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4, hecho)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5, hecho)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6, hecho)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
       },
       {
         "t": "p",
@@ -60,7 +60,7 @@
           [
             "L6",
             "`Convert` (VTU), detección de orden de nodos, `Locate`",
-            "pendiente"
+            "**hecho** (24/11/2026)"
           ],
           [
             "L7",
@@ -437,6 +437,10 @@
         "x": "La trampa que esconden: meshio entrega el `hexahedron27` en orden VTK, pero el `hexahedron64` y el `hexahedron125` en el orden nativo de gmsh. Por eso hay una tabla para meshio y otra para gmsh."
       },
       {
+        "t": "p",
+        "x": "Las de VTK (hexaedro y cuadrilátero Lagrange, tipos 72 y 70) se midieron igual, con `GetParametricCoords` de VTK 9.5, y la del cuadrilátero de gmsh sobre las caras de los mismos cubos de referencia. Un test las compara con VTK cuando está instalado."
+      },
+      {
         "t": "h",
         "x": "Control del orden"
       },
@@ -472,7 +476,7 @@
           [
             "aviso «fail the tensor-order check» y áreas casi dobles",
             "la g4 en `.msh` de ANSA usa un orden de nodos propio (61 de 125 no coinciden con gmsh)",
-            "avisa; usa el `.cgns`, que sí trae el orden CGNS, o regenera la malla. La detección automática del orden llega en L6"
+            "`lg.convert.fix_order()` deduce la permutación y la deshace; `write_msh` lo deja en el orden de gmsh y PyHOPE lo acepta (mismo `.h5` que desde el `.cgns`)"
           ],
           [
             "`rotor_cylinder` con el doble de caras en el `.h5` que en el `.cgns`",
@@ -548,6 +552,16 @@
             "el y⁺ estimado no cuadra con el de la simulación",
             "es una correlación de placa plana: no sabe nada de gradientes de presión, remansos ni desprendimiento",
             "úsalo para dimensionar la primera celda; el real, del `.hsol`"
+          ],
+          [
+            "ParaView deforma las celdas curvas de un `.vtu`",
+            "el fichero declara una versión de VTK anterior a la 2.2 y VTK cambia dos aristas del hexaedro Lagrange al leerlo",
+            "LEGOLAS escribe `version=\"2.2\"`; si el `.vtu` viene de otra herramienta, revisa su cabecera"
+          ],
+          [
+            "HORSES3D: «Actuator disk point not found in mesh»",
+            "una estación cae entre la cuerda y el arco de una cara curva, y el solver solo prueba la forma curva en el primer elemento trilineal que la contiene",
+            "`lg.locate.horses3d_ad(dat, nranks)` dice cuáles se perderían antes de lanzar; mueve las estaciones o el plano"
           ]
         ]
       }
@@ -780,6 +794,92 @@
         "t": "p",
         "x": "`fields()` devuelve los arrays por celda listos para `lg.viewer.show(fields=…)`: tamaño, anisotropía, Δ y, con paredes, altura de la primera celda e y⁺ estimado de las celdas de pared (NaN en las demás). Aparecen en el selector **Color** junto a las métricas de calidad, con su leyenda y sus diez peores. El canal acepta cualquier array por celda, no solo estos."
       }
+    ],
+    "nested_Convert": [
+      {
+        "t": "p",
+        "x": "Gimli no se fiaba de los elfos y los elfos no se fiaban de los enanos, y aun así acabaron entendiéndose. Lo mismo con los formatos: ANSA, gmsh, VTK y PyHOPE numeran los nodos cada uno a su manera, y `lg.convert` es el que traduce."
+      },
+      {
+        "t": "code",
+        "x": "lg = LEGOLAS('Wind_turbine_disk_empty_g4.msh')   # el g4 de ANSA, con su orden propio\nlg.convert.fix_order()                            # deduce la permutación y la deshace\nlg.convert.write_msh('g4_gmsh.msh')               # gmsh 2.2 en el orden de gmsh: PyHOPE lo lee\nlg.convert.to_vtu('g4.vtu', mode='lagrange', quality=True)   # volumen curvo para ParaView\nlg.convert.to_vtm('g4')                           # volumen + una pieza por frontera"
+      },
+      {
+        "t": "table",
+        "head": [
+          "método",
+          "qué hace"
+        ],
+        "rows": [
+          [
+            "`detect_order`",
+            "para cada bloque de hexaedros de alto orden: cuántas celdas fallan el control de orden tensorial y qué permutación sale de la geometría. Cada nodo se sitúa en el cubo de referencia invirtiendo el mapeo trilineal de las esquinas (que sí están bien: la topología ya cuadraba), y gana la posición más votada en 400 celdas"
+          ],
+          [
+            "`fix_order`",
+            "aplica la permutación solo si hay celdas mal, el voto es de al menos el 90 % y después no falla ninguna. Cambia la malla en sitio y tira lo calculado (censo, calidad, resolución)"
+          ],
+          [
+            "`to_vtu`",
+            "el volumen en VTK XML: celdas Lagrange (tipo 72, ParaView las pinta curvas) o cada elemento partido en N³ hexaedros lineales. Campos por celda (`fields`, `quality=True`) y por nodo (`point_fields`)"
+          ],
+          [
+            "`to_vtm`",
+            "multibloque: `volume.vtu` y un `.vtu` por frontera (cuadriláteros Lagrange o lineales), con su nombre"
+          ],
+          [
+            "`write_msh`",
+            "gmsh 2.2 binario en el orden nativo de gmsh, con zonas y fronteras como grupos físicos (también las vacías y las interiores, que PyHOPE quiere ver)"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "El caso que lo justifica (24/11/2026): el `Wind_turbine_disk_empty_g4.msh` de ANSA, que PyHOPE rechazaba («Connectivity check failed»). `fix_order` encuentra la permutación con un acuerdo del 100 % y deja 0 celdas mal; `write_msh` lo reescribe, gmsh lo lee, y **PyHOPE genera un `.h5` idéntico, conjunto a conjunto, al que genera desde el `.cgns`**."
+      },
+      {
+        "t": "note",
+        "x": "Una trampa de VTK: desde la 9.1 cambió el orden de dos aristas del hexaedro Lagrange, y al leer un `.vtu` que declara una versión anterior a la 2.2 las vuelve a cambiar «por compatibilidad». LEGOLAS escribe `version=\"2.2\"`; con otra versión, ParaView deforma las celdas."
+      }
+    ],
+    "nested_Locate": [
+      {
+        "t": "p",
+        "x": "Legolas encontraba el rastro de los hobbits en la hierba pisada de Rohan. Aquí basta con encontrar en qué celda cae un punto, que tiene su miga cuando las caras son curvas."
+      },
+      {
+        "t": "code",
+        "x": "lg.locate.points([[3.66, 1.355, 0.817]])          # celda, coordenadas de referencia\nlg.locate.horses3d_ad('ActuatorDef/Act_ActuatorDiskDef.dat', nranks=4)\nread_actuator_points('Act_ActuatorDiskDef.dat')    # estaciones como las coloca HORSES3D"
+      },
+      {
+        "t": "table",
+        "head": [
+          "método",
+          "qué hace"
+        ],
+        "rows": [
+          [
+            "`points`",
+            "la búsqueda honesta: celdas candidatas por sus centroides (árbol k-d) y sus cajas, y Newton sobre el mapeo curvo de cada hexaedro (Lagrange por sus nodos, cualquier orden); en tetraedros, coordenadas baricéntricas. Devuelve la celda, ξ en [−1, 1]³, el elemento del fichero y, fuera, la distancia"
+          ],
+          [
+            "`horses3d_ad`",
+            "lo que hace de verdad el disco actuador de HORSES3D (`FindActuatorPointElementAD`): cada rango MPI toma su **primer** elemento cuya forma *trilineal* contiene el punto, y solo ahí prueba la curva. Un punto entre la cuerda y el arco de una cara curva se pierde y el solver para con «Actuator disk point not found in mesh». Devuelve qué puntos se encuentran, cuáles se perderían estando dentro del fluido y el |ξ| curvo máximo de cada uno (justo por encima de 1 = riesgo con otro nº de rangos)"
+          ],
+          [
+            "`read_actuator_points`",
+            "las estaciones de un `Act_ActuatorDiskDef.dat` (modelos A y B), leídas por posición como el solver: plano x = x_buje, ángulo desde +y hacia +z"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Comprobado contra `check_ad_points.py` (24/11/2026), del que esto es la generalización a cualquier Ngeo: con el `.dat` de la turbina, 0 puntos perdidos con 1 y 4 rangos; con la última estación en r = 0,446, 48 perdidos y |ξ| máximo 1,048558 en los dos, número a número. La búsqueda honesta encuentra los 2304 dentro del fluido."
+      },
+      {
+        "t": "p",
+        "x": "Prismas y pirámides no se localizan todavía: un punto que solo ellos podrían contener sale como fuera."
+      }
     ]
   },
   "en": {
@@ -790,7 +890,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3, done)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4, done)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5, done)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
+        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3, done)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4, done)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5, done)\n └─ convert / locate                  VTU, node order, probes      (L6, done)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
       },
       {
         "t": "p",
@@ -843,7 +943,7 @@
           [
             "L6",
             "`Convert` (VTU), node-order detection, `Locate`",
-            "pending"
+            "**done** (24/11/2026)"
           ],
           [
             "L7",
@@ -1220,6 +1320,10 @@
         "x": "The trap they hide: meshio returns `hexahedron27` in VTK order but `hexahedron64` and `hexahedron125` in gmsh's native order. Hence one table for meshio and another for gmsh."
       },
       {
+        "t": "p",
+        "x": "The VTK ones (Lagrange hexahedron and quadrilateral, types 72 and 70) were measured the same way, with VTK 9.5's `GetParametricCoords`, and gmsh's quadrangle on the faces of the same reference cubes. A test checks them against VTK when it is installed."
+      },
+      {
         "t": "h",
         "x": "Order screen"
       },
@@ -1255,7 +1359,7 @@
           [
             "warning \"fail the tensor-order check\" and almost doubled areas",
             "the g4 `.msh` from ANSA uses a node order of its own (61 of 125 differ from gmsh)",
-            "warns; use the `.cgns`, which has CGNS order, or regenerate. Automatic order detection comes in L6"
+            "`lg.convert.fix_order()` infers the permutation and undoes it; `write_msh` leaves it in gmsh's order and PyHOPE accepts it (same `.h5` as from the `.cgns`)"
           ],
           [
             "`rotor_cylinder` with twice the faces in the `.h5` than in the `.cgns`",
@@ -1331,6 +1435,16 @@
             "the estimated y⁺ does not match the simulation",
             "it is a flat-plate correlation: it knows nothing of pressure gradients, stagnation or separation",
             "use it to size the first cell; the real one comes from the `.hsol`"
+          ],
+          [
+            "ParaView distorts the curved cells of a `.vtu`",
+            "the file declares a VTK version older than 2.2 and VTK swaps two edges of the Lagrange hexahedron on read",
+            "LEGOLAS writes `version=\"2.2\"`; if the `.vtu` comes from another tool, check its header"
+          ],
+          [
+            "HORSES3D: \"Actuator disk point not found in mesh\"",
+            "a station falls between the chord and the arc of a curved face, and the solver only tries the curved shape in the first trilinear element that holds it",
+            "`lg.locate.horses3d_ad(dat, nranks)` tells which would be lost before the run; move the stations or the plane"
           ]
         ]
       }
@@ -1562,6 +1676,92 @@
       {
         "t": "p",
         "x": "`fields()` returns the per-cell arrays ready for `lg.viewer.show(fields=…)`: size, anisotropy, Δ and, with walls, first cell height and estimated y⁺ of the wall cells (NaN elsewhere). They appear in the **Colour** selector next to the quality metrics, with their legend and their ten worst. The channel takes any per-cell array, not only these."
+      }
+    ],
+    "nested_Convert": [
+      {
+        "t": "p",
+        "x": "Gimli did not trust Elves and Elves did not trust Dwarves, and still they came to understand each other. Same with formats: ANSA, gmsh, VTK and PyHOPE each number the nodes their own way, and `lg.convert` is the translator."
+      },
+      {
+        "t": "code",
+        "x": "lg = LEGOLAS('Wind_turbine_disk_empty_g4.msh')   # ANSA's g4, with its own order\nlg.convert.fix_order()                            # infers the permutation and undoes it\nlg.convert.write_msh('g4_gmsh.msh')               # gmsh 2.2 in gmsh's order: PyHOPE reads it\nlg.convert.to_vtu('g4.vtu', mode='lagrange', quality=True)   # curved volume for ParaView\nlg.convert.to_vtm('g4')                           # volume + one piece per boundary"
+      },
+      {
+        "t": "table",
+        "head": [
+          "method",
+          "what it does"
+        ],
+        "rows": [
+          [
+            "`detect_order`",
+            "for each block of high-order hexahedra: how many cells fail the tensor-order screen and which permutation the geometry gives. Each node is placed in the reference cube by inverting the trilinear map of the corners (which are right: the topology already matched), and the position most voted over 400 cells wins"
+          ],
+          [
+            "`fix_order`",
+            "applies the permutation only if cells fail, the vote is at least 90 % and none fails afterwards. Changes the mesh in place and drops what was computed (census, quality, resolution)"
+          ],
+          [
+            "`to_vtu`",
+            "the volume in VTK XML: Lagrange cells (type 72, ParaView draws them curved) or each element cut into N³ linear hexahedra. Per-cell fields (`fields`, `quality=True`) and per-node fields (`point_fields`)"
+          ],
+          [
+            "`to_vtm`",
+            "multiblock: `volume.vtu` and one `.vtu` per boundary (Lagrange or linear quads), with its name"
+          ],
+          [
+            "`write_msh`",
+            "binary gmsh 2.2 in gmsh's native order, with zones and boundaries as physical groups (empty and inner ones too, which PyHOPE wants to see)"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "The case that justifies it (24/11/2026): ANSA's `Wind_turbine_disk_empty_g4.msh`, which PyHOPE rejected (\"Connectivity check failed\"). `fix_order` finds the permutation with 100 % agreement and leaves 0 cells wrong; `write_msh` rewrites it, gmsh reads it, and **PyHOPE produces an `.h5` identical, dataset by dataset, to the one it produces from the `.cgns`**."
+      },
+      {
+        "t": "note",
+        "x": "A VTK trap: since 9.1 two edges of the Lagrange hexahedron changed order, and when reading a `.vtu` that declares a version older than 2.2 VTK swaps them back \"for compatibility\". LEGOLAS writes `version=\"2.2\"`; with another version, ParaView distorts the cells."
+      }
+    ],
+    "nested_Locate": [
+      {
+        "t": "p",
+        "x": "Legolas found the hobbits' trail in the trampled grass of Rohan. Here it is enough to find which cell a point falls in, which is less trivial than it sounds when faces are curved."
+      },
+      {
+        "t": "code",
+        "x": "lg.locate.points([[3.66, 1.355, 0.817]])          # cell, reference coordinates\nlg.locate.horses3d_ad('ActuatorDef/Act_ActuatorDiskDef.dat', nranks=4)\nread_actuator_points('Act_ActuatorDiskDef.dat')    # stations as HORSES3D places them"
+      },
+      {
+        "t": "table",
+        "head": [
+          "method",
+          "what it does"
+        ],
+        "rows": [
+          [
+            "`points`",
+            "the honest search: candidate cells by their centroids (k-d tree) and boxes, and Newton on the curved map of each hexahedron (Lagrange through its nodes, any order); in tetrahedra, barycentric coordinates. Returns the cell, ξ in [−1, 1]³, the file's element and, outside, the distance"
+          ],
+          [
+            "`horses3d_ad`",
+            "what HORSES3D's actuator disk really does (`FindActuatorPointElementAD`): each MPI rank takes its **first** element whose *trilinear* shape holds the point, and only there tries the curved one. A point between the chord and the arc of a curved face is lost and the solver stops with \"Actuator disk point not found in mesh\". Returns which points are found, which would be lost while inside the fluid, and the largest curved |ξ| of each (just above 1 = at risk with another number of ranks)"
+          ],
+          [
+            "`read_actuator_points`",
+            "the stations of an `Act_ActuatorDiskDef.dat` (models A and B), read by position like the solver: plane x = x_hub, angle from +y towards +z"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Checked against `check_ad_points.py` (24/11/2026), of which this is the generalisation to any Ngeo: with the turbine's `.dat`, 0 points lost with 1 and 4 ranks; with the last station at r = 0.446, 48 lost and maximum |ξ| 1.048558 in both, number for number. The honest search finds all 2304 inside the fluid."
+      },
+      {
+        "t": "p",
+        "x": "Prisms and pyramids are not located yet: a point only they could hold comes back as outside."
       }
     ]
   }

@@ -186,13 +186,14 @@ tocar código, `graphify update .`.
 | hito | estado |
 |---|---|
 | L0 | **hecho** (20/11/2026): este documento y HANDOFF |
-| — | commits en la rama `legolas` (salida de `develop`): L0–L2 en `2208226`, L3 en `0fe65c6`, L4 en `dd9e591`, L5 en el siguiente |
+| — | commits en la rama `legolas` (salida de `develop`): L0–L2 `2208226`, L3 `0fe65c6`, L4 `dd9e591`, L5 `d9e61c4`, L6 el siguiente; aparte, el lector HORSES3D y `Horses3DSets` en `07f1760` |
 | L1 | **hecho** (20/11/2026): ver abajo |
 | L2 | **hecho** (20/11/2026): ver abajo |
 | L3 | **hecho** (20/11/2026): ver abajo |
 | L4 | **hecho** (20/11/2026): ver abajo |
 | L5 | **hecho** (24/11/2026): ver abajo |
-| L6–L7 | pendientes |
+| L6 | **hecho** (24/11/2026): ver abajo |
+| L7 | pendiente |
 
 ### L1 (20/11/2026)
 
@@ -326,6 +327,34 @@ tocar código, `graphify update .`.
 * Tests: `FotR/tests/test_legolas_resolution.py` (19). Ejemplo:
   `examples/legolas/resolution_sphere.py`.
 
-### Decisiones abiertas (se resuelven al llegar al hito)
+### L6 (24/11/2026)
 
-* L6: ¿`write_msh` corrige el orden en el `.msh` o se deja en diagnóstico + VTU?
+* `convert.py` y `LEGOLAS.Convert` (`lg.convert`): `detect_order`/`fix_order`, `to_vtu`
+  (Lagrange 72 o lineal, campos por celda y por nodo), `to_vtm` (volumen + una pieza por
+  frontera) y `write_msh` (gmsh 2.2 binario en orden nativo, zonas y fronteras como grupos
+  físicos, también vacías e interiores).
+* **Decisión abierta cerrada:** `write_msh` **corrige** el orden (no solo diagnostica). Caso
+  real: el `Wind_turbine_disk_empty_g4.msh` de ANSA que PyHOPE rechazaba. `fix_order` da la
+  permutación con 100 % de acuerdo y 0 celdas mal; gmsh lee el fichero reescrito; **PyHOPE
+  genera un `.h5` idéntico conjunto a conjunto al del `.cgns`** (diferencia 0 en
+  `NodeCoords`, `ElemInfo`, `SideInfo`…).
+* Tablas nuevas en `ordering.py`, medidas: `VTK_HEX`/`VTK_QUAD` con `GetParametricCoords` de
+  VTK 9.5 (la fórmula de `PointIndexFromIJK` que escribí de memoria fallaba desde orden 2),
+  `GMSH_QUAD` sobre los cubos de referencia. `detect_hex_order`: inversión trilineal de cada
+  nodo y voto.
+* **Trampa de VTK:** con `version="1.0"` en el `.vtu`, VTK ≥ 9.1 cambia dos aristas del
+  hexaedro Lagrange al leer (compatibilidad con el orden antiguo). Se escribe `version="2.2"`.
+* `locate.py` y `LEGOLAS.Locate` (`lg.locate`): `points` (Newton sobre el mapeo curvo de
+  cualquier orden, tetraedros por baricéntricas, prefiltro k-d + cajas) y `horses3d_ad`, réplica
+  de `FindActuatorPointElementAD` (primer elemento trilineal por rango, luego la curva);
+  `read_actuator_points` lee el `.dat` (modelos A y B). Generaliza `check_ad_points.py` (que
+  solo sabía Ngeo = 2) y coincide con él número a número: 0 perdidos con el `.dat` actual,
+  48 con la última estación en r = 0,446, |ξ| máximo 1,048558.
+* Tests: `test_legolas_convert.py` y `test_legolas_locate.py` (33). Ejemplo:
+  `examples/legolas/convert_locate_turbine.py`.
+
+### Pendiente
+
+* L7: `LEGOLAS(db, case)` desde FRODO y README.
+* Acople con las soluciones de HORSES3D (`Horses3DSets`, `.hsol`, VTK): pedido por el usuario
+  el 24/11/2026 para revisarlo cuando L6 esté cerrado.

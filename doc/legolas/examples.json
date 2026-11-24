@@ -99,6 +99,34 @@
           "en": "The report gives the first node from 0.016 to 0.052 D and an estimated y⁺ there from 0.86 to 5.3 (median 1.9)."
         }
       }
+    ],
+    "nested_Convert": [
+      {
+        "title": {
+          "es": "El g4 de ANSA, arreglado para PyHOPE, y la turbina para ParaView",
+          "en": "ANSA's g4, fixed for PyHOPE, and the turbine for ParaView"
+        },
+        "source": "examples/legolas/convert_locate_turbine.py",
+        "code": "import os\nfrom FotR import LEGOLAS\n\nsources = '/home/m.jaraiz/Documentos/COMAC/wind_turbine_ansa/sources'\nout = 'legolas_out'\nos.makedirs(out, exist_ok=True)\n\n# 1. La g4 en .msh de ANSA trae su propio orden de nodos: LEGOLAS lo deduce de la\n#    geometría, lo corrige y la reescribe en el orden de gmsh, que PyHOPE ya lee.\nlg = LEGOLAS(os.path.join(sources, 'Wind_turbine_disk_empty_g4.msh'))\nfor r in lg.convert.fix_order():\n    print('bloque', r['block'], 'celdas mal:', r['fails'], 'acuerdo:', r['agreement'],\n          'después:', r['fails_after'], 'aplicado:', r['applied'])\nprint(lg.convert.write_msh(os.path.join(out, 'Wind_turbine_disk_empty_g4_gmsh.msh')))\n\n# 2. La turbina g2 para ParaView: volumen curvo (Lagrange) con la calidad por celda,\n#    y una pieza por frontera dentro de un .vtm.\ng2 = LEGOLAS(os.path.join(sources, 'Wind_turbine_disk_fluid_cgns_g2_mesh.h5'))\nprint(g2.convert.to_vtm(os.path.join(out, 'turbine_g2'), mode='lagrange', quality=True))",
+        "note": {
+          "es": "Sale `bloque 0 celdas mal: 38558 acuerdo: 1.0 después: 0 aplicado: True`.",
+          "en": "It prints `bloque 0 celdas mal: 38558 acuerdo: 1.0 después: 0 aplicado: True`."
+        }
+      }
+    ],
+    "nested_Locate": [
+      {
+        "title": {
+          "es": "¿Encontraría HORSES3D las estaciones del disco?",
+          "en": "Would HORSES3D find the disk stations?"
+        },
+        "source": "examples/legolas/convert_locate_turbine.py",
+        "code": "import os\nfrom FotR import LEGOLAS\n\nsources = '/home/m.jaraiz/Documentos/COMAC/wind_turbine_ansa/sources'\nout = 'legolas_out'\nos.makedirs(out, exist_ok=True)\n\n# 3. ¿Encontraría HORSES3D todas las estaciones del disco actuador?\ndat = os.path.join(sources, 'ActuatorDef', 'Act_ActuatorDiskDef.dat')\nr = g2.locate.horses3d_ad(dat, nranks=4)\nprint('estaciones no encontradas:', int((~r['found']).sum()), '| perdidas dentro del fluido:', len(r['lost']))",
+        "note": {
+          "es": "Con el `.dat` actual (última estación en r = 0,443): ninguna perdida.",
+          "en": "With the current `.dat` (last station at r = 0.443): none lost."
+        }
+      }
     ]
   }
 }

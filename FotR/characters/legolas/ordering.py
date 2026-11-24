@@ -42,7 +42,8 @@ import numpy as np
 __all__ = [
     'tensor_index', 'linear_conn', 'hex_corners', 'hex_face_corners', 'hex_face_grid',
     'quad_corners', 'MESHIO_HEX', 'CGNS_HEX', 'GMSH_HEX', 'HEX_FACES_VTK',
-    'LINEAR_FACES', 'NODES_PER_KIND', 'tensor_monotonic',
+    'LINEAR_FACES', 'NODES_PER_KIND', 'tensor_monotonic', 'VTK_HEX',
+    'VTK_QUAD', 'GMSH_QUAD', 'detect_hex_order',
 ]
 
 #: Corner-level faces of a hexahedron in CGNS/HOPR order, as indices into
@@ -253,3 +254,121 @@ def tensor_monotonic(points: np.ndarray, conn: np.ndarray, order: int,
         span = np.take(x, [-1], axis=axis) - np.take(x, [0], axis=axis)
         bad |= ((d * span).sum(-1) <= 0).reshape(len(idx), -1).any(1)
     return idx[bad]
+
+#: VTK Lagrange hexahedron (cell type 72), by order: ``vtk = canonical[perm]``.
+#: Measured from VTK 9.5 (``vtkLagrangeHexahedron.GetParametricCoords``).
+VTK_HEX = {
+    1: _HEX1,
+    2: [0, 2, 8, 6, 18, 20, 26, 24, 1, 5, 7, 3, 19, 23, 25, 21, 9, 11, 17, 15,
+        12, 14, 10, 16, 4, 22, 13],
+    3: [0, 3, 15, 12, 48, 51, 63, 60, 1, 2, 7, 11, 13, 14, 4, 8, 49, 50, 55,
+        59, 61, 62, 52, 56, 16, 32, 19, 35, 31, 47, 28, 44, 20, 24, 36, 40, 23,
+        27, 39, 43, 17, 18, 33, 34, 29, 30, 45, 46, 5, 6, 9, 10, 53, 54, 57,
+        58, 21, 22, 25, 26, 37, 38, 41, 42],
+    4: [0, 4, 24, 20, 100, 104, 124, 120, 1, 2, 3, 9, 14, 19, 21, 22, 23, 5,
+        10, 15, 101, 102, 103, 109, 114, 119, 121, 122, 123, 105, 110, 115, 25,
+        50, 75, 29, 54, 79, 49, 74, 99, 45, 70, 95, 30, 35, 40, 55, 60, 65, 80,
+        85, 90, 34, 39, 44, 59, 64, 69, 84, 89, 94, 26, 27, 28, 51, 52, 53, 76,
+        77, 78, 46, 47, 48, 71, 72, 73, 96, 97, 98, 6, 7, 8, 11, 12, 13, 16, 17,
+        18, 106, 107, 108, 111, 112, 113, 116, 117, 118, 31, 32, 33, 36, 37,
+        38, 41, 42, 43, 56, 57, 58, 61, 62, 63, 66, 67, 68, 81, 82, 83, 86, 87,
+        88, 91, 92, 93],
+}
+
+#: VTK Lagrange quadrilateral (cell type 70): position ``i + (N+1) j`` of
+#: each VTK point, with ``i`` along the first edge (``a`` of
+#: :func:`hex_face_grid`) and ``j`` along the last (``b``).
+VTK_QUAD = {
+    1: [0, 1, 3, 2],
+    2: [0, 2, 8, 6, 1, 5, 7, 3, 4],
+    3: [0, 3, 15, 12, 1, 2, 7, 11, 13, 14, 4, 8, 5, 6, 9, 10],
+    4: [0, 4, 24, 20, 1, 2, 3, 9, 14, 19, 21, 22, 23, 5, 10, 15, 6, 7, 8, 11,
+        12, 13, 16, 17, 18],
+}
+
+#: gmsh quadrangle of order N (types 3, 10, 36, 37): position
+#: ``a (N+1) + b`` in a :func:`hex_face_grid` of each gmsh node. Measured
+#: on the faces of the reference cubes in ``FotR/tests/data/legolas/``.
+GMSH_QUAD = {
+    1: [0, 2, 3, 1],
+    2: [0, 6, 8, 2, 3, 7, 5, 1, 4],
+    3: [0, 12, 15, 3, 4, 8, 13, 14, 11, 7, 2, 1, 5, 9, 10, 6],
+    4: [0, 20, 24, 4, 5, 10, 15, 21, 22, 23, 19, 14, 9, 3, 2, 1, 6, 16, 18,
+        8, 11, 17, 13, 7, 12],
+}
+
+
+def _trilinear_inverse(c, x, iters=30):
+    """Reference coordinates in [0, 1]^3 of points *x* ``(m, k, 3)`` in the
+    trilinear cells with VTK corners *c* ``(m, 8, 3)``."""
+    s = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],
+                  [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], float)
+    u = np.full(x.shape, 0.5)
+    for _ in range(iters):
+        w = np.where(s[None, None] == 1, u[:, :, None, :],
+                     1 - u[:, :, None, :])                 # (m, k, 8, 3)
+        N = w.prod(-1)                                    # (m, k, 8)
+        F = np.einsum('mkc,mcd->mkd', N, c) - x
+        dN = np.empty(N.shape + (3,))
+        for d in range(3):
+            sign = np.where(s[:, d] == 1, 1.0, -1.0)
+            others = np.delete(w, d, axis=-1).prod(-1)
+            dN[..., d] = sign * others
+        J = np.einsum('mkcd,mce->mked', dN, c)            # (m, k, 3, 3)
+        try:
+            step = np.linalg.solve(J, -F[..., None])[..., 0]
+        except np.linalg.LinAlgError:
+            break
+        u = u + step
+        if np.abs(step).max() < 1e-12:
+            break
+    return u
+
+
+def detect_hex_order(points, conn, order, sample=400, seed=0) -> dict:
+    """Find the node permutation of hexahedra whose file order is unknown.
+
+    The corners must be right (they are whenever faces and boundaries match,
+    which is what the topology checks); each other node is placed in the
+    reference cube by inverting the trilinear map of the corners and rounded
+    to the ``1/N`` grid. Over a sample of cells, the most common position of
+    every node wins. Mildly curved cells give the same answer; the vote
+    absorbs the rest.
+
+    Parameters
+    ----------
+    points : numpy.ndarray
+        ``(n_points, 3)``.
+    conn : numpy.ndarray
+        ``(n_cells, (N+1)**3)`` connectivity as read; corners already in the
+        canonical positions (:func:`hex_corners`).
+    order : int
+        N.
+    sample, seed : int
+        Cells used for the vote, and the seed that picks them.
+
+    Returns
+    -------
+    dict
+        ``perm`` (``correct = conn[:, perm]``, or None if no permutation
+        comes out), ``agreement`` (share of sampled cells that agree with the
+        winner on every node) and ``identity`` (whether nothing has to move).
+    """
+    n = order + 1
+    rng = np.random.default_rng(seed)
+    idx = rng.choice(len(conn), min(sample, len(conn)), replace=False)
+    c = points[conn[idx][:, hex_corners(order)]]
+    x = points[conn[idx]]
+    u = _trilinear_inverse(c, x)
+    ijk = np.clip(np.rint(u * order), 0, order).astype(int)
+    pos = ijk[..., 0] + n * ijk[..., 1] + n * n * ijk[..., 2]   # (m, n^3)
+    winner = np.empty(n ** 3, dtype=np.int64)
+    for k in range(n ** 3):
+        winner[k] = np.bincount(pos[:, k], minlength=n ** 3).argmax()
+    if sorted(winner) != list(range(n ** 3)):
+        return {'perm': None, 'agreement': 0.0, 'identity': False}
+    perm = np.argsort(winner)          # node now at canonical position t
+    agreement = float((pos == winner).all(1).mean())
+    return {'perm': perm, 'agreement': agreement,
+            'identity': bool((perm == np.arange(n ** 3)).all())}
+
