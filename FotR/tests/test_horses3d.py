@@ -109,7 +109,8 @@ def _write_control(
     p_in_filename=None,
     declared_p=None,
 ):
-    """Write one file_control_p<p>.control plus its .hsol/.residuals."""
+    """Write one file_control_p<p>.control plus a finished .hsol and
+    its .residuals (the .hsol ends with the solver's end marker 99)."""
     p_name = p if p_in_filename is None else p_in_filename
     sol_name = f"case_v2g2p{p}.hsol"
 
@@ -136,7 +137,8 @@ def _write_control(
 
     results_dir = os.path.join(case_path, "RESULTS")
     os.makedirs(results_dir, exist_ok=True)
-    open(os.path.join(results_dir, sol_name), "w").close()
+    with open(os.path.join(results_dir, sol_name), "wb") as fh:
+        fh.write(b"FAKEHSOL" + (99).to_bytes(4, "little"))
     open(
         os.path.join(results_dir, sol_name.replace(".hsol", ".residuals")),
         "w",
@@ -145,7 +147,7 @@ def _write_control(
     return control_path, sol_name
 
 
-def _make_mesh(case_path, mesh_name="case_v2g2_mesh.h5"):
+def _make_mesh(case_path, mesh_name="case_v2g2_mesh.h5", ngeo=2):
     mesh_dir = os.path.join(case_path, "MESH")
     os.makedirs(mesh_dir, exist_ok=True)
     mesh_path = os.path.join(mesh_dir, mesh_name)
@@ -172,7 +174,8 @@ def _make_mesh(case_path, mesh_name="case_v2g2_mesh.h5"):
             hf.create_dataset(
                 "ElemCounter", data=_np.zeros((1, 2), dtype=_np.int32)
             )
-            hf.attrs["Ngeo"] = 2
+            if ngeo is not None:
+                hf.attrs["Ngeo"] = ngeo
             hf.attrs["nElems"] = 1
             hf.attrs["nNodes"] = 4
     except ImportError:
@@ -313,18 +316,52 @@ def test_geometric_g_inferred_from_filename(basic_dataset):
     ].iloc[0] == 2
 
 
-def test_geometric_g_left_none_when_pattern_absent(tmp_path):
-    root = str(tmp_path)
-    outputs = os.path.join(root, "outputs")
-    os.makedirs(outputs)
+def _one_case(tmp_path):
+    outputs = os.path.join(str(tmp_path), "outputs")
     case = os.path.join(outputs, "case_1")
     os.makedirs(case)
-    mesh = _make_mesh(case, mesh_name="unrelated_mesh_name.h5")
+    return str(tmp_path), case
+
+
+def test_geometric_g_left_none_when_pattern_absent(tmp_path):
+    root, case = _one_case(tmp_path)
+    mesh = _make_mesh(case, mesh_name="unrelated_mesh_name.h5", ngeo=None)
     _write_control(case, p=2, mesh_name=mesh)
 
     reader = Horses3DReader(root_dir=root)
     reader.parse_simulation_dirs()
     assert reader.sim_metadata["case_1"]["mesh"]["g"] is None
+
+
+@pytest.mark.parametrize("name,g", [
+    ("Wind_turbine_disk_fluid_cgns_g2_mesh.h5", 2),
+    ("my_esphere_v2g2_mesh.h5", 2),
+    ("ESFERA_HEXAS_g3_v3p2.h5", 3),
+    ("fan_is_fluid_cgns_g2_mesh_fixTE.h5", 2),
+    ("wing3_mesh.h5", None),
+    ("mesh_g2_g3.h5", None),
+])
+def test_geometric_g_from_name(name, g):
+    assert Horses3DReader._infer_geometric_g(name) == g
+
+
+def test_geometric_g_from_ngeo_when_name_has_none(tmp_path):
+    root, case = _one_case(tmp_path)
+    mesh = _make_mesh(case, mesh_name="unrelated_mesh_name.h5", ngeo=3)
+    _write_control(case, p=3, mesh_name=mesh)
+
+    reader = Horses3DReader(root_dir=root)
+    reader.parse_simulation_dirs()
+    assert reader.sim_metadata["case_1"]["mesh"]["g"] == 3
+
+
+def test_g_in_name_disagreeing_with_ngeo_raises_strict(tmp_path):
+    root, case = _one_case(tmp_path)
+    mesh = _make_mesh(case, mesh_name="wt_g2_mesh.h5", ngeo=3)
+    _write_control(case, p=3, mesh_name=mesh)
+
+    with pytest.raises(ValueError, match="Ngeo"):
+        Horses3DReader(root_dir=root).parse_simulation_dirs()
 
 
 # =============================================================================
@@ -523,7 +560,7 @@ def test_p_less_than_g_raises_strict(tmp_path):
         reader.parse_simulation_dirs()
 
 
-def test_missing_declared_solution_file_raises_strict(tmp_path):
+def test_missing_solution_file_is_pending_not_an_error(tmp_path):
     root = str(tmp_path)
     outputs = os.path.join(root, "outputs")
     os.makedirs(outputs)
@@ -541,8 +578,66 @@ def test_missing_declared_solution_file_raises_strict(tmp_path):
     # Note: solution file intentionally not created on disk.
 
     reader = Horses3DReader(root_dir=root, strict=True)
-    with pytest.raises(ValueError):
-        reader.parse_simulation_dirs()
+    reader.parse_simulation_dirs()
+    sol = reader.sim_metadata["case_1"]["solutions"][2]
+    assert sol["status"] == "pending" and sol["valid"]
+    row = reader.df_state.iloc[0]
+    assert row["state"] == "pending" and row["p_finished"] == []
+
+
+def test_solution_status_started_and_finished(tmp_path):
+    root, case = _one_case(tmp_path)
+    mesh = _make_mesh(case)
+    _, sol_name = _write_control(case, p=2, mesh_name=mesh)
+    results = os.path.join(case, "RESULTS")
+    stem = sol_name[:-len(".hsol")]
+    # Final file still being written (no end marker) + an autosave.
+    with open(os.path.join(results, sol_name), "wb") as fh:
+        fh.write(b"FAKEHSOL")
+    open(os.path.join(results, f"{stem}_0000001000.hsol"), "w").close()
+    open(os.path.join(results, f"{stem}_0000000500.hsol"), "w").close()
+    open(os.path.join(results, f"{stem}_Actuator_Line_CP_CT_turb_001.dat"),
+         "w").close()
+
+    reader = Horses3DReader(root_dir=root)
+    reader.parse_simulation_dirs()
+    sol = reader.sim_metadata["case_1"]["solutions"][2]
+    assert sol["status"] == "started"
+    assert sol["snapshots"] == [f"RESULTS/{stem}_0000000500.hsol",
+                                f"RESULTS/{stem}_0000001000.hsol"]
+    assert sol["actuator_files"] == [
+        f"RESULTS/{stem}_Actuator_Line_CP_CT_turb_001.dat"]
+    assert reader.df_state.iloc[0]["state"] == "started"
+
+
+def test_restart_from_a_p_of_the_same_case_not_run_yet(tmp_path):
+    root, case = _one_case(tmp_path)
+    mesh = _make_mesh(case)
+    _, sol_p2 = _write_control(case, p=2, mesh_name=mesh)
+    _write_control(case, p=3, mesh_name=mesh, restart=True,
+                   restart_sol=sol_p2, restart_p=2)
+    for name in os.listdir(os.path.join(case, "RESULTS")):
+        os.remove(os.path.join(case, "RESULTS", name))
+
+    reader = Horses3DReader(root_dir=root, strict=True)
+    reader.parse_simulation_dirs()
+    sols = reader.sim_metadata["case_1"]["solutions"]
+    assert [sols[p]["status"] for p in (2, 3)] == ["pending", "pending"]
+    assert all(s["valid"] for s in sols.values())
+
+
+def test_extract_outputs_refuses_unfinished_solutions(tmp_path):
+    root, case = _one_case(tmp_path)
+    mesh = _make_mesh(case)
+    _, sol_name = _write_control(case, p=2, mesh_name=mesh)
+    os.remove(os.path.join(case, "RESULTS", sol_name))
+    reader = Horses3DReader(root_dir=root, strict=False)
+    reader.metadata["design_vars"] = ["mach"]
+    reader.parse_simulation_dirs()
+    reader.sim_metadata["case_1"]["design_vars"] = {"mach": 0.3}
+    reader.extract_inputs(p=2)
+    with pytest.raises(ValueError, match="not finished"):
+        reader.extract_outputs(p=2)
 
 
 def test_restart_true_without_existing_restart_file_raises_strict(tmp_path):

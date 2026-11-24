@@ -30,6 +30,7 @@ SETS_REGISTRY = LazyRegistry(__name__, {
     'CODA_SINGLE': '.coda_single:CODASingleSets',
     'NUMPYFILE': '.numpy_file:NUMPYFILESets',
     'PYLOM': '.pylom:PYLOMSets',
+    'HORSES3D': '.horses3d:Horses3DSets',
 })
 
 __all__ = ['BaseSets', 'SETS_REGISTRY']

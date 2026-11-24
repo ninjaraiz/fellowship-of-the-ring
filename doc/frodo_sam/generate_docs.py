@@ -53,6 +53,7 @@ TARGETS = [
     ("FotR/characters/sets/coda_single.py", None),
     ("FotR/characters/sets/numpy_file.py", None),
     ("FotR/characters/sets/pylom.py", None),
+    ("FotR/characters/sets/horses3d.py", None),
     ("FotR/characters/stats/base.py", None),
     ("FotR/characters/stats/coda.py", None),
     ("FotR/characters/stats/coda_single.py", None),

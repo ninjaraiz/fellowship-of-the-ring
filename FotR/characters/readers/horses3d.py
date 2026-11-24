@@ -90,8 +90,15 @@ by ``(mesh file, g)`` with ``FlCc`` from user ``design_vars`` only.
 ``extract_outputs`` records ``.hsol`` header metadata (header + lazy:
 no bulk Fortran-binary field read over numerous LES snapshots) under
 ``Vars[str(p)]`` as :class:`SAM.Backpack.HorsesLazyField` placeholders.
-``.bmesh`` / ``.pmesh`` / ``.hmesh`` / ``.cgns`` are never read (post-
-solver artefacts); timestamped ``*_<iter>.hsol`` snapshots are ignored.
+Every solution carries a ``status`` (``'pending'``, ``'started'``,
+``'finished'``), so a campaign can be read before it runs; the timestamped
+``*_<iter>.hsol`` autosaves and the actuator outputs are listed per
+solution. ``.bmesh`` / ``.pmesh`` / ``.cgns`` are never read; the ``.hmesh``
+is left to ``FotR.solver_tools.horses3d``.
+
+Campaigns are written by the GANDALF ``horses3d`` ring
+(``FotR/characters/rings/horses3d.py``): the mesh name carries ``g<n>``
+and each solution is ``RESULTS/<tag>_g<g>p<p>.hsol``.
 """
 
 import os
@@ -126,13 +133,16 @@ class Horses3DReader(BaseReader):
         Path to the dataset root directory (passed by FRODO). Must
         contain an ``outputs/`` subdirectory.
     strict : bool
-        If True (default), structural inconsistencies (missing declared
-        files, ``p < g``, mismatched ``p`` between control filename and
-        content, duplicate ``p`` within a case, incompatible mesh
-        declarations, …) raise ``ValueError``. If False, they are
-        emitted as ``UserWarning`` and the offending solution is kept
-        but flagged via ``sim_metadata[case]['solutions'][p]['valid'] =
-        False`` with the reason(s) recorded in ``'issues'``.
+        If True (default), structural inconsistencies (missing mesh or
+        restart file, ``p < g``, mismatched ``p`` between control
+        filename and content, duplicate ``p`` within a case,
+        incompatible mesh declarations, …) raise ``ValueError``. If
+        False, they are emitted as ``UserWarning`` and the offending
+        solution is kept but flagged via
+        ``sim_metadata[case]['solutions'][p]['valid'] = False`` with the
+        reason(s) recorded in ``'issues'``. A solution that has not run
+        yet is not an inconsistency: it is reported with ``status =
+        'pending'`` in both modes.
 
     Attributes set after ``__init__`` / ``parse_simulation_dirs``
     -----------------------------------------------------------------
@@ -171,11 +181,14 @@ class Horses3DReader(BaseReader):
     #: Matches a control filename and captures the p encoded in it.
     _CONTROL_RE = re.compile(r"^file_control_p(?P<p>\d+)\.control$")
 
-    #: Opportunistic hint for the mesh geometric order g from filenames
-    #: following a "...v<version>g<g>..." convention. Only ever used as
-    #: a hint — never treated as ground truth on its own, and never
-    #: guessed when the pattern does not match unambiguously.
-    _MESH_G_RE = re.compile(r"v\d+g(?P<g>\d+)", re.IGNORECASE)
+    #: Mesh geometric order g in a mesh filename: a ``g<n>`` token not
+    #: glued to a preceding letter (``..._cgns_g2_mesh.h5``,
+    #: ``..._v2g2_mesh.h5``). The GANDALF ``horses3d`` ring writes the
+    #: same convention.
+    _MESH_G_RE = re.compile(r"(?<![A-Za-z])g(?P<g>\d+)")
+
+    #: Autosaves of a solution: ``<stem>_<iteration>.hsol``.
+    _SNAPSHOT_RE = re.compile(r"^(?P<stem>.+)_(?P<iter>\d+)\.hsol$")
 
     #: Separators tried when inferring design_vars from case-folder names.
     _FOLDER_NAME_SEPARATORS = ['_', '-']
@@ -409,14 +422,18 @@ class Horses3DReader(BaseReader):
            order`` declared inside it.
         3. Reject (under ``self.strict``) two controls declaring the
            same ``p``, or declaring mutually incompatible mesh files.
-        4. Resolve and check existence of the declared mesh, solution
-           (``.hsol``) and, when ``restart=.true.``, restart files. The
-           ``.residuals`` sibling of the solution file (same stem) is
-           looked up and flagged present/absent — it is optional.
-        5. Infer the mesh geometric order ``g`` from the mesh filename
-           via ``_MESH_G_RE`` (only when unambiguous — see
-           :meth:`_infer_geometric_g`) and validate ``p >= g`` for every
-           solution once ``g`` is known.
+        4. Check the declared mesh and, when ``restart=.true.``, the
+           restart file (a restart file that another ``p`` of the same
+           case will produce is accepted). The solution itself may not
+           exist yet: its ``status`` is ``'pending'`` (nothing written),
+           ``'started'`` (autosaves or ``.residuals`` but no complete
+           final ``.hsol``: running, or stopped before the end) or
+           ``'finished'`` (final ``.hsol`` with its end marker). The
+           ``.residuals`` sibling (same stem) is optional.
+        5. Take the mesh geometric order ``g`` from the mesh filename
+           (:meth:`_infer_geometric_g`), or from the ``Ngeo`` attribute
+           of the ``.h5`` when the name carries none, and validate
+           ``p >= g`` for every solution once ``g`` is known.
         6. If ``self.metadata['df_cases']`` is available (from
            ``cases_metadata.json`` or from folder-name inference — see
            :meth:`_load_optional_cases_metadata` /
@@ -443,6 +460,7 @@ class Horses3DReader(BaseReader):
                                 'control_file':     'file_control_p2.control',
                                 'polynomial_order':  2,
                                 'solution_file':     'RESULTS/solution_p2.hsol',
+                                'status':            'finished',   # or 'started'/'pending'
                                 'residuals_file':    'RESULTS/solution_p2.residuals',
                                 'residuals_found':   True,
                                 'surface_monitors': {
@@ -462,6 +480,10 @@ class Horses3DReader(BaseReader):
                                     },
                                     'file': 'RESULTS/solution_p2.Stopwatch.info',
                                 },
+                                'snapshots':         ['RESULTS/solution_p2_0000010000.hsol'],
+                                'actuator_files':    [],
+                                'stats':             ['RESULTS/solution_p2.stats.hsol'],
+                                'tec':               ['POST/tec/p2/solution_p2.tec'],
                                 'other_files':       [],
                                 'restart':           False,
                                 'restart_file':      None,
@@ -491,7 +513,10 @@ class Horses3DReader(BaseReader):
         self.df_state : pd.DataFrame
             One row per **physical case**. Columns: ``'case'``,
             ``'case_idx'``, ``'p_available'`` (``list[int]``, one entry
-            per resolved ``p``), ``'n_solutions'``, ``'g'`` (nullable
+            per resolved ``p``), ``'p_finished'`` (the ``p`` whose
+            solution is finished), ``'state'`` (``'pending'``,
+            ``'started'`` or ``'finished'`` for the whole case),
+            ``'n_solutions'``, ``'g'`` (nullable
             int), ``'mesh_file'``, ``'all_valid'`` (bool), every
             design-variable column (from ``cases_metadata.json`` or
             inferred from folder names) when available, and every
@@ -608,7 +633,8 @@ class Horses3DReader(BaseReader):
                     warnings.warn(msg, UserWarning)
                 else:
                     mesh_files_seen.add(mesh_file)
-                    if not os.path.exists(os.path.join(case_path, mesh_file)):
+                    mesh_abs = os.path.join(case_path, mesh_file)
+                    if not os.path.exists(mesh_abs):
                         msg = (
                             f"Case '{case_name}', control '{cf}': declared "
                             f"mesh file '{mesh_file}' not found on disk."
@@ -619,8 +645,23 @@ class Horses3DReader(BaseReader):
                         warnings.warn(msg, UserWarning)
 
                     g_hint = self._infer_geometric_g(mesh_file)
-                    if g_hint is not None:
-                        g_candidates.add(g_hint)
+                    g_attr = self._mesh_ngeo(mesh_abs)
+                    if (
+                        g_hint is not None and g_attr is not None
+                        and g_hint != g_attr
+                    ):
+                        msg = (
+                            f"Case '{case_name}', control '{cf}': mesh "
+                            f"'{mesh_file}' is named g{g_hint} but its "
+                            f"Ngeo attribute is {g_attr}."
+                        )
+                        if self.strict:
+                            raise ValueError(msg)
+                        issues.append(msg)
+                        warnings.warn(msg, UserWarning)
+                    g_value = g_hint if g_hint is not None else g_attr
+                    if g_value is not None:
+                        g_candidates.add(g_value)
 
                 # ── solution / residuals files ──────────────────────────
                 solution_file = parsed['solution_file']
@@ -635,19 +676,6 @@ class Horses3DReader(BaseReader):
                     warnings.warn(msg, UserWarning)
                     residuals_file, residuals_found = None, False
                 else:
-                    if not os.path.exists(
-                        os.path.join(case_path, solution_file)
-                    ):
-                        msg = (
-                            f"Case '{case_name}', control '{cf}': declared "
-                            f"solution file '{solution_file}' not found "
-                            "on disk."
-                        )
-                        if self.strict:
-                            raise ValueError(msg)
-                        issues.append(msg)
-                        warnings.warn(msg, UserWarning)
-
                     stem, _ = os.path.splitext(solution_file)
                     residuals_file  = f"{stem}.residuals"
                     residuals_found = os.path.exists(
@@ -660,7 +688,16 @@ class Horses3DReader(BaseReader):
                 related = (
                     self._discover_related_result_files(case_path, solution_file)
                     if solution_file is not None
-                    else {'surface_monitors': {}, 'stopwatch': None, 'other_files': []}
+                    else {'surface_monitors': {}, 'stopwatch': None,
+                          'snapshots': [], 'actuator_files': [], 'stats': [],
+                          'tec': [], 'other_files': []}
+                )
+                status = (
+                    self._solution_status(
+                        os.path.join(case_path, solution_file),
+                        bool(related['snapshots']) or residuals_found,
+                    )
+                    if solution_file is not None else 'pending'
                 )
 
                 # ── restart ──────────────────────────────────────────────
@@ -678,42 +715,34 @@ class Horses3DReader(BaseReader):
                             raise ValueError(msg)
                         issues.append(msg)
                         warnings.warn(msg, UserWarning)
-                    elif not os.path.exists(
-                        os.path.join(case_path, restart_file)
-                    ):
-                        msg = (
-                            f"Case '{case_name}', control '{cf}': declared "
-                            f"restart file '{restart_file}' not found on "
-                            "disk."
-                        )
-                        if self.strict:
-                            raise ValueError(msg)
-                        issues.append(msg)
-                        warnings.warn(msg, UserWarning)
+                    # A missing restart file is checked once every
+                    # control of the case is known (another p may write it).
 
                     if (
                         restart_polorder is not None
                         and restart_polorder >= p
                     ):
-                        msg = (
-                            f"Case '{case_name}', control '{cf}': "
-                            f"restart polorder ({restart_polorder}) should "
-                            f"be strictly lower than this solution's "
-                            f"p ({p})."
+                        warnings.warn(
+                            f"Case '{case_name}', control '{cf}': restart "
+                            f"polorder ({restart_polorder}) is not lower "
+                            f"than this solution's p ({p}): a continuation "
+                            "rather than a p ladder.",
+                            UserWarning,
                         )
-                        if self.strict:
-                            raise ValueError(msg)
-                        issues.append(msg)
-                        warnings.warn(msg, UserWarning)
 
                 solutions[p] = {
                     'control_file':      cf,
                     'polynomial_order':  p,
                     'solution_file':     solution_file,
+                    'status':            status,
                     'residuals_file':    residuals_file,
                     'residuals_found':   residuals_found,
                     'surface_monitors':  related['surface_monitors'],
                     'stopwatch':         related['stopwatch'],
+                    'snapshots':         related['snapshots'],
+                    'actuator_files':    related['actuator_files'],
+                    'stats':             related['stats'],
+                    'tec':               related['tec'],
                     'other_files':       related['other_files'],
                     'restart':           restart,
                     'restart_file':      restart_file,
@@ -722,6 +751,30 @@ class Horses3DReader(BaseReader):
                     'valid':             len(issues) == 0,
                     'issues':            issues,
                 }
+
+            # ── restart files: on disk, or written by another p here ─────
+            produced = {
+                os.path.normpath(s['solution_file'])
+                for s in solutions.values() if s['solution_file']
+            }
+            for p, sol in solutions.items():
+                rf = sol['restart_file']
+                if (
+                    not sol['restart'] or rf is None
+                    or os.path.exists(os.path.join(case_path, rf))
+                    or os.path.normpath(rf) in produced
+                ):
+                    continue
+                msg = (
+                    f"Case '{case_name}', control '{sol['control_file']}': "
+                    f"declared restart file '{rf}' not found on disk, and "
+                    "no other solution of the case writes it."
+                )
+                if self.strict:
+                    raise ValueError(msg)
+                sol['valid'] = False
+                sol['issues'].append(msg)
+                warnings.warn(msg, UserWarning)
 
             # ── mesh consistency across this case's solutions ────────────
             if len(mesh_files_seen) > 1:
@@ -742,8 +795,8 @@ class Horses3DReader(BaseReader):
             if len(g_candidates) > 1:
                 warnings.warn(
                     f"Case '{case_name}': ambiguous geometric order g "
-                    f"candidates {sorted(g_candidates)} inferred from mesh "
-                    "filename(s). Leaving g=None rather than guessing.",
+                    f"candidates {sorted(g_candidates)} from the mesh "
+                    "file(s). Leaving g=None rather than guessing.",
                     UserWarning,
                 )
                 g_final = None
@@ -1125,6 +1178,20 @@ class Horses3DReader(BaseReader):
             )
         p_common = next(iter(per_case_p.values()))
 
+        not_finished = {
+            self._case_name_from_idx(c):
+                self.sim_metadata[self._case_name_from_idx(c)]['solutions']
+                [p_common].get('status')
+            for c in resolved_idx
+            if self.sim_metadata[self._case_name_from_idx(c)]['solutions']
+               [p_common].get('status') != 'finished'
+        }
+        if not_finished:
+            raise ValueError(
+                f"p={p_common} is not finished in {not_finished}. Select "
+                "finished cases (df_state['p_finished'])."
+            )
+
         excluded = set(var_name_excluded or [])
 
         # ── Partition like inputs (mesh groups already built) ────────────
@@ -1372,10 +1439,22 @@ class Horses3DReader(BaseReader):
                 'case_001', 0, 'MESH/mesh_v2g2.h5', 2, solutions, {},
             )
         """
+        statuses = [s.get('status', 'pending') for s in solutions.values()]
+        if statuses and all(st == 'finished' for st in statuses):
+            state = 'finished'
+        elif all(st == 'pending' for st in statuses):
+            state = 'pending'
+        else:
+            state = 'started'
         row = {
             'case':        case_name,
             'case_idx':    case_idx,
             'p_available': sorted(solutions.keys()),
+            'p_finished':  sorted(
+                p for p, s in solutions.items()
+                if s.get('status') == 'finished'
+            ),
+            'state':       state,
             'n_solutions': len(solutions),
             'g':           g,
             'mesh_file':   mesh_file,
@@ -1417,6 +1496,14 @@ class Horses3DReader(BaseReader):
           never assumed to be ``'lift'``, ``'drag'`` or any other fixed
           name.
         * ``<stem>.Stopwatch.info`` → the run's timing breakdown.
+        * ``<stem>_<iteration>.hsol`` → an autosave (``'snapshots'``,
+          sorted by iteration).
+        * ``<stem>_Actuator_*`` → outputs of the actuator line or disk
+          (``'actuator_files'``).
+        * ``<stem>.stats[.<iteration>].hsol`` → statistics files
+          (``'stats'``, dated ones by iteration, the running one last).
+        * ``POST/tec/*/<stem>….tec`` → Tecplot conversions written by
+          ``Horses3DSets.to_tecplot`` (``'tec'``).
         * anything else sharing the stem → recorded verbatim in
           ``'other_files'`` so it is not silently dropped, without
           guessing its meaning.
@@ -1433,7 +1520,9 @@ class Horses3DReader(BaseReader):
         -------
         dict
             ``{'surface_monitors': dict[str, dict], 'stopwatch': dict or
-            None, 'other_files': list[str]}``.
+            None, 'snapshots': list[str], 'actuator_files': list[str],
+            'stats': list[str], 'tec': list[str], 'other_files':
+            list[str]}``.
 
             ``surface_monitors`` maps each monitor name to the dict
             returned by :meth:`_parse_surface_monitor_header` (plus a
@@ -1461,16 +1550,32 @@ class Horses3DReader(BaseReader):
 
         surface_monitors: dict = {}
         stopwatch = None
+        snapshots: list = []
+        actuator_files: list = []
+        stats: list = []
         other_files: list = []
+        tec = self._discover_tec_files(case_path, stem)
 
         if not os.path.isdir(results_dir_abs):
             return {
                 'surface_monitors': surface_monitors,
                 'stopwatch':        stopwatch,
+                'snapshots':        snapshots,
+                'actuator_files':   actuator_files,
+                'stats':            stats,
+                'tec':              tec,
                 'other_files':      other_files,
             }
 
         for fname in sorted(os.listdir(results_dir_abs)):
+            rel = os.path.join(results_dir_rel, fname) if results_dir_rel else fname
+            snap = self._SNAPSHOT_RE.match(fname)
+            if snap and snap.group('stem') == stem:
+                snapshots.append((int(snap.group('iter')), rel))
+                continue
+            if fname.startswith(stem + "_Actuator_"):
+                actuator_files.append(rel)
+                continue
             if not fname.startswith(stem + "."):
                 continue
 
@@ -1479,6 +1584,12 @@ class Horses3DReader(BaseReader):
 
             if suffix == "residuals" or fname == os.path.basename(solution_file):
                 # Already handled by the caller (.hsol / .residuals).
+                continue
+
+            m = re.fullmatch(r"stats(?:\.(\d+))?\.hsol", suffix)
+            if m:
+                stats.append((int(m.group(1)) if m.group(1) else float('inf'),
+                              rel_path))
                 continue
 
             if suffix.endswith(".surface"):
@@ -1524,8 +1635,92 @@ class Horses3DReader(BaseReader):
         return {
             'surface_monitors': surface_monitors,
             'stopwatch':        stopwatch,
+            'snapshots':        [r for _, r in sorted(snapshots)],
+            'actuator_files':   actuator_files,
+            'stats':            [r for _, r in sorted(stats)],
+            'tec':              tec,
             'other_files':      other_files,
         }
+
+    @staticmethod
+    def _discover_tec_files(case_path: str, stem: str) -> list:
+        """``.tec`` files of a solution under ``POST/tec/*/`` (relative to
+        the case), as written by ``Horses3DSets.to_tecplot``."""
+        root = os.path.join(case_path, 'POST', 'tec')
+        found = []
+        if not os.path.isdir(root):
+            return found
+        for sub in sorted(os.listdir(root)):
+            folder = os.path.join(root, sub)
+            if not os.path.isdir(folder):
+                continue
+            for fname in sorted(os.listdir(folder)):
+                if fname.endswith('.tec') and (
+                        fname.startswith(stem + '.') or fname.startswith(stem + '_')):
+                    found.append(os.path.join('POST', 'tec', sub, fname))
+        return found
+
+    @staticmethod
+    def _solution_status(solution_abs: str, started: bool) -> str:
+        """``'finished'``, ``'started'`` or ``'pending'`` for one solution.
+
+        Finished means the final ``.hsol`` exists and ends with the
+        solver's end marker (int32 ``99``); a final file without it is
+        still being written. Started means anything else was written
+        (autosaves, ``.residuals``): the run is going on, or stopped
+        before the end.
+
+        Parameters
+        ----------
+        solution_abs : str
+            Absolute path of the declared solution file.
+        started : bool
+            Whether autosaves or a ``.residuals`` file exist.
+
+        Returns
+        -------
+        str
+
+        Examples
+        --------
+        ::
+
+            Horses3DReader._solution_status('/case/RESULTS/wt_g2p2.hsol', False)
+            # → 'pending'
+        """
+        try:
+            size = os.path.getsize(solution_abs)
+        except OSError:
+            return 'started' if started else 'pending'
+        if size >= 8:
+            with open(solution_abs, 'rb') as fh:
+                fh.seek(-4, os.SEEK_END)
+                if int.from_bytes(fh.read(4), 'little', signed=True) == 99:
+                    return 'finished'
+        return 'started'
+
+    @staticmethod
+    def _mesh_ngeo(mesh_abs: str) -> Union[int, None]:
+        """``Ngeo`` attribute of a HOPR/PyHOPE ``.h5`` mesh, or None.
+
+        None also when the file is missing, is not HDF5 (``.msh``) or
+        h5py is not installed.
+
+        Examples
+        --------
+        ::
+
+            Horses3DReader._mesh_ngeo('/case/MESH/wt_g2_mesh.h5')   # → 2
+        """
+        if not mesh_abs.endswith('.h5') or not os.path.isfile(mesh_abs):
+            return None
+        try:
+            import h5py   # deferred: only meshes need it
+            with h5py.File(mesh_abs, 'r') as fh:
+                ngeo = fh.attrs.get('Ngeo')
+        except (ImportError, OSError):
+            return None
+        return int(ngeo) if ngeo is not None else None
 
     @staticmethod
     def _parse_surface_monitor_header(path: str) -> dict:
@@ -1777,9 +1972,10 @@ class Horses3DReader(BaseReader):
     @classmethod
     def _infer_geometric_g(cls, mesh_filename: str) -> Union[int, None]:
         """
-        Opportunistically infer the mesh geometric order ``g`` (NGeo)
-        from a filename following the ``...v<version>g<g>...``
-        convention (e.g. ``mesh_v2g2.h5`` → ``g=2``).
+        Infer the mesh geometric order ``g`` (NGeo) from a ``g<n>``
+        token in a mesh filename (``wt_cgns_g2_mesh.h5`` and
+        ``mesh_v2g2.h5`` → ``g=2``). Two tokens with different values
+        give None.
 
         Parameters
         ----------
@@ -1798,11 +1994,14 @@ class Horses3DReader(BaseReader):
 
             Horses3DReader._infer_geometric_g('mesh_v2g2.h5')
             # → 2
+            Horses3DReader._infer_geometric_g('Wind_turbine_cgns_g2_mesh.h5')
+            # → 2
             Horses3DReader._infer_geometric_g('mesh.cgns')
             # → None
         """
-        m = cls._MESH_G_RE.search(os.path.basename(mesh_filename))
-        return int(m.group('g')) if m else None
+        found = {int(g) for g in
+                 cls._MESH_G_RE.findall(os.path.basename(mesh_filename))}
+        return found.pop() if len(found) == 1 else None
 
     @staticmethod
     def _normalise_cases_idx(cases_idx, n_cases: int) -> list:
