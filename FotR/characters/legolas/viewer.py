@@ -29,6 +29,9 @@ HTTP API (all ``GET``):
   (:class:`.quality.Quality`), with ``min``, ``max``, ``p01``, ``p99`` and
   ``better`` in the header; NaN where the metric is not defined.
 * ``/api/worst?name=<metric>&n=<k>`` -- JSON, the k worst cells.
+* ``/api/nodefield?name=<var>`` -- binary, one float32 per (cell, node) in
+  the order of :meth:`.mesh.Mesh.cell_node_offsets`; surfaces carry
+  ``vert_index`` into it. Used for solutions (:mod:`.solution`).
 * ``/api/ping`` -- keeps the server alive.
 """
 
@@ -87,6 +90,25 @@ def _normalise_fields(fields, n_cells: int) -> dict:
     return out
 
 
+def _normalise_node_fields(fields, mesh) -> dict:
+    """Check per-(cell, node) fields and flatten them."""
+    out = {}
+    total = int(mesh.cell_node_offsets()[-1])
+    for name, spec in (fields or {}).items():
+        if not isinstance(spec, dict):
+            spec = {'values': spec}
+        values = np.asarray(spec['values'], dtype=float).ravel()
+        if len(values) != total:
+            raise ValueError(f"node field {name!r} has {len(values)} values, "
+                             f"the mesh {total} (cell, node) pairs")
+        label = spec.get('label', name)
+        if isinstance(label, str):
+            label = {'es': label, 'en': label}
+        out[name] = {'values': values, 'label': label,
+                     'better': spec.get('better')}
+    return out
+
+
 def _save_fields(fields, n_cells) -> tuple:
     """Write extra fields for the server process: (npz path, meta)."""
     norm = _normalise_fields(fields, n_cells)
@@ -100,6 +122,14 @@ def _save_fields(fields, n_cells) -> tuple:
     meta = [{'name': k, 'label': v['label'], 'better': v['better']}
             for k, v in norm.items()]
     return path, meta
+
+
+def _solution_info(sol) -> dict:
+    """What the page header shows about a loaded solution."""
+    h = sol.header
+    return {'file': os.path.basename(sol.path), 'p': sol.p,
+            'nodes': h.node_type_name, 'time': float(h.time),
+            'iteration': int(h.iteration), 'physical': sol.physical}
 
 
 def _load_fields(path, meta) -> dict:
@@ -139,13 +169,23 @@ class ViewerServer:
         ``{name: {'values': (n_cells,) array, 'label': str or {'es', 'en'},
         'better': 'high' | 'low' | None}}``. A bare array is accepted too.
         :meth:`.resolution.Resolution.fields` builds them.
+    node_fields : dict, optional
+        Per-(cell, node) fields, same form with ``values`` of shape
+        ``(n_cells, nodes per cell)`` (or flat in the order of
+        :meth:`.mesh.Mesh.cell_node_offsets`): every face vertex takes the
+        value of its own cell, so DG jumps stay visible.
+        :meth:`.solution.Solution.viewer_fields` builds them.
+    solution_info : dict, optional
+        Shown in the page header (file, p, time, iteration).
     """
 
     def __init__(self, mesh, title: str | None = None,
                  host: str = '127.0.0.1', port: int = DEFAULT_PORT,
                  idle_timeout: float = 1800.0,
                  max_triangles: int = scene.MAX_TRIANGLES,
-                 fields: dict | None = None) -> None:
+                 fields: dict | None = None,
+                 node_fields: dict | None = None,
+                 solution_info: dict | None = None) -> None:
         from .census import Census
         from .quality import Quality
 
@@ -165,6 +205,8 @@ class ViewerServer:
         # everything the page asks for first is computed before "ready"
         self.quality = Quality(SimpleNamespace(mesh=mesh))
         self.extra = _normalise_fields(fields, mesh.n_cells)
+        self.node_extra = _normalise_node_fields(node_fields, mesh)
+        self.solution_info = solution_info
         self.info = self._info(Census(SimpleNamespace(mesh=mesh)).summary())
         self.httpd = self._bind(host, int(port))
         self.httpd.viewer = self
@@ -227,6 +269,10 @@ class ViewerServer:
             'fields': [{'name': k, 'label': v['label'], 'better': v['better']}
                        for k, v in list(METRICS.items())
                        + list(self.extra.items())],
+            'node_fields': [{'name': k, 'label': v['label'],
+                             'better': v['better']}
+                            for k, v in self.node_extra.items()],
+            'solution': self.solution_info,
         }
 
     def _geometry(self, elem, face, header: dict) -> bytes:
@@ -234,7 +280,7 @@ class ViewerServer:
         header = dict(header, stride=g['stride'], n_faces=g['n_faces'],
                       triangles=int(len(g['indices'])))
         return scene.pack(header, {k: g[k] for k in (
-            'positions', 'indices', 'tri_cell', 'edges')})
+            'positions', 'indices', 'tri_cell', 'vert_index', 'edges')})
 
     def surface(self, zone: str) -> bytes:
         """Payload of ``/api/surface`` (cached per zone)."""
@@ -265,6 +311,12 @@ class ViewerServer:
                 info['quality'] = {
                     k: (None if not np.isfinite(v[cell]) else float(v[cell]))
                     for k, v in values.items()}
+            if self.node_extra:
+                # node fields: the mean of the cell's own nodes
+                off = self.mesh.cell_node_offsets()
+                info.setdefault('quality', {}).update({
+                    k: float(np.nanmean(v['values'][off[cell]:off[cell + 1]]))
+                    for k, v in self.node_extra.items()})
             return info
 
     def field(self, name: str) -> bytes:
@@ -289,6 +341,26 @@ class ViewerServer:
                 head = {'name': name, 'better': better}
                 head.update({k: stats[k] for k in ('min', 'max', 'p01',
                                                     'p99')})
+                self._cache[key] = scene.pack(head, {'values': values})
+            return self._cache[key]
+
+    def node_field(self, name: str) -> bytes:
+        """Payload of ``/api/nodefield``."""
+        with self._lock:
+            key = 'node:' + name
+            if key not in self._cache:
+                if name not in self.node_extra:
+                    raise KeyError(f'no node field {name!r}')
+                spec = self.node_extra[name]
+                values = spec['values'].astype(np.float32)
+                finite = values[np.isfinite(values)].astype(float)
+                stats = {k: 0.0 for k in ('min', 'max', 'p01', 'p99')}
+                if len(finite):
+                    p01, p99 = np.percentile(finite, [1, 99])
+                    stats = {'min': float(finite.min()),
+                             'max': float(finite.max()),
+                             'p01': float(p01), 'p99': float(p99)}
+                head = dict(stats, name=name, better=spec['better'])
                 self._cache[key] = scene.pack(head, {'values': values})
             return self._cache[key]
 
@@ -379,6 +451,9 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(v.cell(int(arg('id', '-1'))))
             elif url.path == '/api/field':
                 self._send(200, v.field(arg('name', '')),
+                           'application/octet-stream')
+            elif url.path == '/api/nodefield':
+                self._send(200, v.node_field(arg('name', '')),
                            'application/octet-stream')
             elif url.path == '/api/worst':
                 self._json(v.worst(arg('name', 'scaled_jacobian'),
@@ -560,7 +635,9 @@ class Viewer:
              idle_timeout: float = 1800.0,
              max_triangles: int = scene.MAX_TRIANGLES,
              title: str | None = None, timeout: float = 120.0,
-             fields: dict | None = None) -> ViewerHandle:
+             fields: dict | None = None, solution=None,
+             physical: bool | None = None,
+             node_fields: dict | None = None) -> ViewerHandle:
         """Start the viewer in its own process and return its handle.
 
         A mesh read from a file is read again by the server process (it is
@@ -587,6 +664,14 @@ class Viewer:
             Extra per-cell fields for the colour selector (see
             :class:`ViewerServer`); e.g. ``lg.resolution.fields(p=3,
             walls='wall', Re=1e5)``.
+        solution : str or path-like, optional
+            A ``.hsol`` of this mesh, read by the server process itself
+            (:class:`.solution.Solution`). By default the one already loaded
+            in ``lg.solution``, if any; ``''`` shows none.
+        physical : bool, optional
+            SI units for the solution; by default as it was loaded.
+        node_fields : dict, optional
+            Other per-(cell, node) fields (see :class:`ViewerServer`).
 
         Returns
         -------
@@ -606,6 +691,23 @@ class Viewer:
         path, meta = _save_fields(fields, self._lg.mesh.n_cells)
         if path:
             manifest.update(fields_npz=path, fields_meta=meta)
+        loaded = getattr(self._lg, 'solution', None)
+        if solution is None and loaded is not None and loaded.path:
+            solution = loaded.path
+            physical = loaded.physical if physical is None else physical
+        if solution:
+            manifest.update(solution=os.path.abspath(os.fspath(solution)),
+                            physical=bool(physical))
+        if node_fields:
+            norm = _normalise_node_fields(node_fields, self._lg.mesh)
+            os.makedirs(_CACHE_DIR, exist_ok=True)
+            npath = os.path.join(_CACHE_DIR, f'nodes-{os.getpid()}-'
+                                             f'{int(time.time() * 1e3)}.npz')
+            np.savez(npath, **{f'f{i}': v['values']
+                               for i, v in enumerate(norm.values())})
+            manifest.update(node_npz=npath, node_meta=[
+                {'name': k, 'label': v['label'], 'better': v['better']}
+                for k, v in norm.items()])
         self.handle = launch(manifest, host=host, port=port,
                              idle_timeout=idle_timeout,
                              max_triangles=max_triangles, timeout=timeout)
@@ -615,16 +717,23 @@ class Viewer:
                idle_timeout: float = 0.0,
                max_triangles: int = scene.MAX_TRIANGLES,
                title: str | None = None,
-               fields: dict | None = None) -> ViewerServer:
+               fields: dict | None = None,
+               node_fields: dict | None = None) -> ViewerServer:
         """A server in this process, bound but not started.
 
         Call ``.start()`` (background threads) or ``.serve_forever()``
         (blocking, Ctrl-C to stop). Useful in scripts and tests; in a
         notebook prefer :meth:`show`, which does not tie up the kernel.
         """
+        sol = getattr(self._lg, 'solution', None)
+        nodes, info = dict(node_fields or {}), None
+        if sol is not None and sol.path:
+            nodes = {**sol.viewer_fields(), **nodes}
+            info = _solution_info(sol)
         return ViewerServer(self._lg.mesh, title=title, host=host, port=port,
                             idle_timeout=idle_timeout,
-                            max_triangles=max_triangles, fields=fields)
+                            max_triangles=max_triangles, fields=fields,
+                            node_fields=nodes, solution_info=info)
 
     def stop(self) -> None:
         """Stop the server started by :meth:`show`, if any."""
@@ -658,6 +767,7 @@ def main(argv=None) -> None:
 
     title = args.title
     fields = None
+    node_fields, sol_info = {}, None
     if args.manifest:
         with open(args.manifest) as fh:
             man = json.load(fh)
@@ -673,13 +783,24 @@ def main(argv=None) -> None:
                         **(man.get('read_kwargs') or {}))
         if man.get('fields_npz'):
             fields = _load_fields(man['fields_npz'], man['fields_meta'])
+        if man.get('node_npz'):
+            node_fields.update(_load_fields(man['node_npz'], man['node_meta']))
+        if man.get('solution'):
+            from types import SimpleNamespace as _NS
+            from .solution import Solution
+            sol = Solution(_NS(mesh=mesh)).load(man['solution'],
+                                                 physical=man.get('physical',
+                                                                  False))
+            node_fields = {**sol.viewer_fields(), **node_fields}
+            sol_info = _solution_info(sol)
     elif args.mesh:
         mesh = read(args.mesh, fmt=args.fmt)
     else:
         parser.error('give a mesh file or --manifest')
     server = ViewerServer(mesh, title=title, host=args.host, port=args.port,
                           idle_timeout=args.idle_timeout,
-                          max_triangles=args.max_triangles, fields=fields)
+                          max_triangles=args.max_triangles, fields=fields,
+                          node_fields=node_fields, solution_info=sol_info)
     print(f'{_READY}{server.url}', flush=True)
     print(f'{mesh!r}, pid {os.getpid()}. Ctrl-C to stop.', flush=True)
     server.serve_forever()

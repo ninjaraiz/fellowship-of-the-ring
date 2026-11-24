@@ -137,7 +137,10 @@ def face_geometry(mesh: Mesh, elem, face, max_triangles: int = MAX_TRIANGLES
     dict
         ``positions`` ``(nv, 3)`` float32 relative to :func:`origin`;
         ``indices`` ``(nt, 3)`` uint32; ``tri_cell`` ``(nt,)`` uint32 cell of
-        each triangle (for picking); ``edges`` ``(ns, 2, 3)`` float32 segment
+        each triangle (for picking); ``vert_index`` ``(nv,)`` uint32, the
+        position of each vertex in a per-(cell, node) array
+        (:meth:`.mesh.Mesh.cell_node_offsets` plus the local node), for
+        node fields; ``edges`` ``(ns, 2, 3)`` float32 segment
         end points; ``stride`` (1 unless decimated) and ``n_faces`` drawn.
     """
     elem = np.asarray(elem, dtype=np.int64)
@@ -150,7 +153,8 @@ def face_geometry(mesh: Mesh, elem, face, max_triangles: int = MAX_TRIANGLES
         elem, face, b_of, local = (a[::stride] for a in (elem, face, b_of,
                                                           local))
     P = mesh.points - origin(mesh)
-    pos, idx, tcell, edges = [], [], [], []
+    node_off = mesh.cell_node_offsets()
+    pos, idx, tcell, edges, vidx = [], [], [], [], []
     nv = 0
     for b, block in enumerate(mesh.blocks):
         for f in range(block.n_faces):
@@ -164,6 +168,9 @@ def face_geometry(mesh: Mesh, elem, face, max_triangles: int = MAX_TRIANGLES
                 m = len(sel)
                 x = P[nodes]                                   # (m, n, n, 3)
                 pos.append(x.reshape(-1, 3))
+                vidx.append((node_off[cells][:, None]
+                             + ordering.hex_face_grid(block.order, f).ravel()
+                             [None]).ravel())
                 a, c = np.meshgrid(np.arange(n - 1), np.arange(n - 1),
                                    indexing='ij')
                 v00 = (a * n + c).ravel()
@@ -181,6 +188,9 @@ def face_geometry(mesh: Mesh, elem, face, max_triangles: int = MAX_TRIANGLES
                 k = nodes.shape[1]
                 x = P[nodes]                                   # (m, k, 3)
                 pos.append(x.reshape(-1, 3))
+                vidx.append((node_off[cells][:, None]
+                             + np.array(ordering.LINEAR_FACES[block.kind][f])
+                             [None]).ravel())
                 local_tris = ([[0, 1, 2]] if k == 3
                               else [[0, 1, 2], [0, 2, 3]])
                 base = nv + k * np.arange(len(sel))[:, None, None]
@@ -193,11 +203,13 @@ def face_geometry(mesh: Mesh, elem, face, max_triangles: int = MAX_TRIANGLES
         return {'positions': np.zeros((0, 3), np.float32),
                 'indices': np.zeros((0, 3), np.uint32),
                 'tri_cell': np.zeros(0, np.uint32),
+                'vert_index': np.zeros(0, np.uint32),
                 'edges': np.zeros((0, 2, 3), np.float32),
                 'stride': stride, 'n_faces': 0}
     return {'positions': np.vstack(pos).astype(np.float32),
             'indices': np.vstack(idx).astype(np.uint32),
             'tri_cell': np.concatenate(tcell).astype(np.uint32),
+            'vert_index': np.concatenate(vidx).astype(np.uint32),
             'edges': np.vstack(edges).astype(np.float32),
             'stride': stride, 'n_faces': int(len(elem))}
 

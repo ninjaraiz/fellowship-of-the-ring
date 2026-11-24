@@ -20,6 +20,7 @@ from .locate import Locate
 from .mesh import Boundary, CellBlock, Mesh
 from .quality import Quality
 from .resolution import Resolution
+from .solution import Solution, read_control_keys
 from .viewer import Viewer
 
 __all__ = ['LEGOLAS', 'Mesh', 'CellBlock', 'Boundary', 'read']
@@ -54,6 +55,9 @@ class LEGOLAS:
         Node-order repair, VTK (``.vtu``/``.vtm``) and gmsh writers.
     locate : LEGOLAS.Locate
         Cell holding each point; HORSES3D's actuator-disk search.
+    solution : LEGOLAS.Solution
+        A HORSES3D ``.hsol`` evaluated at the nodes of the mesh
+        (``lg.solution.load(path)``), for the viewer and for exports.
     viewer : LEGOLAS.Viewer
         Web viewer: ``lg.viewer.show()`` returns the address to open.
 
@@ -78,6 +82,8 @@ class LEGOLAS:
     Convert = Convert
     #: Point location (:class:`.locate.Locate`).
     Locate = Locate
+    #: A HORSES3D solution on the mesh (:class:`.solution.Solution`).
+    Solution = Solution
     #: Web viewer of the mesh (:class:`.viewer.Viewer`).
     Viewer = Viewer
 
@@ -95,7 +101,54 @@ class LEGOLAS:
         self.resolution = LEGOLAS.Resolution(self)
         self.convert = LEGOLAS.Convert(self)
         self.locate = LEGOLAS.Locate(self)
+        self.solution = LEGOLAS.Solution(self)
         self.viewer = LEGOLAS.Viewer(self)
+
+    @classmethod
+    def from_control(cls, control, solution: str | None = None,
+                     physical: bool = False) -> 'LEGOLAS':
+        """Open a HORSES3D case the way the solver does: from its control.
+
+        Parameters
+        ----------
+        control : str or path-like
+            The case's ``.control``; ``mesh file name`` and ``solution file
+            name`` are read from it, relative to the control's folder.
+        solution : str, optional
+            Another ``.hsol`` to load instead (an autosave, say); relative
+            paths are taken from the control's folder. ``''`` loads none.
+        physical : bool
+            SI units for the solution.
+
+        Returns
+        -------
+        LEGOLAS
+            With the mesh read and, when the file exists, the solution
+            loaded in ``lg.solution``.
+
+        Examples
+        --------
+        ::
+
+            lg = LEGOLAS.from_control('outputs/marino_A_tsr_6.0/file_control_p3.control')
+            lg.solution.variables
+            lg.viewer.show()          # the solution is in the colour selector
+        """
+        folder = os.path.dirname(os.path.abspath(control))
+        keys = read_control_keys(control)
+        if 'mesh file name' not in keys:
+            raise ValueError(f"{control}: no 'mesh file name'")
+        lg = cls(os.path.join(folder, keys['mesh file name']))
+        sol = keys.get('solution file name') if solution is None else solution
+        if sol:
+            path = sol if os.path.isabs(sol) else os.path.join(folder, sol)
+            if not path.endswith('.hsol'):
+                path += '.hsol'
+            if os.path.isfile(path):
+                lg.solution.load(path, physical=physical)
+            elif solution:
+                raise FileNotFoundError(path)
+        return lg
 
     def _reset(self) -> None:
         """Drop every cached result after the mesh has been changed."""

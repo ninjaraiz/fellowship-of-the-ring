@@ -66,6 +66,11 @@
             "L7",
             "`LEGOLAS(db, case)` desde FRODO y README",
             "pendiente"
+          ],
+          [
+            "L8",
+            "soluciones de HORSES3D: `lg.solution`, `LEGOLAS.from_control`, valores por nodo en el visor",
+            "**hecho** (24/11/2026)"
           ]
         ]
       }
@@ -562,6 +567,16 @@
             "HORSES3D: «Actuator disk point not found in mesh»",
             "una estación cae entre la cuerda y el arco de una cara curva, y el solver solo prueba la forma curva en el primer elemento trilineal que la contiene",
             "`lg.locate.horses3d_ad(dat, nranks)` dice cuáles se perderían antes de lanzar; mueve las estaciones o el plano"
+          ],
+          [
+            "`load` de un `.stats.hsol`: «file type 4 (STATS) is not supported yet»",
+            "el núcleo de lectura aún no descifra los registros de estadísticas",
+            "de momento, soluciones finales y autoguardados; las estadísticas irán con el deslizador"
+          ],
+          [
+            "«not a solution of this mesh»",
+            "el `.hsol` tiene otro nº de elementos: es de otra malla (el `MESH/` de un caso puede tener varias)",
+            "abre el caso con `LEGOLAS.from_control`, que toma la malla del propio control"
           ]
         ]
       }
@@ -592,7 +607,7 @@
           ],
           [
             "**Color**",
-            "por zona, por una métrica de calidad (L4) o por cualquier campo por celda que se pase con `show(fields=…)`, como los de `lg.resolution.fields()` (L5); con leyenda y las diez peores celdas, clicables"
+            "por zona, por la **solución** cargada (`lg.solution`, valores por nodo: cada vértice con el de su elemento), por una métrica de calidad (L4) o por cualquier campo por celda que se pase con `show(fields=…)`; con leyenda y, para los campos por celda, las diez peores celdas, clicables"
           ],
           [
             "**Capa**",
@@ -880,6 +895,57 @@
         "t": "p",
         "x": "Prismas y pirámides no se localizan todavía: un punto que solo ellos podrían contener sale como fuera."
       }
+    ],
+    "nested_Solution": [
+      {
+        "t": "p",
+        "x": "Legolas no se queda en contar orcos: también mira por dónde corren. `lg.solution` pone una solución de HORSES3D encima de la malla, nodo a nodo, y el visor la pinta."
+      },
+      {
+        "t": "code",
+        "x": "lg = LEGOLAS.from_control('outputs/marino_A_tsr_6.0/file_control_p3.control')  # malla + solución\nlg.solution                                   # p, nodos (Gauss/GL), t, iteración, variables\nlg.solution.node_field('u')                   # (celdas, nodos de la malla por celda)\nlg.solution.cell_field('u')                   # media por elemento\nlg.solution.load('RESULTS/adA_g2p3_0000500000.hsol', physical=True)   # otra, en SI\nlg.viewer.show()                              # arranca coloreado por Mach"
+      },
+      {
+        "t": "h",
+        "x": "Cómo se lleva la solución a la malla"
+      },
+      {
+        "t": "p",
+        "x": "Un `.hsol` guarda, por elemento, la solución en (p+1)³ nodos de Gauss o de Gauss-Lobatto, en el orden de elementos del `.h5` de la malla. LEGOLAS evalúa el polinomio de cada elemento en los nodos geométricos de la malla (equiespaciados, orden Ngeo), y cada vértice que dibuja el visor toma el valor de **su** elemento: los saltos de una solución DG entre elementos se ven tal cual, sin promediar. Las variables primitivas (ρ, u, v, w, p, T, Mach, Cp y |V|) se calculan en los nodos de solución y después se interpolan."
+      },
+      {
+        "t": "note",
+        "x": "Comprobado contra el propio solver (24/11/2026): la geometría de LEGOLAS evaluada en los nodos de solución reproduce las coordenadas del `.hmesh` de HORSES3D con un error de 10⁻¹⁴ (turbina, nodos de Gauss, p = 2, 3 y 4; esfera, Gauss-Lobatto, p = 2). El orden de elementos, el de nodos y su posición son los del solver."
+      },
+      {
+        "t": "table",
+        "head": [
+          "entrada",
+          "qué hace"
+        ],
+        "rows": [
+          [
+            "`LEGOLAS.from_control(control)`",
+            "abre el caso como HORSES3D: `mesh file name` y `solution file name` del `.control`, relativos a su carpeta; `solution=` para otro `.hsol` (un autoguardado) o `''` para ninguno"
+          ],
+          [
+            "`lg.solution.load(path, physical=False)`",
+            "una solución de volumen de esta malla (final o autoguardado); `physical=True` en SI. Comprueba que el nº de elementos cuadra"
+          ],
+          [
+            "`node_field` / `cell_field` / `point_field`",
+            "por (celda, nodo); media del elemento; un valor por nodo de la malla, promediando entre celdas (para `to_vtu(point_fields=…)`)"
+          ],
+          [
+            "`lg.viewer.show()`",
+            "si hay una solución cargada, el proceso del servidor la vuelve a leer (es rápido) y la página arranca coloreada por Mach, con un grupo «Solución» en el selector; `show(solution=…)` para otra"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Todavía no: ficheros de estadísticas (`.stats.hsol`: sus registros llevan más datos de los que dice su cabecera y el núcleo aún no los descifra), soluciones con p-adaptación, gradientes (vorticidad, criterio Q), superficies (`.surf.hsol`), dibujar las caras al orden de la solución cuando p > Ngeo, y el deslizador de autoguardados."
+      }
     ]
   },
   "en": {
@@ -949,6 +1015,11 @@
             "L7",
             "`LEGOLAS(db, case)` from FRODO, and README",
             "pending"
+          ],
+          [
+            "L8",
+            "HORSES3D solutions: `lg.solution`, `LEGOLAS.from_control`, per-node values in the viewer",
+            "**done** (24/11/2026)"
           ]
         ]
       }
@@ -1445,6 +1516,16 @@
             "HORSES3D: \"Actuator disk point not found in mesh\"",
             "a station falls between the chord and the arc of a curved face, and the solver only tries the curved shape in the first trilinear element that holds it",
             "`lg.locate.horses3d_ad(dat, nranks)` tells which would be lost before the run; move the stations or the plane"
+          ],
+          [
+            "`load` of a `.stats.hsol`: \"file type 4 (STATS) is not supported yet\"",
+            "the reader core does not decode statistics records yet",
+            "for now, final solutions and autosaves; statistics will come with the slider"
+          ],
+          [
+            "\"not a solution of this mesh\"",
+            "the `.hsol` has another element count: it belongs to another mesh (a case's `MESH/` may hold several)",
+            "open the case with `LEGOLAS.from_control`, which takes the mesh from the control itself"
           ]
         ]
       }
@@ -1475,7 +1556,7 @@
           ],
           [
             "**Colour**",
-            "by zone, by a quality metric (L4) or by any per-cell field passed with `show(fields=…)`, such as those of `lg.resolution.fields()` (L5); with a legend and the ten worst cells, clickable"
+            "by zone, by the loaded **solution** (`lg.solution`, per-node values: every vertex with its own element's), by a quality metric (L4) or by any per-cell field passed with `show(fields=…)`; with a legend and, for per-cell fields, the ten worst cells, clickable"
           ],
           [
             "**Layer**",
@@ -1762,6 +1843,57 @@
       {
         "t": "p",
         "x": "Prisms and pyramids are not located yet: a point only they could hold comes back as outside."
+      }
+    ],
+    "nested_Solution": [
+      {
+        "t": "p",
+        "x": "Legolas does not stop at counting orcs: he also watches where they run. `lg.solution` puts a HORSES3D solution on top of the mesh, node by node, and the viewer paints it."
+      },
+      {
+        "t": "code",
+        "x": "lg = LEGOLAS.from_control('outputs/marino_A_tsr_6.0/file_control_p3.control')  # mesh + solution\nlg.solution                                   # p, nodes (Gauss/GL), t, iteration, variables\nlg.solution.node_field('u')                   # (cells, mesh nodes per cell)\nlg.solution.cell_field('u')                   # element mean\nlg.solution.load('RESULTS/adA_g2p3_0000500000.hsol', physical=True)   # another, in SI\nlg.viewer.show()                              # starts coloured by Mach"
+      },
+      {
+        "t": "h",
+        "x": "How the solution reaches the mesh"
+      },
+      {
+        "t": "p",
+        "x": "A `.hsol` stores, per element, the solution at (p+1)³ Gauss or Gauss-Lobatto nodes, in the element order of the mesh `.h5`. LEGOLAS evaluates each element's polynomial at the geometric nodes of the mesh (equispaced, order Ngeo), and every vertex the viewer draws takes the value of **its own** element: the jumps of a DG solution between elements show as they are, nothing is averaged. Primitive variables (ρ, u, v, w, p, T, Mach, Cp and |V|) are computed at the solution nodes and then interpolated."
+      },
+      {
+        "t": "note",
+        "x": "Checked against the solver itself (24/11/2026): the LEGOLAS geometry evaluated at the solution nodes reproduces the coordinates of HORSES3D's `.hmesh` to 10⁻¹⁴ (turbine, Gauss nodes, p = 2, 3 and 4; sphere, Gauss-Lobatto, p = 2). Element order, node order and node positions are the solver's."
+      },
+      {
+        "t": "table",
+        "head": [
+          "entry",
+          "what it does"
+        ],
+        "rows": [
+          [
+            "`LEGOLAS.from_control(control)`",
+            "opens the case like HORSES3D: `mesh file name` and `solution file name` from the `.control`, relative to its folder; `solution=` for another `.hsol` (an autosave) or `''` for none"
+          ],
+          [
+            "`lg.solution.load(path, physical=False)`",
+            "a volume solution of this mesh (final or autosave); `physical=True` for SI. Checks the element count"
+          ],
+          [
+            "`node_field` / `cell_field` / `point_field`",
+            "per (cell, node); element mean; one value per mesh node, averaged over cells (for `to_vtu(point_fields=…)`)"
+          ],
+          [
+            "`lg.viewer.show()`",
+            "with a solution loaded, the server process reads it again (it is fast) and the page starts coloured by Mach, with a \"Solution\" group in the selector; `show(solution=…)` for another"
+          ]
+        ]
+      },
+      {
+        "t": "note",
+        "x": "Not yet: statistics files (`.stats.hsol`: their records carry more data than their header says and the core does not decode them yet), p-adaptive solutions, gradients (vorticity, Q criterion), surfaces (`.surf.hsol`), drawing faces at the solution's order when p > Ngeo, and the autosave slider."
       }
     ]
   }

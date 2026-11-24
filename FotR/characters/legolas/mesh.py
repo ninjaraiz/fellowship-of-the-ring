@@ -177,6 +177,17 @@ class Mesh:
         """Highest geometric order among the blocks."""
         return max((b.order for b in self.blocks), default=1)
 
+    def cell_node_offsets(self) -> np.ndarray:
+        """Where the nodes of each cell start in a flat per-(cell, node)
+        array: ``(n_cells + 1,)``, the last entry being the total."""
+        if 'cell_node_offsets' not in self._cache:
+            sizes = np.concatenate([np.full(len(b), b.conn.shape[1], np.int64)
+                                    for b in self.blocks]) if self.blocks \
+                else np.zeros(0, np.int64)
+            self._cache['cell_node_offsets'] = np.concatenate(
+                [[0], np.cumsum(sizes)]).astype(np.int64)
+        return self._cache['cell_node_offsets']
+
     def locate_cell(self, cells) -> tuple:
         """Split global cell indices into ``(block index, local index)``."""
         cells = np.asarray(cells, dtype=np.int64)

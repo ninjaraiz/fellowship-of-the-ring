@@ -59,6 +59,11 @@
             "desc": "Cell holding each point; HORSES3D's actuator-disk search."
           },
           {
+            "name": "solution",
+            "type": "LEGOLAS.Solution",
+            "desc": "A HORSES3D ``.hsol`` evaluated at the nodes of the mesh (``lg.solution.load(path)``), for the viewer and for exports."
+          },
+          {
             "name": "viewer",
             "type": "LEGOLAS.Viewer",
             "desc": "Web viewer: ``lg.viewer.show()`` returns the address to open."
@@ -92,6 +97,53 @@
             "methods": [],
             "text_sections": [],
             "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.from_control",
+          "class": "LEGOLAS",
+          "name": "from_control",
+          "signature": "from_control(control, solution: str | None = None, physical: bool = False)",
+          "returns": "'LEGOLAS'",
+          "kind": "classmethod",
+          "is_private": false,
+          "doc": {
+            "summary": "Open a HORSES3D case the way the solver does: from its control.",
+            "description": "",
+            "params": [
+              {
+                "name": "control",
+                "type": "str or path-like",
+                "desc": "The case's ``.control``; ``mesh file name`` and ``solution file name`` are read from it, relative to the control's folder."
+              },
+              {
+                "name": "solution",
+                "type": "str, optional",
+                "desc": "Another ``.hsol`` to load instead (an autosave, say); relative paths are taken from the control's folder. ``''`` loads none."
+              },
+              {
+                "name": "physical",
+                "type": "bool",
+                "desc": "SI units for the solution."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "LEGOLAS",
+                "desc": "With the mesh read and, when the file exists, the solution loaded in ``lg.solution``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    lg = LEGOLAS.from_control('outputs/marino_A_tsr_6.0/file_control_p3.control')\n    lg.solution.variables\n    lg.viewer.show()          # the solution is in the colour selector"
+              }
+            ],
+            "has_doc": true
           }
         },
         {
@@ -460,6 +512,26 @@
           }
         },
         {
+          "id": "Mesh.cell_node_offsets",
+          "class": "Mesh",
+          "name": "cell_node_offsets",
+          "signature": "cell_node_offsets()",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Where the nodes of each cell start in a flat per-(cell, node) array: ``(n_cells + 1,)``, the last entry being the total.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
           "id": "Mesh.locate_cell",
           "class": "Mesh",
           "name": "locate_cell",
@@ -584,6 +656,16 @@
             "name": "fields",
             "type": "dict, optional",
             "desc": "Extra per-cell fields to colour by, next to the quality metrics: ``{name: {'values': (n_cells,) array, 'label': str or {'es', 'en'}, 'better': 'high' | 'low' | None}}``. A bare array is accepted too. :meth:`.resolution.Resolution.fields` builds them."
+          },
+          {
+            "name": "node_fields",
+            "type": "dict, optional",
+            "desc": "Per-(cell, node) fields, same form with ``values`` of shape ``(n_cells, nodes per cell)`` (or flat in the order of :meth:`.mesh.Mesh.cell_node_offsets`): every face vertex takes the value of its own cell, so DG jumps stay visible. :meth:`.solution.Solution.viewer_fields` builds them."
+          },
+          {
+            "name": "solution_info",
+            "type": "dict, optional",
+            "desc": "Shown in the page header (file, p, time, iteration)."
           }
         ],
         "returns": [],
@@ -598,7 +680,7 @@
           "id": "ViewerServer.__init__",
           "class": "ViewerServer",
           "name": "__init__",
-          "signature": "__init__(mesh, title: str | None = None, host: str = '127.0.0.1', port: int = DEFAULT_PORT, idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, fields: dict | None = None)",
+          "signature": "__init__(mesh, title: str | None = None, host: str = '127.0.0.1', port: int = DEFAULT_PORT, idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, fields: dict | None = None, node_fields: dict | None = None, solution_info: dict | None = None)",
           "returns": "None",
           "kind": "method",
           "is_private": false,
@@ -784,6 +866,26 @@
           "is_private": false,
           "doc": {
             "summary": "Payload of ``/api/field`` (a quality metric per cell).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer.node_field",
+          "class": "ViewerServer",
+          "name": "node_field",
+          "signature": "node_field(name: str)",
+          "returns": "bytes",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Payload of ``/api/nodefield``.",
             "description": "",
             "params": [],
             "returns": [],
@@ -2415,6 +2517,276 @@
       "defined_as": "Locate"
     },
     {
+      "id": "LEGOLAS.Solution",
+      "file": "FotR/characters/legolas/solution.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "A HORSES3D solution read onto the nodes of the mesh.",
+        "description": "Reached as ``lg.solution``; :meth:`load` fills it. Values live per\n(cell, local node): ``node_field(name)`` is ``(n_cells, (Ngeo+1)**3)``\nfor a hexahedral mesh, in the canonical node order of each cell.",
+        "params": [
+          {
+            "name": "legolas",
+            "type": "LEGOLAS",
+            "desc": "The owner; the mesh is ``legolas.mesh``."
+          }
+        ],
+        "returns": [],
+        "raises": [],
+        "attributes": [
+          {
+            "name": "path",
+            "type": "str or None",
+            "desc": "The ``.hsol`` loaded."
+          },
+          {
+            "name": "header",
+            "type": "HorsesHeader or None",
+            "desc": "Its header: time, iteration, node type, references."
+          },
+          {
+            "name": "p",
+            "type": "int or None",
+            "desc": "Polynomial order of the solution."
+          }
+        ],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "LEGOLAS.Solution.__init__",
+          "class": "LEGOLAS.Solution",
+          "name": "__init__",
+          "signature": "__init__(legolas)",
+          "returns": "",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.mesh",
+          "class": "LEGOLAS.Solution",
+          "name": "mesh",
+          "signature": "mesh()",
+          "returns": "",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "The mesh the solution lives on.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.variables",
+          "class": "LEGOLAS.Solution",
+          "name": "variables",
+          "signature": "variables()",
+          "returns": "list",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "Names of the loaded variables.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.load",
+          "class": "LEGOLAS.Solution",
+          "name": "load",
+          "signature": "load(path, physical: bool = False)",
+          "returns": "'Solution'",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Read a ``.hsol`` and evaluate it at the nodes of the mesh.",
+            "description": "",
+            "params": [
+              {
+                "name": "path",
+                "type": "str or path-like",
+                "desc": "A volume solution (final or autosave) of this very mesh."
+              },
+              {
+                "name": "physical",
+                "type": "bool",
+                "desc": "SI units (kg/m3, m/s, Pa, K) instead of the solver's non-dimensional ones."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "Solution",
+                "desc": "``self``, so that ``lg.solution.load(f).variables`` works."
+              }
+            ],
+            "raises": [
+              {
+                "name": "",
+                "type": "ValueError",
+                "desc": "If the element count does not match the mesh, or the mesh has other cells than hexahedra."
+              }
+            ],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\n    sol = lg.solution.load('RESULTS/adA_g2p3.hsol')\n    sol.variables, sol.node_field('Mach').shape\n    lg.viewer.show(solution='RESULTS/adA_g2p3.hsol')"
+              }
+            ],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution._check",
+          "class": "LEGOLAS.Solution",
+          "name": "_check",
+          "signature": "_check(name)",
+          "returns": "",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.node_field",
+          "class": "LEGOLAS.Solution",
+          "name": "node_field",
+          "signature": "node_field(name: str)",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Values at the nodes of every cell, ``(n_cells, (Ngeo+1)**3)``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.cell_field",
+          "class": "LEGOLAS.Solution",
+          "name": "cell_field",
+          "signature": "cell_field(name: str)",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Mean over each element (quadrature at the solution nodes, in the reference cube), ``(n_cells,)``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.point_field",
+          "class": "LEGOLAS.Solution",
+          "name": "point_field",
+          "signature": "point_field(name: str)",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Values per mesh node, averaged over the cells that share it, for exports that need one value per node (``to_vtu(point_fields=…)``).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.viewer_fields",
+          "class": "LEGOLAS.Solution",
+          "name": "viewer_fields",
+          "signature": "viewer_fields(variables=None)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Node fields ready for :meth:`LEGOLAS.Viewer.show` (``node_fields=``).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.summary",
+          "class": "LEGOLAS.Solution",
+          "name": "summary",
+          "signature": "summary()",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Where it comes from, and min/max of every variable at the nodes.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "defined_as": "Solution"
+    },
+    {
       "id": "LEGOLAS.Viewer",
       "file": "FotR/characters/legolas/viewer.py",
       "parent": null,
@@ -2481,7 +2853,7 @@
           "id": "LEGOLAS.Viewer.show",
           "class": "LEGOLAS.Viewer",
           "name": "show",
-          "signature": "show(port: int = DEFAULT_PORT, host: str = '127.0.0.1', idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, timeout: float = 120.0, fields: dict | None = None)",
+          "signature": "show(port: int = DEFAULT_PORT, host: str = '127.0.0.1', idle_timeout: float = 1800.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, timeout: float = 120.0, fields: dict | None = None, solution=None, physical: bool | None = None, node_fields: dict | None = None)",
           "returns": "ViewerHandle",
           "kind": "method",
           "is_private": false,
@@ -2523,6 +2895,21 @@
                 "name": "fields",
                 "type": "dict, optional",
                 "desc": "Extra per-cell fields for the colour selector (see :class:`ViewerServer`); e.g. ``lg.resolution.fields(p=3, walls='wall', Re=1e5)``."
+              },
+              {
+                "name": "solution",
+                "type": "str or path-like, optional",
+                "desc": "A ``.hsol`` of this mesh, read by the server process itself (:class:`.solution.Solution`). By default the one already loaded in ``lg.solution``, if any; ``''`` shows none."
+              },
+              {
+                "name": "physical",
+                "type": "bool, optional",
+                "desc": "SI units for the solution; by default as it was loaded."
+              },
+              {
+                "name": "node_fields",
+                "type": "dict, optional",
+                "desc": "Other per-(cell, node) fields (see :class:`ViewerServer`)."
               }
             ],
             "returns": [
@@ -2548,7 +2935,7 @@
           "id": "LEGOLAS.Viewer.server",
           "class": "LEGOLAS.Viewer",
           "name": "server",
-          "signature": "server(port: int = 0, host: str = '127.0.0.1', idle_timeout: float = 0.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, fields: dict | None = None)",
+          "signature": "server(port: int = 0, host: str = '127.0.0.1', idle_timeout: float = 0.0, max_triangles: int = scene.MAX_TRIANGLES, title: str | None = None, fields: dict | None = None, node_fields: dict | None = None)",
           "returns": "ViewerServer",
           "kind": "method",
           "is_private": false,
@@ -3486,7 +3873,7 @@
               {
                 "name": "",
                 "type": "dict",
-                "desc": "``positions`` ``(nv, 3)`` float32 relative to :func:`origin`; ``indices`` ``(nt, 3)`` uint32; ``tri_cell`` ``(nt,)`` uint32 cell of each triangle (for picking); ``edges`` ``(ns, 2, 3)`` float32 segment end points; ``stride`` (1 unless decimated) and ``n_faces`` drawn."
+                "desc": "``positions`` ``(nv, 3)`` float32 relative to :func:`origin`; ``indices`` ``(nt, 3)`` uint32; ``tri_cell`` ``(nt,)`` uint32 cell of each triangle (for picking); ``vert_index`` ``(nv,)`` uint32, the position of each vertex in a per-(cell, node) array (:meth:`.mesh.Mesh.cell_node_offsets` plus the local node), for node fields; ``edges`` ``(ns, 2, 3)`` float32 segment end points; ``stride`` (1 unless decimated) and ``n_faces`` drawn."
               }
             ],
             "raises": [],
@@ -4278,6 +4665,86 @@
             "methods": [],
             "text_sections": [],
             "has_doc": true
+          }
+        }
+      ],
+      "module": true
+    },
+    {
+      "id": "legolas.solution",
+      "file": "FotR/characters/legolas/solution.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "``LEGOLAS.Solution``: a HORSES3D solution on the mesh, node by node.",
+        "description": "A ``.hsol`` stores, per element, the solution at ``(p+1)**3`` Gauss or\nGauss-Lobatto nodes, in the element order of the mesh ``.h5`` and with ``i``\nrunning fastest along xi. The mesh in LEGOLAS has its own nodes: the\ngeometric ones, equispaced, of order Ngeo. :meth:`Solution.load` evaluates\nthe solution's polynomial of each element at those nodes, so the viewer can\ncolour every face vertex with the value of *its* element: the jumps of a DG\nsolution between elements stay visible, nothing is averaged.\n\nChecked on 24/11/2026 against the solver itself: the LEGOLAS geometry\nevaluated at the solution nodes reproduces the coordinates of HORSES3D's\n``.hmesh`` to 1e-14 (turbine, Gauss nodes, p = 2, 3, 4; sphere,\nGauss-Lobatto, p = 2). Element order, node order and node positions are\ntherefore the solver's.\n\nVariables: with the 5 conservative variables, ``rho``, ``u``, ``v``, ``w``,\n``p``, ``T``, ``Mach``, ``Cp`` (:func:`FotR.solver_tools.horses3d.\nprimitive_variables`; incompressible runs have no ``T`` nor ``Mach``) and\n``Vmag``. They are computed at the solution nodes and then interpolated.\nOther files keep their raw components ``q0``, ``q1``…\n\nNot yet: statistics files (``.stats.hsol``, which the reader core does not\ndecode), p-adaptive solutions, gradients (vorticity, Q criterion) and\nsurfaces (``.surf.hsol``).",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "legolas.solution.solution_nodes",
+          "class": "legolas.solution",
+          "name": "solution_nodes",
+          "signature": "solution_nodes(p: int, node_type: int)",
+          "returns": "np.ndarray",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Reference positions in ``[-1, 1]`` of the ``p + 1`` solution nodes.",
+            "description": "``node_type`` is the header code: 1 Gauss, 2 Gauss-Lobatto.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.solution.read_control_keys",
+          "class": "legolas.solution",
+          "name": "read_control_keys",
+          "signature": "read_control_keys(path, keys=('mesh file name', 'solution file name', 'polynomial order'))",
+          "returns": "dict",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Values of some keys of a HORSES3D ``.control`` (comments dropped).",
+            "description": "Keys are matched without case; values lose their quotes.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.solution._finite_range",
+          "class": "legolas.solution",
+          "name": "_finite_range",
+          "signature": "_finite_range(v)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
           }
         }
       ],

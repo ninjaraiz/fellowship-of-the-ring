@@ -41,6 +41,7 @@ FUNCTION_MODULES = [
     f"{PKG}/resolution.py",
     f"{PKG}/convert.py",
     f"{PKG}/locate.py",
+    f"{PKG}/solution.py",
 ]
 
 #: Clases de nivel superior que se documentan, por fichero (None = todas).

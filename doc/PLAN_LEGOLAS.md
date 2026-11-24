@@ -186,7 +186,7 @@ tocar código, `graphify update .`.
 | hito | estado |
 |---|---|
 | L0 | **hecho** (20/11/2026): este documento y HANDOFF |
-| — | commits en la rama `legolas` (salida de `develop`): L0–L2 `2208226`, L3 `0fe65c6`, L4 `dd9e591`, L5 `d9e61c4`, L6 el siguiente; aparte, el lector HORSES3D y `Horses3DSets` en `07f1760` |
+| — | commits en la rama `legolas` (salida de `develop`): L0–L2 `2208226`, L3 `0fe65c6`, L4 `dd9e591`, L5 `d9e61c4`, L6 `ceaeaa4`, L8 el siguiente; aparte, el lector HORSES3D y `Horses3DSets` en `07f1760` |
 | L1 | **hecho** (20/11/2026): ver abajo |
 | L2 | **hecho** (20/11/2026): ver abajo |
 | L3 | **hecho** (20/11/2026): ver abajo |
@@ -194,6 +194,7 @@ tocar código, `graphify update .`.
 | L5 | **hecho** (24/11/2026): ver abajo |
 | L6 | **hecho** (24/11/2026): ver abajo |
 | L7 | pendiente |
+| L8 | **hecho** (24/11/2026): soluciones de HORSES3D en el visor, ver abajo |
 
 ### L1 (20/11/2026)
 
@@ -356,5 +357,63 @@ tocar código, `graphify update .`.
 ### Pendiente
 
 * L7: `LEGOLAS(db, case)` desde FRODO y README.
-* Acople con las soluciones de HORSES3D (`Horses3DSets`, `.hsol`, VTK): pedido por el usuario
-  el 24/11/2026 para revisarlo cuando L6 esté cerrado.
+* L8, siguientes pasos (orden del usuario: el deslizador después de L8): deslizador de
+  autoguardados y estadísticas (`.stats.hsol`, que el núcleo aún no descifra), caras dibujadas
+  al orden de la solución cuando p > Ngeo, gradientes (vorticidad, criterio Q), superficies.
+
+## L8 (24/11/2026): soluciones de HORSES3D en el visor
+
+Decisiones del usuario: **valores por nodo directamente** (sin pasar por la media por
+elemento), **entrada por LEGOLAS**, deslizador después.
+
+* `solution.py` y `LEGOLAS.Solution` (`lg.solution`): `load(hsol, physical)` evalúa el
+  polinomio de cada elemento (nodos de Gauss o GL de orden p) en los nodos geométricos de la
+  malla; `node_field`, `cell_field` (cuadratura), `point_field` (promedio por nodo, para VTU),
+  `viewer_fields`, `summary`. Variables primitivas con
+  `solver_tools.horses3d.primitive_variables`, calculadas en los nodos de solución.
+* `LEGOLAS.from_control(control, solution=None, physical=False)`: malla y solución del propio
+  `.control` (claves `mesh file name`, `solution file name`), como HORSES3D. Así no hay que
+  adivinar cuál de las mallas de `MESH/` es la buena.
+* **Validación clave:** la geometría de LEGOLAS en los nodos de solución reproduce el `.hmesh`
+  del solver a 1e-14 (turbina Gauss p2/p3/p4, esfera GL p2): orden de elementos, de nodos y
+  posiciones correctos. Está en los tests (se salta si no están los casos).
+* Visor: las superficies llevan `vert_index` (posición de cada vértice en un array por
+  (celda, nodo), `Mesh.cell_node_offsets`); `/api/nodefield`; grupo «Solución» en el selector;
+  la página arranca coloreada por Mach si hay solución y su cabecera dice fichero, p, nodos,
+  t e iteración. `show()` pasa al proceso del servidor la ruta del `.hsol` (lo relee, 2 s) y
+  acepta `node_fields=` de cualquier origen.
+* Mariño A, p3 (t = 40): u de 0,474 a 1,075; en una capa z = 0,81 se ve la estela del disco.
+* Tests: `test_legolas_solution.py` (15). Ejemplo: `examples/legolas/solution_marino.py`.
+
+### Propuesta de la que salió L8 (24/11/2026)
+
+**Qué hay.** En disco hay `.hsol` (final, `.stats.hsol`, autoguardados), `.hmesh` por p, `.tec`
+de `horses2plt` y planos `.pvd`/`.vtu` de `extract_plane.py`. No hay soluciones en HDF5:
+HORSES3D solo escribe la malla en `.h5`. El `.hsol` sigue el orden de elementos del `.h5` de la
+malla (38 718 en la turbina), así que cada elemento cae en su celda de LEGOLAS sin búsqueda, y
+se lee en 0,4 s con `solver_tools/horses3d.read_solution`. Los casos de Mariño usan nodos de
+**Gauss** (no están en las caras) y la esfera Gauss-Lobatto: el `.hmesh` no sirve como malla del
+visor; hay que interpolar por elemento. El `MESH/` de un caso puede tener varias mallas: cuál
+va con cada solución lo sabe el reader (`sim_metadata`), no un `glob`.
+
+**Reparto.** LEGOLAS sigue sin saber de HORSES3D: dibuja campos que le pasan. HORSES3D aporta
+los campos: núcleo numpy en `solver_tools/horses3d.py` (interpolación de Gauss/GL de orden p a
+puntos de dibujo, variables primitivas, medias por elemento) y orquestación en `Horses3DSets`
+(`db.view(case, p, kind)`: malla del caso según el reader, campos de la solución elegida,
+`lg.viewer.show(fields=...)`). Es lo mismo que necesita el M2 del plan del `.hsol`
+(`HorsesLazyField.load`).
+
+**Pasos.**
+1. *Por celda* (ya funciona el canal): medias por elemento (cuadratura de Gauss) de ρ, u, p,
+   T, Mach… Un color por elemento; sin tocar el visor.
+2. *Por nodo*: la solución interpolada a los nodos de dibujo de cada cara, con su valor por
+   elemento (sin promediar: el visor ya duplica los vértices por cara, así que las
+   discontinuidades de DG se ven tal cual). El visor gana un campo por (celda, nodo local).
+3. *Orden de dibujo*: caras subdivididas a orden max(Ngeo, p), con geometría y solución
+   evaluadas ahí, para no perder detalle cuando p > Ngeo.
+4. *Series*: deslizador de autoguardados y medias del `.stats.hsol`; exportar a `.vtu` con
+   `to_vtu(point_fields=…)` para ParaView.
+5. Después: superficies (`.surf.hsol`), y el y⁺ real enlazado con `lg.resolution`.
+
+**No se propone** leer `.tec` (ASCII grande, lento; lo mismo sale del `.hsol` con
+`primitive_variables`) ni los planos VTK externos (son superficies sueltas, otro tipo de capa).

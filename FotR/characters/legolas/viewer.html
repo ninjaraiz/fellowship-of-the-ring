@@ -149,7 +149,8 @@ const TXT={
   loading:'cargando',drawn:'triángulos dibujados',stopped:'el servidor se ha parado: relanza lg.viewer.show()',
   nowebgl:'Este navegador no puede crear un contexto WebGL.',face:'cara',neighbour:'vecina',
   boundary:'frontera',file_cell:'elemento en el fichero',horses:'nº HORSES3D',centre:'centrar',
-  centroid:'centroide',zone:'zona',focus:'encuadrar esta zona',
+  centroid:'centroide',zone:'zona',focus:'encuadrar esta zona',solution:'Solución',
+  iteration:'iteración',
   color:'Color',by_zone:'por zona',robust:'rango p1–p99 (sin extremos)',good:'mejor',
   bad:'peor',low:'bajo',high:'alto',worst:'Peores celdas',computing:'calculando la calidad…',
   quality:'Calidad',section_faces:'caras en el corte',unassigned:'sin BC',
@@ -162,7 +163,8 @@ const TXT={
   loading:'loading',drawn:'triangles drawn',stopped:'the server has stopped: run lg.viewer.show() again',
   nowebgl:'This browser cannot create a WebGL context.',face:'face',neighbour:'neighbour',
   boundary:'boundary',file_cell:'element in the file',horses:'HORSES3D no.',centre:'centre',
-  centroid:'centroid',zone:'zone',focus:'frame this zone',
+  centroid:'centroid',zone:'zone',focus:'frame this zone',solution:'Solution',
+  iteration:'iteration',
   color:'Colour',by_zone:'by zone',robust:'range p1–p99 (no outliers)',good:'better',
   bad:'worse',low:'low',high:'high',worst:'Worst cells',computing:'computing quality…',
   quality:'Quality',section_faces:'faces in the section',unassigned:'no BC',
@@ -183,7 +185,7 @@ let INFO=null;
 const ZONES=new Map();          // name -> {on, color, obj:{mesh,lines,triCell}|null, loading, stride}
 let DRAW='both', OPACITY=1, SEC={mode:'none', axis:0, t:0.5, side:-1, obj:null, seq:0};
 let PICKED=null, HIGHLIGHT=null;
-let COLOR={name:'', values:null, head:null};
+let COLOR={name:'', kind:'cell', values:null, head:null};
 
 /* ── three.js ──────────────────────────────────────────────────────────── */
 const view=$('view');
@@ -278,6 +280,7 @@ function buildObject(arr,color){
  lg.setAttribute('position',new THREE.BufferAttribute(arr.edges,3));
  const lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({transparent:true,opacity:.55}));
  mesh.userData.triCell=arr.tri_cell;
+ mesh.userData.vertIndex=arr.vert_index;
  return {mesh,lines,baseColor:color};
 }
 function disposeObject(o){
@@ -394,7 +397,7 @@ function renderCell(){
      +`<td>${f.boundary?'<code>'+esc(f.boundary)+'</code>':'—'}</td></tr>`).join('')+'</table>';
  if(c.quality){
   h+=`<p class="muted" style="margin:.5rem 0 .1rem">${t('quality')}</p><table>`
-   +INFO.fields.map(f=>{const v=c.quality[f.name];
+   +(INFO.node_fields||[]).concat(INFO.fields).filter(f=>f.name in c.quality).map(f=>{const v=c.quality[f.name];
      return `<tr><td>${esc(f.label[LANG])}</td><td class="mono">${v===null?'—':Number(v).toPrecision(4)}</td></tr>`;}).join('')
    +'</table>';
  }
@@ -474,6 +477,21 @@ function paint(o){
  const [lo,hi]=colorRange(), span=hi>lo?hi-lo:1, flip=COLOR.head.better==='high';
  const idx=geo.index.array, tc=o.mesh.userData.triCell;
  const col=new Float32Array(geo.getAttribute('position').count*3);
+ if(COLOR.kind==='node'){
+  /* one value per vertex: each face vertex belongs to one cell, so the jumps
+     of a DG solution between elements show as they are */
+  const vi=o.mesh.userData.vertIndex;
+  for(let k=0;k<vi.length;k++){
+   const v=COLOR.values[vi[k]];
+   if(Number.isFinite(v)){
+    let u=(v-lo)/span; u=u<0?0:u>1?1:u; if(flip)u=1-u;
+    const q=3*Math.round(u*255); col[3*k]=LUT[q]; col[3*k+1]=LUT[q+1]; col[3*k+2]=LUT[q+2];
+   }else{col[3*k]=NAN_COLOR.r; col[3*k+1]=NAN_COLOR.g; col[3*k+2]=NAN_COLOR.b;}
+  }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  mat.vertexColors=true; mat.color.set('#ffffff'); mat.needsUpdate=true;
+  return;
+ }
  for(let t=0;t<tc.length;t++){
   const v=COLOR.values[tc[t]];
   let r,g,b;
@@ -491,15 +509,16 @@ function paintAll(){
  paint(SEC.obj); renderLegend();
 }
 async function setColor(name){
- COLOR={name, values:null, head:null}; $('colorby').value=name;
+ const node=name.startsWith('node:'), key=node?name.slice(5):name;
+ COLOR={name, kind:node?'node':'cell', values:null, head:null}; $('colorby').value=name;
  if(name){
   $('status').textContent=t('computing');
   try{
-   const {head,arr}=await getBin('/api/field?name='+encodeURIComponent(name));
+   const {head,arr}=await getBin((node?'/api/nodefield?name=':'/api/field?name=')
+                                 +encodeURIComponent(key));
    if(COLOR.name!==name)return;                    // another choice came first
    COLOR.values=arr.values; COLOR.head=head;
-   const worst=await (await fetchOk(`/api/worst?name=${encodeURIComponent(name)}&n=10`)).json();
-   COLOR.worst=worst;
+   COLOR.worst=node?[]:await (await fetchOk(`/api/worst?name=${encodeURIComponent(key)}&n=10`)).json();
    if(PICKED)pick(PICKED.cell);                    // its panel gains the metrics
   }catch(e){$('status').textContent=e.message; return;}
  }
@@ -507,8 +526,14 @@ async function setColor(name){
 }
 function renderColorOptions(){
  const sel=$('colorby'), cur=COLOR.name;
+ const nf=INFO.node_fields||[];
  sel.innerHTML=`<option value="">${esc(t('by_zone'))}</option>`
-  +INFO.fields.map(f=>`<option value="${f.name}">${esc(f.label[LANG])}</option>`).join('');
+  +(nf.length?`<optgroup label="${esc(t('solution'))}">`
+     +nf.map(f=>`<option value="node:${f.name}">${esc(f.label[LANG])}</option>`).join('')
+     +'</optgroup>':'')
+  +`<optgroup label="${esc(t('quality'))}">`
+  +INFO.fields.map(f=>`<option value="${f.name}">${esc(f.label[LANG])}</option>`).join('')
+  +'</optgroup>';
  sel.value=cur;
 }
 function renderLegend(){
@@ -522,6 +547,7 @@ function renderLegend(){
  $('lleft').textContent=fmtv(left); $('lright').textContent=fmtv(right);
  $('lgood').textContent=h.better?t('good'):t('low');
  $('lbad').textContent=h.better?t('bad'):t('high');
+ $('worst').previousElementSibling.style.display=COLOR.kind==='node'?'none':'';
  const o=INFO.origin;
  $('worst').innerHTML=(COLOR.worst||[]).map(w=>
    `<a class="cell" data-cell="${w.cell}" title="${esc(w.kind)} ${w.order}">#${fmt(w.cell)} ${Number(w.value).toPrecision(3)}</a>`).join('');
@@ -566,6 +592,10 @@ function renderHeader(){
  $('title').textContent=INFO.title;
  const kinds=INFO.cells.map(c=>`${fmt(c.n)} ${c.kind}${c.order>1?' p'+c.order:''}`).join(', ');
  $('stats').innerHTML=`${esc(INFO.format)} · Ngeo ${INFO.ngeo} · ${fmt(INFO.n_points)} ${t('nodes')}<br>${kinds}`;
+ const so=INFO.solution;
+ if(so)$('stats').insertAdjacentHTML('beforeend',`<br>${esc(t('solution'))}: <code>${esc(so.file)}</code>`
+   +` · p${so.p} ${esc(so.nodes)} · t = ${Number(so.time).toPrecision(5)} · ${esc(t('iteration'))} ${fmt(so.iteration)}`
+   +(so.physical?' · SI':''));
  const w=$('warnings'); w.innerHTML='';
  const c=INFO.census;
  if(c.unassigned_faces)w.insertAdjacentHTML('beforeend',`<div class="note">${fmt(c.unassigned_faces)} ${t('faces')} ${t('exterior')} · ${t('unassigned')}</div>`);
@@ -621,6 +651,8 @@ async function start(){
  $('fit').click();
  await Promise.all(INFO.zones.filter(z=>z.visible).map(z=>loadZone(z.name)));
  applyStyle();
+ const nf=INFO.node_fields||[];                    // a solution: show it at once
+ if(nf.length){const f=nf.find(x=>x.name==='Mach')||nf[0]; await setColor('node:'+f.name);}
  window.LEGOLAS_READY=true;
 }
 /* hook for automated checks (headless browser): drive the page from outside */
