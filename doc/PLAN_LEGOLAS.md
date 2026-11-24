@@ -186,12 +186,13 @@ tocar código, `graphify update .`.
 | hito | estado |
 |---|---|
 | L0 | **hecho** (20/11/2026): este documento y HANDOFF |
-| — | commits en la rama `legolas` (salida de `develop`): L0–L2 en `2208226`, L3 en `0fe65c6`, L4 en el siguiente |
+| — | commits en la rama `legolas` (salida de `develop`): L0–L2 en `2208226`, L3 en `0fe65c6`, L4 en `dd9e591`, L5 en el siguiente |
 | L1 | **hecho** (20/11/2026): ver abajo |
 | L2 | **hecho** (20/11/2026): ver abajo |
 | L3 | **hecho** (20/11/2026): ver abajo |
 | L4 | **hecho** (20/11/2026): ver abajo |
-| L5–L7 | pendientes |
+| L5 | **hecho** (24/11/2026): ver abajo |
+| L6–L7 | pendientes |
 
 ### L1 (20/11/2026)
 
@@ -301,6 +302,29 @@ tocar código, `graphify update .`.
   clicables (seleccionan, llevan el plano de corte a la celda y acercan la cámara mirando a la
   abertura) y métricas en la ficha de la celda.
 * Tests: `FotR/tests/test_legolas_quality.py` (24). Ejemplo: `examples/legolas/quality_turbine.py`.
+
+### L5 (24/11/2026)
+
+* `resolution.py` y la clase anidada `LEGOLAS.Resolution` (`lg.resolution`): `sizes(p)`
+  (`h` = V^(1/3), `h_min`/`h_max` direccionales siguiendo los nodos curvos, anisotropía,
+  Δ = h/(p+1)), `wall(zonas, p, layers)` (espesor de la celda de pared sobre la normal, primer
+  nodo de solución = primer punto GL interior de orden p, tamaños tangenciales, crecimiento
+  por caras opuestas), `yplus(zonas, Re, L, p, correlation, flow_dir)` (Cf de placa plana
+  turbulenta 0,026·Re_x^(−1/7) o Blasius; Re_x local con `flow_dir`), `fields()` y `report()`
+  con los objetivos WRLES (y⁺ ≤ 1, Δx⁺ 50–150, Δz⁺ 15–40).
+* **El visor acepta campos por celda de cualquier origen:** `lg.viewer.show(fields={...})`
+  (también `server(fields=)`); viajan al proceso del servidor en un npz que este borra al leerlo.
+  Es el canal que usarán los campos de un `.hsol` (plan HSOL, M3/M4).
+* `quality.worst_cells` sale de `Quality.worst` para servir también a esos campos.
+* Error encontrado por un test: el borde de ataque se tomaba del centroide de caras y no de la
+  esquina más aguas arriba de la zona.
+* Esfera v2g2 (D = 1, Re = 400, laminar, p = 3): primer nodo de 0,016 a 0,052 D, y⁺ estimado
+  0,86–5,3 (mediana 1,9). TIFON: primera capa 5·10⁻⁵ c exacta; el crecimiento sale NaN porque
+  es 2D extruida y el prisma apoya en la pared por un cuadrilátero (limitación documentada).
+* **WebGL en n008** (la sesión de hoy corría allí, no en nibbler): SwiftShader revienta
+  (`EGL_BAD_ATTRIBUTE`); funciona `--use-gl=desktop` sobre el Xvnc `:77` (GLX por llvmpipe).
+* Tests: `FotR/tests/test_legolas_resolution.py` (19). Ejemplo:
+  `examples/legolas/resolution_sphere.py`.
 
 ### Decisiones abiertas (se resuelven al llegar al hito)
 

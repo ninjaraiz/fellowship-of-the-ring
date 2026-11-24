@@ -63,6 +63,57 @@ _PORT_TRIES = 20
 DEFAULT_PORT = 8766
 
 
+def _normalise_fields(fields, n_cells: int) -> dict:
+    """Check extra fields and give every one ``values``, ``label``,
+    ``better``."""
+    out = {}
+    for name, spec in (fields or {}).items():
+        if not isinstance(spec, dict):
+            spec = {'values': spec}
+        values = np.asarray(spec['values'], dtype=float).ravel()
+        if len(values) != n_cells:
+            raise ValueError(f"field {name!r} has {len(values)} values, the "
+                             f"mesh {n_cells} cells")
+        label = spec.get('label', name)
+        if isinstance(label, str):
+            label = {'es': label, 'en': label}
+        better = spec.get('better')
+        if better not in ('high', 'low', None):
+            raise ValueError(f"field {name!r}: better must be 'high', 'low' "
+                             "or None")
+        if name in METRICS:
+            raise ValueError(f"field {name!r} would hide a quality metric")
+        out[name] = {'values': values, 'label': label, 'better': better}
+    return out
+
+
+def _save_fields(fields, n_cells) -> tuple:
+    """Write extra fields for the server process: (npz path, meta)."""
+    norm = _normalise_fields(fields, n_cells)
+    if not norm:
+        return None, {}
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+    path = os.path.join(_CACHE_DIR, f'fields-{os.getpid()}-'
+                                    f'{int(time.time() * 1e3)}.npz')
+    np.savez(path, **{f'f{i}': v['values'] for i, v in
+                      enumerate(norm.values())})
+    meta = [{'name': k, 'label': v['label'], 'better': v['better']}
+            for k, v in norm.items()]
+    return path, meta
+
+
+def _load_fields(path, meta) -> dict:
+    with np.load(path) as z:
+        out = {m['name']: {'values': z[f'f{i}'], 'label': m['label'],
+                           'better': m['better']}
+               for i, m in enumerate(meta)}
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+    return out
+
+
 class ViewerServer:
     """HTTP server for one mesh, plus the idle watchdog.
 
@@ -83,12 +134,18 @@ class ViewerServer:
     max_triangles : int
         Budget per request; bigger zones are decimated (every k-th face)
         and start hidden. Default :data:`.scene.MAX_TRIANGLES`.
+    fields : dict, optional
+        Extra per-cell fields to colour by, next to the quality metrics:
+        ``{name: {'values': (n_cells,) array, 'label': str or {'es', 'en'},
+        'better': 'high' | 'low' | None}}``. A bare array is accepted too.
+        :meth:`.resolution.Resolution.fields` builds them.
     """
 
     def __init__(self, mesh, title: str | None = None,
                  host: str = '127.0.0.1', port: int = DEFAULT_PORT,
                  idle_timeout: float = 1800.0,
-                 max_triangles: int = scene.MAX_TRIANGLES) -> None:
+                 max_triangles: int = scene.MAX_TRIANGLES,
+                 fields: dict | None = None) -> None:
         from .census import Census
         from .quality import Quality
 
@@ -107,6 +164,7 @@ class ViewerServer:
         self.static = self._static_files()
         # everything the page asks for first is computed before "ready"
         self.quality = Quality(SimpleNamespace(mesh=mesh))
+        self.extra = _normalise_fields(fields, mesh.n_cells)
         self.info = self._info(Census(SimpleNamespace(mesh=mesh)).summary())
         self.httpd = self._bind(host, int(port))
         self.httpd.viewer = self
@@ -167,7 +225,8 @@ class ViewerServer:
             'max_triangles': self.max_triangles,
             'has_file_index': 'file_cell_index' in m.meta,
             'fields': [{'name': k, 'label': v['label'], 'better': v['better']}
-                       for k, v in METRICS.items()],
+                       for k, v in list(METRICS.items())
+                       + list(self.extra.items())],
         }
 
     def _geometry(self, elem, face, header: dict) -> bytes:
@@ -199,10 +258,13 @@ class ViewerServer:
         """Payload of ``/api/cell``."""
         with self._lock:
             info = scene.cell_info(self.mesh, cell)
-            if self.quality._metrics is not None:
+            values = dict(self.quality.metrics()
+                          if self.quality._metrics is not None else {})
+            values.update({k: v['values'] for k, v in self.extra.items()})
+            if values:
                 info['quality'] = {
                     k: (None if not np.isfinite(v[cell]) else float(v[cell]))
-                    for k, v in self.quality.metrics().items()}
+                    for k, v in values.items()}
             return info
 
     def field(self, name: str) -> bytes:
@@ -210,11 +272,21 @@ class ViewerServer:
         with self._lock:
             key = 'field:' + name
             if key not in self._cache:
-                values = self.quality.field(name).astype(np.float32)
-                stats = self.quality.summary().get(name)
-                if stats is None:
-                    stats = {k: 0.0 for k in ('min', 'max', 'p01', 'p99')}
-                head = {'name': name, 'better': METRICS[name]['better']}
+                if name in self.extra:
+                    values = self.extra[name]['values']
+                    better = self.extra[name]['better']
+                else:
+                    values = self.quality.field(name)
+                    better = METRICS[name]['better']
+                values = np.asarray(values, dtype=np.float32)
+                finite = values[np.isfinite(values)].astype(float)
+                stats = {k: 0.0 for k in ('min', 'max', 'p01', 'p99')}
+                if len(finite):
+                    p01, p99 = np.percentile(finite, [1, 99])
+                    stats = {'min': float(finite.min()),
+                             'max': float(finite.max()),
+                             'p01': float(p01), 'p99': float(p99)}
+                head = {'name': name, 'better': better}
                 head.update({k: stats[k] for k in ('min', 'max', 'p01',
                                                     'p99')})
                 self._cache[key] = scene.pack(head, {'values': values})
@@ -222,8 +294,13 @@ class ViewerServer:
 
     def worst(self, name: str, n: int) -> list:
         """Payload of ``/api/worst``."""
+        from .quality import worst_cells
+        n = max(1, min(int(n), 1000))
         with self._lock:
-            return self.quality.worst(name, max(1, min(int(n), 1000)))
+            if name in self.extra:
+                return worst_cells(self.mesh, self.extra[name]['values'],
+                                   self.extra[name]['better'], n)
+            return self.quality.worst(name, n)
 
     # -- running ------------------------------------------------------------
     def _watch(self) -> None:
@@ -482,8 +559,8 @@ class Viewer:
     def show(self, port: int = DEFAULT_PORT, host: str = '127.0.0.1',
              idle_timeout: float = 1800.0,
              max_triangles: int = scene.MAX_TRIANGLES,
-             title: str | None = None, timeout: float = 120.0
-             ) -> ViewerHandle:
+             title: str | None = None, timeout: float = 120.0,
+             fields: dict | None = None) -> ViewerHandle:
         """Start the viewer in its own process and return its handle.
 
         A mesh read from a file is read again by the server process (it is
@@ -506,6 +583,10 @@ class Viewer:
             Page title; default the file name.
         timeout : float
             Seconds to wait for the server. Default 120.
+        fields : dict, optional
+            Extra per-cell fields for the colour selector (see
+            :class:`ViewerServer`); e.g. ``lg.resolution.fields(p=3,
+            walls='wall', Re=1e5)``.
 
         Returns
         -------
@@ -521,7 +602,11 @@ class Viewer:
             h.url              # 'http://127.0.0.1:8766/'
             h.stop()
         """
-        self.handle = launch(self._manifest(title), host=host, port=port,
+        manifest = self._manifest(title)
+        path, meta = _save_fields(fields, self._lg.mesh.n_cells)
+        if path:
+            manifest.update(fields_npz=path, fields_meta=meta)
+        self.handle = launch(manifest, host=host, port=port,
                              idle_timeout=idle_timeout,
                              max_triangles=max_triangles, timeout=timeout)
         return self.handle
@@ -529,7 +614,8 @@ class Viewer:
     def server(self, port: int = 0, host: str = '127.0.0.1',
                idle_timeout: float = 0.0,
                max_triangles: int = scene.MAX_TRIANGLES,
-               title: str | None = None) -> ViewerServer:
+               title: str | None = None,
+               fields: dict | None = None) -> ViewerServer:
         """A server in this process, bound but not started.
 
         Call ``.start()`` (background threads) or ``.serve_forever()``
@@ -538,7 +624,7 @@ class Viewer:
         """
         return ViewerServer(self._lg.mesh, title=title, host=host, port=port,
                             idle_timeout=idle_timeout,
-                            max_triangles=max_triangles)
+                            max_triangles=max_triangles, fields=fields)
 
     def stop(self) -> None:
         """Stop the server started by :meth:`show`, if any."""
@@ -571,6 +657,7 @@ def main(argv=None) -> None:
     from .mesh import Mesh
 
     title = args.title
+    fields = None
     if args.manifest:
         with open(args.manifest) as fh:
             man = json.load(fh)
@@ -584,13 +671,15 @@ def main(argv=None) -> None:
         else:
             mesh = read(man['path'], fmt=man.get('fmt'),
                         **(man.get('read_kwargs') or {}))
+        if man.get('fields_npz'):
+            fields = _load_fields(man['fields_npz'], man['fields_meta'])
     elif args.mesh:
         mesh = read(args.mesh, fmt=args.fmt)
     else:
         parser.error('give a mesh file or --manifest')
     server = ViewerServer(mesh, title=title, host=args.host, port=args.port,
                           idle_timeout=args.idle_timeout,
-                          max_triangles=args.max_triangles)
+                          max_triangles=args.max_triangles, fields=fields)
     print(f'{_READY}{server.url}', flush=True)
     print(f'{mesh!r}, pid {os.getpid()}. Ctrl-C to stop.', flush=True)
     server.serve_forever()

@@ -7,7 +7,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3, hecho)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4, hecho)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
+        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3, hecho)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4, hecho)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5, hecho)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
       },
       {
         "t": "p",
@@ -55,7 +55,7 @@
           [
             "L5",
             "`LEGOLAS.Resolution` (LES)",
-            "pendiente"
+            "**hecho** (24/11/2026)"
           ],
           [
             "L6",
@@ -538,6 +538,16 @@
             "aviso «cells are left-handed in this file's convention»",
             "el formato numera ese tipo de celda al revés que VTK (los prismas de gmsh)",
             "informativo: los signos se corrigen por bloque"
+          ],
+          [
+            "`growth` sale NaN",
+            "la pila de celdas solo se sigue por caras opuestas: hexaedros, o prismas apoyados en la pared por un triángulo. Las mallas 2D extruidas (TIFON) apoyan el prisma por un cuadrilátero, y los tetraedros no tienen cara opuesta",
+            "`y1` y los tamaños tangenciales sí salen"
+          ],
+          [
+            "el y⁺ estimado no cuadra con el de la simulación",
+            "es una correlación de placa plana: no sabe nada de gradientes de presión, remansos ni desprendimiento",
+            "úsalo para dimensionar la primera celda; el real, del `.hsol`"
           ]
         ]
       }
@@ -568,7 +578,7 @@
           ],
           [
             "**Color**",
-            "por zona o por una métrica de calidad (L4), con leyenda y las diez peores celdas, clicables"
+            "por zona, por una métrica de calidad (L4) o por cualquier campo por celda que se pase con `show(fields=…)`, como los de `lg.resolution.fields()` (L5); con leyenda y las diez peores celdas, clicables"
           ],
           [
             "**Capa**",
@@ -703,6 +713,73 @@
         "t": "p",
         "x": "**Color** pinta superficies y cortes por cualquiera de estas métricas, del azul (mejor) al rojo (peor), con el rango p1–p99 por defecto para que un par de celdas extremas no aplasten la escala. Debajo de la leyenda salen las diez peores: un clic la selecciona, mueve el plano de corte hasta ella si hay uno activo y acerca la cámara mirando a la abertura. La ficha de la celda añade sus métricas."
       }
+    ],
+    "nested_Resolution": [
+      {
+        "t": "p",
+        "x": "Antes del Abismo de Helm, Legolas miró la llanura y supo cuántos venían y cuánto tardarían. Esto es lo mismo: mirar la malla antes de lanzar y saber si la LES va a ver lo que tiene que ver. Es diseño de malla, no posproceso: el y⁺ de verdad sale del esfuerzo en la pared de un `.hsol`, y eso es de las herramientas de HORSES3D."
+      },
+      {
+        "t": "code",
+        "x": "lg.resolution.sizes(p=3)                         # h, h_min, h_max, anisotropía, Δ = h/(p+1)\nlg.resolution.wall('esphere_surface', p=3)        # 1.ª celda, 1.er nodo, tamaños tangenciales, crecimiento\nlg.resolution.yplus('esphere_surface', Re=400, p=3,\n                    correlation='laminar', flow_dir=[1, 0, 0])\nprint(lg.resolution.report(walls='esphere_surface', p=3, Re=400, correlation='laminar'))\nlg.viewer.show(fields=lg.resolution.fields(p=3, walls='esphere_surface', Re=400))"
+      },
+      {
+        "t": "table",
+        "head": [
+          "magnitud",
+          "qué es"
+        ],
+        "rows": [
+          [
+            "`h`, `h_min`, `h_max`",
+            "V^(1/3); y la menor y mayor de las tres longitudes de un hexaedro (media de sus cuatro aristas en cada dirección, siguiendo los nodos curvos). En los lineales, la arista más corta y la más larga"
+          ],
+          [
+            "`delta`",
+            "h/(p+1): la resolución efectiva de un elemento DG con (p+1)³ grados de libertad"
+          ],
+          [
+            "`y1`",
+            "espesor de la celda de pared medido sobre la normal a la pared"
+          ],
+          [
+            "`y1_dof`",
+            "altura del primer nodo de solución: el primer punto interior de Gauss-Lobatto de orden p (0,5·y1 con p = 2, 0,276 con p = 3, 0,173 con p = 4)"
+          ],
+          [
+            "`dt1`, `dt2`",
+            "longitudes de la cara de pared en sus dos direcciones, entre p+1 si se da p"
+          ],
+          [
+            "`growth`",
+            "razón de espesores entre celdas consecutivas de la pila sobre cada cara, siguiendo caras opuestas (hexaedros en cualquier dirección, prismas por sus triángulos)"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Unidades de pared, estimadas"
+      },
+      {
+        "t": "p",
+        "x": "Con U = 1 y ν = L/Re, una longitud y vale y·Re·√(Cf/2)/L en unidades de pared. Cf sale de una correlación de placa plana: turbulenta 0,026·Re_x^(−1/7) o laminar (Blasius) 0,664·Re_x^(−1/2). Re_x usa la distancia de cada cara al borde de ataque (la esquina más aguas arriba de la zona) si se da `flow_dir`, y L si no. Es una estimación para dimensionar la primera celda, no una predicción del flujo: en un punto de remanso o en una zona desprendida falla por construcción."
+      },
+      {
+        "t": "p",
+        "x": "El informe compara con los objetivos habituales de una LES que resuelve la pared (Piomelli & Chasnov 1996; Georgiadis, Rizzetta & Fureby 2010): y⁺ ≤ 1, Δx⁺ entre 50 y 150, Δz⁺ entre 15 y 40, y da el porcentaje de caras dentro de cada rango."
+      },
+      {
+        "t": "note",
+        "x": "Esfera `my_ESPHERE_1` (v2g2, D = 1, Re = 400, laminar, p = 3): primera celda de 0,057 a 0,19 D; primer nodo de solución de 0,016 a 0,052 D, con y⁺ estimado de 0,86 a 5,3 (mediana 1,9). Tamaño tangencial de los nodos ≈ 0,03 D. Δ de DG de 0,017 junto a la esfera a 0,65 en el contorno exterior."
+      },
+      {
+        "t": "h",
+        "x": "En el visor"
+      },
+      {
+        "t": "p",
+        "x": "`fields()` devuelve los arrays por celda listos para `lg.viewer.show(fields=…)`: tamaño, anisotropía, Δ y, con paredes, altura de la primera celda e y⁺ estimado de las celdas de pared (NaN en las demás). Aparecen en el selector **Color** junto a las métricas de calidad, con su leyenda y sus diez peores. El canal acepta cualquier array por celda, no solo estos."
+      }
     ]
   },
   "en": {
@@ -713,7 +790,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3, done)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4, done)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
+        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3, done)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4, done)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5, done)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
       },
       {
         "t": "p",
@@ -761,7 +838,7 @@
           [
             "L5",
             "`LEGOLAS.Resolution` (LES)",
-            "pending"
+            "**done** (24/11/2026)"
           ],
           [
             "L6",
@@ -1244,6 +1321,16 @@
             "warning \"cells are left-handed in this file's convention\"",
             "the format numbers that cell kind the other way round from VTK (gmsh prisms)",
             "informative: signs are fixed per block"
+          ],
+          [
+            "`growth` comes out NaN",
+            "the stack of cells is followed only through opposite faces: hexahedra, or prisms resting on the wall by a triangle. Extruded 2D meshes (TIFON) rest the prism on a quad, and tetrahedra have no opposite face",
+            "`y1` and the tangential sizes are still there"
+          ],
+          [
+            "the estimated y⁺ does not match the simulation",
+            "it is a flat-plate correlation: it knows nothing of pressure gradients, stagnation or separation",
+            "use it to size the first cell; the real one comes from the `.hsol`"
           ]
         ]
       }
@@ -1274,7 +1361,7 @@
           ],
           [
             "**Colour**",
-            "by zone or by a quality metric (L4), with a legend and the ten worst cells, clickable"
+            "by zone, by a quality metric (L4) or by any per-cell field passed with `show(fields=…)`, such as those of `lg.resolution.fields()` (L5); with a legend and the ten worst cells, clickable"
           ],
           [
             "**Layer**",
@@ -1408,6 +1495,73 @@
       {
         "t": "p",
         "x": "**Colour** paints surfaces and cuts by any of these metrics, from blue (better) to red (worse), with the p1–p99 range by default so that a couple of extreme cells do not flatten the scale. Below the legend come the ten worst: a click selects one, moves the cut plane to it if a cut is on, and brings the camera close, looking into the opening. The cell's card adds its metrics."
+      }
+    ],
+    "nested_Resolution": [
+      {
+        "t": "p",
+        "x": "Before Helm's Deep Legolas looked across the plain and knew how many were coming and how long they would take. This is the same: look at the mesh before the run and know whether the LES will see what it must. It is mesh design, not post-processing: the real y⁺ comes from the wall shear of a `.hsol`, and that belongs to the HORSES3D tools."
+      },
+      {
+        "t": "code",
+        "x": "lg.resolution.sizes(p=3)                         # h, h_min, h_max, anisotropy, Δ = h/(p+1)\nlg.resolution.wall('esphere_surface', p=3)        # 1st cell, 1st node, tangential sizes, growth\nlg.resolution.yplus('esphere_surface', Re=400, p=3,\n                    correlation='laminar', flow_dir=[1, 0, 0])\nprint(lg.resolution.report(walls='esphere_surface', p=3, Re=400, correlation='laminar'))\nlg.viewer.show(fields=lg.resolution.fields(p=3, walls='esphere_surface', Re=400))"
+      },
+      {
+        "t": "table",
+        "head": [
+          "quantity",
+          "what it is"
+        ],
+        "rows": [
+          [
+            "`h`, `h_min`, `h_max`",
+            "V^(1/3); and the smallest and largest of the three lengths of a hexahedron (mean of its four edges in each direction, along the curved nodes). For the linear kinds, the shortest and longest edge"
+          ],
+          [
+            "`delta`",
+            "h/(p+1): the effective resolution of a DG element with (p+1)³ degrees of freedom"
+          ],
+          [
+            "`y1`",
+            "thickness of the wall cell measured along the wall normal"
+          ],
+          [
+            "`y1_dof`",
+            "height of the first solution node: the first inner Gauss-Lobatto point of order p (0.5·y1 for p = 2, 0.276 for p = 3, 0.173 for p = 4)"
+          ],
+          [
+            "`dt1`, `dt2`",
+            "lengths of the wall face in its two directions, divided by p+1 when p is given"
+          ],
+          [
+            "`growth`",
+            "thickness ratio between consecutive cells of the stack on each face, through opposite faces (hexahedra in any direction, prisms through their triangles)"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Wall units, estimated"
+      },
+      {
+        "t": "p",
+        "x": "With U = 1 and ν = L/Re, a length y is y·Re·√(Cf/2)/L in wall units. Cf comes from a flat-plate correlation: turbulent 0.026·Re_x^(−1/7) or laminar (Blasius) 0.664·Re_x^(−1/2). Re_x uses each face's distance from the leading edge (the most upstream corner of the zone) when `flow_dir` is given, and L otherwise. It is an estimate to size the first cell, not a prediction of the flow: at a stagnation point or in separated flow it fails by construction."
+      },
+      {
+        "t": "p",
+        "x": "The report compares with the usual targets of a wall-resolved LES (Piomelli & Chasnov 1996; Georgiadis, Rizzetta & Fureby 2010): y⁺ ≤ 1, Δx⁺ between 50 and 150, Δz⁺ between 15 and 40, and gives the share of faces inside each range."
+      },
+      {
+        "t": "note",
+        "x": "`my_ESPHERE_1` sphere (v2g2, D = 1, Re = 400, laminar, p = 3): first cell from 0.057 to 0.19 D; first solution node from 0.016 to 0.052 D, with estimated y⁺ from 0.86 to 5.3 (median 1.9). Tangential node spacing ≈ 0.03 D. DG Δ from 0.017 next to the sphere to 0.65 at the outer boundary."
+      },
+      {
+        "t": "h",
+        "x": "In the viewer"
+      },
+      {
+        "t": "p",
+        "x": "`fields()` returns the per-cell arrays ready for `lg.viewer.show(fields=…)`: size, anisotropy, Δ and, with walls, first cell height and estimated y⁺ of the wall cells (NaN elsewhere). They appear in the **Colour** selector next to the quality metrics, with their legend and their ten worst. The channel takes any per-cell array, not only these."
       }
     ]
   }

@@ -38,6 +38,7 @@ FUNCTION_MODULES = [
     f"{PKG}/scene.py",
     f"{PKG}/bcfiles.py",
     f"{PKG}/quality.py",
+    f"{PKG}/resolution.py",
 ]
 
 #: Clases de nivel superior que se documentan, por fichero (None = todas).

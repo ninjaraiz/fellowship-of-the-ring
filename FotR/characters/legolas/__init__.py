@@ -17,6 +17,7 @@ from .census import Census
 from .io import read
 from .mesh import Boundary, CellBlock, Mesh
 from .quality import Quality
+from .resolution import Resolution
 from .viewer import Viewer
 
 __all__ = ['LEGOLAS', 'Mesh', 'CellBlock', 'Boundary', 'read']
@@ -45,6 +46,8 @@ class LEGOLAS:
         Sizes, element kinds, zones and boundaries.
     quality : LEGOLAS.Quality
         Cell quality metrics (Jacobians, aspect ratio, skewness…).
+    resolution : LEGOLAS.Resolution
+        Cell sizes, first cells at a wall and estimated y+ (LES).
     viewer : LEGOLAS.Viewer
         Web viewer: ``lg.viewer.show()`` returns the address to open.
 
@@ -63,6 +66,8 @@ class LEGOLAS:
     Census = Census
     #: Cell quality metrics (:class:`.quality.Quality`).
     Quality = Quality
+    #: Sizes and wall resolution for an LES (:class:`.resolution.Resolution`).
+    Resolution = Resolution
     #: Web viewer of the mesh (:class:`.viewer.Viewer`).
     Viewer = Viewer
 
@@ -77,6 +82,7 @@ class LEGOLAS:
                             dict(read_kwargs))
         self.census = LEGOLAS.Census(self)
         self.quality = LEGOLAS.Quality(self)
+        self.resolution = LEGOLAS.Resolution(self)
         self.viewer = LEGOLAS.Viewer(self)
 
     @property

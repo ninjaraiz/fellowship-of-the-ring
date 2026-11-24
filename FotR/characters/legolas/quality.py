@@ -49,7 +49,7 @@ import numpy as np
 
 from . import ordering, topology
 
-__all__ = ['Quality', 'METRICS', 'gauss_lobatto', 'lagrange']
+__all__ = ['Quality', 'METRICS', 'gauss_lobatto', 'lagrange', 'worst_cells']
 
 #: Metric name -> what is good, a short description and a warning threshold
 #: (None: no threshold).
@@ -242,6 +242,41 @@ def _angles(c):
     return np.stack(out, 1)
 
 
+def worst_cells(mesh, values, better, n: int = 20) -> list:
+    """The *n* worst cells of any per-cell array.
+
+    Parameters
+    ----------
+    mesh : Mesh
+    values : numpy.ndarray
+        ``(n_cells,)``; NaN cells are skipped.
+    better : str or None
+        ``'high'`` (lowest first), ``'low'`` or None (highest first).
+    n : int
+        How many.
+
+    Returns
+    -------
+    list[dict]
+        As :meth:`Quality.worst`.
+    """
+    v = np.asarray(values, float)
+    ok = np.nonzero(np.isfinite(v))[0]
+    key = v[ok] if better == 'high' else -v[ok]
+    pick = ok[np.argsort(key, kind='stable')[:n]]
+    b_of, local = mesh.locate_cell(pick)
+    fidx = mesh.meta.get('file_cell_index')
+    out = []
+    for c, b, l in zip(pick, b_of, local):
+        blk = mesh.blocks[b]
+        out.append({'cell': int(c), 'value': float(v[c]),
+                    'kind': blk.kind, 'order': blk.order,
+                    'centroid': mesh.points[blk.corners()[l]].mean(0)
+                    .tolist(),
+                    'file_cell': int(fidx[c]) if fidx is not None else None})
+    return out
+
+
 class Quality:
     """Cell quality: Jacobians, aspect ratio, skewness, non-orthogonality.
 
@@ -416,24 +451,8 @@ class Quality:
             ``file_cell`` (index in the file, when the reader keeps it; add
             one for HORSES3D's numbering), worst first.
         """
-        spec = METRICS[metric]
-        v = self.field(metric)
-        ok = np.nonzero(np.isfinite(v))[0]
-        key = v[ok] if spec['better'] == 'high' else -v[ok]
-        pick = ok[np.argsort(key, kind='stable')[:n]]
-        mesh = self.mesh
-        b_of, local = mesh.locate_cell(pick)
-        fidx = mesh.meta.get('file_cell_index')
-        out = []
-        for c, b, l in zip(pick, b_of, local):
-            blk = mesh.blocks[b]
-            out.append({'cell': int(c), 'value': float(v[c]),
-                        'kind': blk.kind, 'order': blk.order,
-                        'centroid': mesh.points[blk.corners()[l]].mean(0)
-                        .tolist(),
-                        'file_cell': int(fidx[c]) if fidx is not None
-                        else None})
-        return out
+        return worst_cells(self.mesh, self.field(metric),
+                           METRICS[metric]['better'], n)
 
     def issues(self) -> list:
         """Findings in the format of :meth:`Census.check`.

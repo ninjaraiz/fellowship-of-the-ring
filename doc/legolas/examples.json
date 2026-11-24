@@ -85,6 +85,20 @@
           "en": "It gives a minimum `jacobian_ratio` of 0.463 and no warnings; the five worst, at x = 3.66, are HORSES3D elements 9343, 9339, 9209, 9402 and 9380."
         }
       }
+    ],
+    "nested_Resolution": [
+      {
+        "title": {
+          "es": "Resolución de la esfera a Re = 400",
+          "en": "Resolution of the sphere at Re = 400"
+        },
+        "source": "examples/legolas/resolution_sphere.py",
+        "code": "from FotR import LEGOLAS\n\nmesh = '/home/m.jaraiz/Documentos/COMAC/my_ESPHERE_1/outputs/M_0.3_re_400/MESH/my_esphere_v2g2_mesh.h5'\n\n# Esfera de diámetro 1 a Re = 400 (laminar), corriente según +x, resuelta con p = 3.\nlg = LEGOLAS(mesh)\nprint(lg.resolution.report(walls='esphere_surface', p=3, Re=400,\n                           correlation='laminar', flow_dir=[1, 0, 0]))\n\n# Primera celda y primer nodo de solución en la pared, cara a cara (numpy).\nw = lg.resolution.wall('esphere_surface', p=3)\nprint('primer nodo: de', w['y1_dof'].min(), 'a', w['y1_dof'].max())\n\n# Al visor, para colorear por Δ de DG o por y⁺ estimado (selector Color).\nfields = lg.resolution.fields(p=3, walls='esphere_surface', Re=400,\n                              correlation='laminar', flow_dir=[1, 0, 0])\n# lg.viewer.show(fields=fields)",
+        "note": {
+          "es": "El informe da el primer nodo de 0,016 a 0,052 D y un y⁺ estimado de 0,86 a 5,3 en él (mediana 1,9).",
+          "en": "The report gives the first node from 0.016 to 0.052 D and an estimated y⁺ there from 0.86 to 5.3 (median 1.9)."
+        }
+      }
     ]
   }
 }
