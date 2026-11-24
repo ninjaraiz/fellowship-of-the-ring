@@ -7,7 +7,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3, hecho)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
+        "x": "LEGOLAS(ruta | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       censo de la malla            (L1, hecho)\n ├─ viewer       LEGOLAS.Viewer       visor web, three.js          (L2, hecho)\n ├─ census.check_* …                  validación de BC y mallas    (L3, hecho)\n ├─ quality      LEGOLAS.Quality      jacobianos, skewness…        (L4, hecho)\n ├─ resolution   LEGOLAS.Resolution   Δ, primera celda, y⁺ (LES)   (L5)\n └─ convert / locate                  VTU, orden de nodos, sondas  (L6)\n\nio.read(ruta) ──► hopr · cgns · gmsh · hmesh ──► Mesh canónica"
       },
       {
         "t": "p",
@@ -50,7 +50,7 @@
           [
             "L4",
             "`LEGOLAS.Quality` y coloreado en el visor",
-            "pendiente"
+            "**hecho** (20/11/2026)"
           ],
           [
             "L5",
@@ -528,6 +528,16 @@
             "en el recorte no se ve la escalera",
             "las caras del corte miran hacia el lado quitado",
             "gira la cámara o pulsa ⇄"
+          ],
+          [
+            "todas las celdas de la esfera con `jacobian_ratio` ≈ 0,07",
+            "la malla son tetraedros partidos en hexaedros: un hexaedro así no es afín",
+            "es su valor normal (0,0741 exacto en el tetraedro regular); no avisa por debajo de 0,05"
+          ],
+          [
+            "aviso «cells are left-handed in this file's convention»",
+            "el formato numera ese tipo de celda al revés que VTK (los prismas de gmsh)",
+            "informativo: los signos se corrigen por bloque"
           ]
         ]
       }
@@ -555,6 +565,10 @@
           [
             "**Dibujo**",
             "superficie, aristas o ambas. Las aristas son las de los **elementos**, siguiendo los nodos de alto orden; las diagonales de la triangulación no se dibujan nunca. Opacidad ajustable"
+          ],
+          [
+            "**Color**",
+            "por zona o por una métrica de calidad (L4), con leyenda y las diez peores celdas, clicables"
           ],
           [
             "**Capa**",
@@ -594,6 +608,101 @@
         "t": "note",
         "x": "Comprobado el 20/11/2026 en un Chromium sin pantalla (QtWebEngine sobre un Xvnc, con WebGL por software) con la turbina g2 y la esfera v1g2: zonas, capa, recorte, selección de celdas y vistas, sin errores de consola. La prueba en tu navegador sigue siendo tuya."
       }
+    ],
+    "nested_Quality": [
+      {
+        "t": "p",
+        "x": "Legolas distingue a un orco por el andar. Aquí basta con siete números por celda y con saber cuál de ellos mira tu solver. `lg.quality` los calcula la primera vez que se piden, solo con numpy: 1,3 s para la turbina g4 y 5 s para los 260 000 hexaedros de la esfera."
+      },
+      {
+        "t": "code",
+        "x": "print(lg.quality)                          # tabla, histogramas y avisos\nlg.quality.worst('scaled_jacobian', 10)    # las peores, con su nº en el fichero\nlg.quality.field('jacobian_ratio')         # un valor por celda (numpy)\nlg.quality.issues()                        # el mismo formato que census.check()"
+      },
+      {
+        "t": "table",
+        "head": [
+          "métrica",
+          "qué mide",
+          "mejor",
+          "aviso / error"
+        ],
+        "rows": [
+          [
+            "`scaled_jacobian`",
+            "mínimo de det J/(|∂ξ||∂η||∂ζ|): 1 en un cubo, 0 plano, negativo si está invertida",
+            "alto",
+            "< 0,2 / ≤ 0"
+          ],
+          [
+            "`jacobian_ratio`",
+            "mín det J / máx det J en la celda: lo que PyHOPE imprime como «scaled Jacobian». Solo hexaedros",
+            "alto",
+            "< 0,05 / ≤ 0"
+          ],
+          [
+            "`aspect_ratio`",
+            "arista más larga / más corta",
+            "bajo",
+            "— (en capa límite es normal que sea enorme)"
+          ],
+          [
+            "`skewness`",
+            "oblicuidad equiangular de la peor cara, 0 a 1",
+            "bajo",
+            "> 0,95"
+          ],
+          [
+            "`non_orthogonality`",
+            "ángulo entre la normal de una cara interior y la recta que une los centroides",
+            "bajo",
+            "> 80°"
+          ],
+          [
+            "`volume_ratio`",
+            "mayor salto de volumen con una vecina",
+            "bajo",
+            "> 20"
+          ],
+          [
+            "`volume`",
+            "volumen de la celda",
+            "—",
+            "—"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Dónde se evalúa"
+      },
+      {
+        "t": "p",
+        "x": "En los hexaedros de orden N, el jacobiano se calcula en los (N+1)³ puntos de Gauss-Lobatto a partir del interpolante de Lagrange por los nodos geométricos, que todos los formatos colocan **equiespaciados**; con N = 1 esos puntos son las esquinas. El volumen es la cuadratura de det J en esos puntos. En tetraedros, prismas y pirámides lineales se usan las tres aristas de cada esquina, normalizadas para que la celda regular valga 1 (el vértice de la pirámide tiene cuatro y se salta)."
+      },
+      {
+        "t": "note",
+        "x": "Orientación: VTK y gmsh numeran el prisma al revés, así que en un formato todos los prismas pueden salir «zurdos». Cada bloque se queda con la orientación de su mayoría y solo la minoría sale negativa; si un bloque se ha girado entero, lo dice un aviso `info`. Con las mallas de TIFON (prismas de CODA, gmsh 2.2) pasa siempre, y no es un error."
+      },
+      {
+        "t": "h",
+        "x": "Comprobado con lo que ya sabíamos"
+      },
+      {
+        "t": "p",
+        "x": "Turbina g1, g2 y g4: `jacobian_ratio` mínimo 0,46, sin celdas negativas. Es lo mismo que dio PyHOPE con esas mallas (0,4–0,5). Las peores están en las esquinas de la malla en O alrededor del rotor (x = 3,66)."
+      },
+      {
+        "t": "p",
+        "x": "La esfera `my_ESPHERE_1` sale con `jacobian_ratio` ≈ 0,074 en **todas** sus celdas. No es un fallo: la malla está hecha de tetraedros partidos en cuatro hexaedros, y un hexaedro cortado de un tetraedro regular da exactamente 0,0741, con oblicuidad 1/3 y jacobiano escalado 0,707. Por eso el aviso de `jacobian_ratio` salta en 0,05 y no en 0,1."
+      },
+      {
+        "t": "h",
+        "x": "En el visor"
+      },
+      {
+        "t": "p",
+        "x": "**Color** pinta superficies y cortes por cualquiera de estas métricas, del azul (mejor) al rojo (peor), con el rango p1–p99 por defecto para que un par de celdas extremas no aplasten la escala. Debajo de la leyenda salen las diez peores: un clic la selecciona, mueve el plano de corte hasta ella si hay uno activo y acerca la cámara mirando a la abertura. La ficha de la celda añade sus métricas."
+      }
     ]
   },
   "en": {
@@ -604,7 +713,7 @@
       },
       {
         "t": "code",
-        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3, done)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
+        "x": "LEGOLAS(path | Mesh)\n ├─ mesh         Mesh: points, blocks, boundaries, zones, meta\n ├─ census       LEGOLAS.Census       mesh census                  (L1, done)\n ├─ viewer       LEGOLAS.Viewer       web viewer, three.js         (L2, done)\n ├─ census.check_* …                  BC and mesh validation       (L3, done)\n ├─ quality      LEGOLAS.Quality      Jacobians, skewness…         (L4, done)\n ├─ resolution   LEGOLAS.Resolution   Δ, first cell, y⁺ (LES)      (L5)\n └─ convert / locate                  VTU, node order, probes      (L6)\n\nio.read(path) ──► hopr · cgns · gmsh · hmesh ──► canonical Mesh"
       },
       {
         "t": "p",
@@ -647,7 +756,7 @@
           [
             "L4",
             "`LEGOLAS.Quality` and colouring in the viewer",
-            "pending"
+            "**done** (20/11/2026)"
           ],
           [
             "L5",
@@ -1125,6 +1234,16 @@
             "the staircase does not show in a clip",
             "the cut faces look towards the removed side",
             "orbit the camera or press ⇄"
+          ],
+          [
+            "every sphere cell with `jacobian_ratio` ≈ 0.07",
+            "the mesh is tetrahedra split into hexahedra: such a hexahedron is not affine",
+            "that is its normal value (exactly 0.0741 in the regular tetrahedron); no warning above 0.05"
+          ],
+          [
+            "warning \"cells are left-handed in this file's convention\"",
+            "the format numbers that cell kind the other way round from VTK (gmsh prisms)",
+            "informative: signs are fixed per block"
           ]
         ]
       }
@@ -1152,6 +1271,10 @@
           [
             "**Drawing**",
             "surface, edges or both. Edges are the **elements'** edges, following the high-order nodes; the diagonals of the triangulation are never drawn. Adjustable opacity"
+          ],
+          [
+            "**Colour**",
+            "by zone or by a quality metric (L4), with a legend and the ten worst cells, clickable"
           ],
           [
             "**Layer**",
@@ -1190,6 +1313,101 @@
       {
         "t": "note",
         "x": "Checked on 20/11/2026 in a headless Chromium (QtWebEngine on an Xvnc display, software WebGL) with the turbine g2 and the sphere v1g2: zones, layer, clip, cell picking and views, no console errors. Trying it in your own browser is still yours to do."
+      }
+    ],
+    "nested_Quality": [
+      {
+        "t": "p",
+        "x": "Legolas tells an orc by its gait. Here seven numbers per cell are enough, plus knowing which one your solver looks at. `lg.quality` computes them on first request, numpy only: 1.3 s for the turbine g4 and 5 s for the 260,000 hexahedra of the sphere."
+      },
+      {
+        "t": "code",
+        "x": "print(lg.quality)                          # table, histograms and warnings\nlg.quality.worst('scaled_jacobian', 10)    # the worst, with their number in the file\nlg.quality.field('jacobian_ratio')         # one value per cell (numpy)\nlg.quality.issues()                        # same format as census.check()"
+      },
+      {
+        "t": "table",
+        "head": [
+          "metric",
+          "what it measures",
+          "better",
+          "warning / error"
+        ],
+        "rows": [
+          [
+            "`scaled_jacobian`",
+            "minimum of det J/(|∂ξ||∂η||∂ζ|): 1 for a cube, 0 flat, negative if inverted",
+            "high",
+            "< 0.2 / ≤ 0"
+          ],
+          [
+            "`jacobian_ratio`",
+            "min det J / max det J in the cell: what PyHOPE prints as \"scaled Jacobian\". Hexahedra only",
+            "high",
+            "< 0.05 / ≤ 0"
+          ],
+          [
+            "`aspect_ratio`",
+            "longest edge / shortest",
+            "low",
+            "— (huge is normal in a boundary layer)"
+          ],
+          [
+            "`skewness`",
+            "equiangle skewness of the worst face, 0 to 1",
+            "low",
+            "> 0.95"
+          ],
+          [
+            "`non_orthogonality`",
+            "angle between the normal of an inner face and the line joining the centroids",
+            "low",
+            "> 80°"
+          ],
+          [
+            "`volume_ratio`",
+            "largest volume jump with a neighbour",
+            "low",
+            "> 20"
+          ],
+          [
+            "`volume`",
+            "cell volume",
+            "—",
+            "—"
+          ]
+        ]
+      },
+      {
+        "t": "h",
+        "x": "Where it is evaluated"
+      },
+      {
+        "t": "p",
+        "x": "For hexahedra of order N, the Jacobian is computed at the (N+1)³ Gauss-Lobatto points from the Lagrange interpolant through the geometric nodes, which every format places **equispaced**; for N = 1 those points are the corners. The volume is the quadrature of det J on them. Linear tetrahedra, prisms and pyramids use the three edges of each corner, normalised so that the regular cell scores 1 (the pyramid apex has four and is skipped)."
+      },
+      {
+        "t": "note",
+        "x": "Orientation: VTK and gmsh number the prism the opposite way round, so in one format every prism may come out \"left-handed\". Each block keeps the orientation of its majority and only the minority comes out negative; when a whole block was turned round, an `info` says so. TIFON meshes (CODA prisms, gmsh 2.2) always do, and it is not an error."
+      },
+      {
+        "t": "h",
+        "x": "Checked against what we already knew"
+      },
+      {
+        "t": "p",
+        "x": "Turbine g1, g2 and g4: minimum `jacobian_ratio` 0.46, no negative cells. That is what PyHOPE gave for those meshes (0.4–0.5). The worst cells sit at the corners of the O-grid around the rotor (x = 3.66)."
+      },
+      {
+        "t": "p",
+        "x": "The `my_ESPHERE_1` sphere comes out with `jacobian_ratio` ≈ 0.074 in **every** cell. It is not a bug: the mesh is made of tetrahedra split into four hexahedra, and a hexahedron cut from a regular tetrahedron scores exactly 0.0741, with skewness 1/3 and scaled Jacobian 0.707. That is why the `jacobian_ratio` warning fires at 0.05 and not at 0.1."
+      },
+      {
+        "t": "h",
+        "x": "In the viewer"
+      },
+      {
+        "t": "p",
+        "x": "**Colour** paints surfaces and cuts by any of these metrics, from blue (better) to red (worse), with the p1–p99 range by default so that a couple of extreme cells do not flatten the scale. Below the legend come the ten worst: a click selects one, moves the cut plane to it if a cut is on, and brings the camera close, looking into the opening. The cell's card adds its metrics."
       }
     ]
   }

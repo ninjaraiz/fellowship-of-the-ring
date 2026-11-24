@@ -60,6 +60,11 @@ a.cell{color:var(--accent);cursor:pointer;text-decoration:underline}
   background:var(--bg);opacity:.9;padding:.15rem .45rem;border-radius:5px}
 #fatal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
   padding:2rem;text-align:center;color:var(--bad)}
+#legend{height:10px;border-radius:3px;margin:.35rem 0 .1rem;border:1px solid var(--line2)}
+.legend-row{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+#colorby{width:100%}
+#worst a{display:inline-block;margin:.1rem .35rem .1rem 0}
 @media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto 60vh}
   aside{max-height:40vh}}
 </style>
@@ -88,6 +93,17 @@ a.cell{color:var(--accent);cursor:pointer;text-decoration:underline}
   </div>
   <div class="row"><span class="muted" data-t="opacity"></span></div>
   <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="1">
+
+  <h2 data-t="color"></h2>
+  <select id="colorby"></select>
+  <label class="row"><input type="checkbox" id="robust" checked> <span data-t="robust"></span></label>
+  <div id="legendbox" style="display:none">
+   <div id="legend"></div>
+   <div class="legend-row"><span id="lleft"></span><span id="lright"></span></div>
+   <div class="legend-row"><span id="lgood"></span><span id="lbad"></span></div>
+   <div class="muted" style="margin-top:.45rem" data-t="worst"></div>
+   <div id="worst" class="mono"></div>
+  </div>
 
   <h2 data-t="section"></h2>
   <div class="row" id="secmode">
@@ -133,7 +149,10 @@ const TXT={
   loading:'cargando',drawn:'triángulos dibujados',stopped:'el servidor se ha parado: relanza lg.viewer.show()',
   nowebgl:'Este navegador no puede crear un contexto WebGL.',face:'cara',neighbour:'vecina',
   boundary:'frontera',file_cell:'elemento en el fichero',horses:'nº HORSES3D',centre:'centrar',
-  centroid:'centroide',zone:'zona',focus:'encuadrar esta zona',section_faces:'caras en el corte',unassigned:'sin BC',
+  centroid:'centroide',zone:'zona',focus:'encuadrar esta zona',
+  color:'Color',by_zone:'por zona',robust:'rango p1–p99 (sin extremos)',good:'mejor',
+  bad:'peor',low:'bajo',high:'alto',worst:'Peores celdas',computing:'calculando la calidad…',
+  quality:'Calidad',section_faces:'caras en el corte',unassigned:'sin BC',
   exterior:'exteriores',warn:'avisos del lector',big:'demasiado grande: se dibuja diezmada'},
  en:{zones:'Zones',all:'all',none:'none',display:'Drawing',both:'surface + edges',
   solid:'surface',edges:'edges',opacity:'Opacity',section:'Section',sec_none:'none',
@@ -143,7 +162,10 @@ const TXT={
   loading:'loading',drawn:'triangles drawn',stopped:'the server has stopped: run lg.viewer.show() again',
   nowebgl:'This browser cannot create a WebGL context.',face:'face',neighbour:'neighbour',
   boundary:'boundary',file_cell:'element in the file',horses:'HORSES3D no.',centre:'centre',
-  centroid:'centroid',zone:'zone',focus:'frame this zone',section_faces:'faces in the section',unassigned:'no BC',
+  centroid:'centroid',zone:'zone',focus:'frame this zone',
+  color:'Colour',by_zone:'by zone',robust:'range p1–p99 (no outliers)',good:'better',
+  bad:'worse',low:'low',high:'high',worst:'Worst cells',computing:'computing quality…',
+  quality:'Quality',section_faces:'faces in the section',unassigned:'no BC',
   exterior:'exterior',warn:'reader warnings',big:'too big: drawn decimated'},
 };
 let LANG='es';
@@ -161,6 +183,7 @@ let INFO=null;
 const ZONES=new Map();          // name -> {on, color, obj:{mesh,lines,triCell}|null, loading, stride}
 let DRAW='both', OPACITY=1, SEC={mode:'none', axis:0, t:0.5, side:-1, obj:null, seq:0};
 let PICKED=null, HIGHLIGHT=null;
+let COLOR={name:'', values:null, head:null};
 
 /* ── three.js ──────────────────────────────────────────────────────────── */
 const view=$('view');
@@ -255,7 +278,7 @@ function buildObject(arr,color){
  lg.setAttribute('position',new THREE.BufferAttribute(arr.edges,3));
  const lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({transparent:true,opacity:.55}));
  mesh.userData.triCell=arr.tri_cell;
- return {mesh,lines};
+ return {mesh,lines,baseColor:color};
 }
 function disposeObject(o){
  if(!o)return;
@@ -298,7 +321,7 @@ async function loadZone(name){
  z.loading=true; renderZones(); updateStatus();
  try{
   const {head,arr}=await getBin('/api/surface?zone='+encodeURIComponent(name));
-  z.obj=buildObject(arr,z.color); z.stride=head.stride;
+  z.obj=buildObject(arr,z.color); z.stride=head.stride; paint(z.obj);
   scene.add(z.obj.mesh); scene.add(z.obj.lines);
  }catch(e){z.error=String(e.message||e);}
  z.loading=false; renderZones(); applyStyle();
@@ -318,7 +341,7 @@ async function doSection(){
   const {head,arr}=await getBin(`/api/section?axis=${SEC.axis}&value=${v}&mode=${SEC.mode}&side=${SEC.side}`);
   if(seq!==SEC.seq)return;                       // a newer request is on its way
   disposeObject(SEC.obj);
-  SEC.obj=buildObject(arr,SECTION_COLOR); scene.add(SEC.obj.mesh); scene.add(SEC.obj.lines);
+  SEC.obj=buildObject(arr,SECTION_COLOR); paint(SEC.obj); scene.add(SEC.obj.mesh); scene.add(SEC.obj.lines);
   $('secinfo').textContent=` · ${fmt(head.n_faces)} ${t('section_faces')}`
     +(head.stride>1?` (${t('decimated')} ${head.stride})`:'');
  }catch(e){$('secinfo').textContent=' · '+e.message;}
@@ -369,12 +392,34 @@ function renderCell(){
  h+=`<table><tr><th>${t('face')}</th><th>${t('neighbour')}</th><th>${t('boundary')}</th></tr>`
    +c.faces.map(f=>`<tr><td>${f.face}</td><td>${f.neighbour===null?'—':`<a class="cell" data-cell="${f.neighbour}">#${fmt(f.neighbour)}</a>`}</td>`
      +`<td>${f.boundary?'<code>'+esc(f.boundary)+'</code>':'—'}</td></tr>`).join('')+'</table>';
+ if(c.quality){
+  h+=`<p class="muted" style="margin:.5rem 0 .1rem">${t('quality')}</p><table>`
+   +INFO.fields.map(f=>{const v=c.quality[f.name];
+     return `<tr><td>${esc(f.label[LANG])}</td><td class="mono">${v===null?'—':Number(v).toPrecision(4)}</td></tr>`;}).join('')
+   +'</table>';
+ }
  box.innerHTML=h;
  box.querySelectorAll('a.cell').forEach(a=>a.onclick=()=>pick(+a.dataset.cell));
  $('centre').onclick=()=>{controls.target.set(c.centroid[0]-o[0],c.centroid[1]-o[1],c.centroid[2]-o[2]);};
 }
 
 /* ── camera ────────────────────────────────────────────────────────────── */
+/* frame the picked cell, `scale` times its size, keeping the direction */
+function focusCell(scale){
+ if(!PICKED)return;
+ const o=INFO.origin, c=PICKED.centroid;
+ const ctr=new THREE.Vector3(c[0]-o[0],c[1]-o[1],c[2]-o[2]);
+ let r=0; for(const p of PICKED.corners)r=Math.max(r,Math.hypot(p[0]-c[0],p[1]-c[1],p[2]-c[2]));
+ r=Math.max(r,1e-9)*scale;
+ let dir=camera.position.clone().sub(controls.target).normalize();
+ if(SEC.mode==='clip'){        // look at the opening, from the removed side
+  dir=new THREE.Vector3(0.35,0.35,0.35); dir.setComponent(SEC.axis,-SEC.side);
+  dir.normalize();
+ }
+ const d=r/Math.sin(THREE.MathUtils.degToRad(camera.fov/2));
+ controls.target.copy(ctr); camera.position.copy(ctr.clone().add(dir.multiplyScalar(d)));
+ camera.near=Math.min(camera.near,r/100); camera.updateProjectionMatrix(); controls.update();
+}
 function radius(){const s=INFO.bbox.size; return 0.5*Math.hypot(s[0],s[1],s[2])||1;}
 function setView(dir,up){
  const r=radius(), d=r/Math.sin(THREE.MathUtils.degToRad(camera.fov/2))*1.05;
@@ -405,6 +450,91 @@ $('shot').onclick=()=>renderer.domElement.toBlob(b=>{
  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
  a.download=(INFO.title||'mesh').replace(/\.[^.]+$/,'')+'.png'; a.click();
  setTimeout(()=>URL.revokeObjectURL(a.href),2000);});
+
+/* ── colouring by a quality metric ─────────────────────────────────────── */
+/* good → bad: blue, light blue, pale yellow, orange, red (256-entry table) */
+const RAMP_STOPS=['#2c7bb6','#abd9e9','#ffffbf','#fdae61','#d7191c'].map(c=>new THREE.Color(c));
+const LUT=new Float32Array(256*3);
+for(let i=0;i<256;i++){
+ const x=i/255*(RAMP_STOPS.length-1), j=Math.min(Math.floor(x),RAMP_STOPS.length-2);
+ const c=RAMP_STOPS[j].clone().lerp(RAMP_STOPS[j+1],x-j);
+ LUT[3*i]=c.r; LUT[3*i+1]=c.g; LUT[3*i+2]=c.b;
+}
+const NAN_COLOR=new THREE.Color('#9aa0a6');
+function colorRange(){
+ const h=COLOR.head; return $('robust').checked?[h.p01,h.p99]:[h.min,h.max];
+}
+function paint(o){
+ if(!o)return;
+ const geo=o.mesh.geometry, mat=o.mesh.material;
+ if(!COLOR.values){
+  if(geo.getAttribute('color'))geo.deleteAttribute('color');
+  mat.vertexColors=false; mat.color.set(o.baseColor); mat.needsUpdate=true; return;
+ }
+ const [lo,hi]=colorRange(), span=hi>lo?hi-lo:1, flip=COLOR.head.better==='high';
+ const idx=geo.index.array, tc=o.mesh.userData.triCell;
+ const col=new Float32Array(geo.getAttribute('position').count*3);
+ for(let t=0;t<tc.length;t++){
+  const v=COLOR.values[tc[t]];
+  let r,g,b;
+  if(Number.isFinite(v)){
+   let u=(v-lo)/span; u=u<0?0:u>1?1:u; if(flip)u=1-u;
+   const k=3*Math.round(u*255); r=LUT[k]; g=LUT[k+1]; b=LUT[k+2];
+  }else{r=NAN_COLOR.r; g=NAN_COLOR.g; b=NAN_COLOR.b;}
+  for(let q=0;q<3;q++){const p=3*idx[3*t+q]; col[p]=r; col[p+1]=g; col[p+2]=b;}
+ }
+ geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+ mat.vertexColors=true; mat.color.set('#ffffff'); mat.needsUpdate=true;
+}
+function paintAll(){
+ for(const z of ZONES.values())paint(z.obj);
+ paint(SEC.obj); renderLegend();
+}
+async function setColor(name){
+ COLOR={name, values:null, head:null}; $('colorby').value=name;
+ if(name){
+  $('status').textContent=t('computing');
+  try{
+   const {head,arr}=await getBin('/api/field?name='+encodeURIComponent(name));
+   if(COLOR.name!==name)return;                    // another choice came first
+   COLOR.values=arr.values; COLOR.head=head;
+   const worst=await (await fetchOk(`/api/worst?name=${encodeURIComponent(name)}&n=10`)).json();
+   COLOR.worst=worst;
+   if(PICKED)pick(PICKED.cell);                    // its panel gains the metrics
+  }catch(e){$('status').textContent=e.message; return;}
+ }
+ paintAll(); updateStatus();
+}
+function renderColorOptions(){
+ const sel=$('colorby'), cur=COLOR.name;
+ sel.innerHTML=`<option value="">${esc(t('by_zone'))}</option>`
+  +INFO.fields.map(f=>`<option value="${f.name}">${esc(f.label[LANG])}</option>`).join('');
+ sel.value=cur;
+}
+function renderLegend(){
+ const box=$('legendbox');
+ if(!COLOR.values){box.style.display='none'; return;}
+ box.style.display='';
+ const h=COLOR.head, [lo,hi]=colorRange(), stops=RAMP_STOPS.map(c=>'#'+c.getHexString());
+ $('legend').style.background=`linear-gradient(90deg,${stops.join(',')})`;
+ const fmtv=v=>Number(v).toPrecision(4);
+ const left=h.better==='high'?hi:lo, right=h.better==='high'?lo:hi;
+ $('lleft').textContent=fmtv(left); $('lright').textContent=fmtv(right);
+ $('lgood').textContent=h.better?t('good'):t('low');
+ $('lbad').textContent=h.better?t('bad'):t('high');
+ const o=INFO.origin;
+ $('worst').innerHTML=(COLOR.worst||[]).map(w=>
+   `<a class="cell" data-cell="${w.cell}" title="${esc(w.kind)} ${w.order}">#${fmt(w.cell)} ${Number(w.value).toPrecision(3)}</a>`).join('');
+ $('worst').querySelectorAll('a.cell').forEach(a=>a.onclick=async()=>{
+  await pick(+a.dataset.cell);
+  if(PICKED&&SEC.mode!=='none'){                   // put the plane through it
+   const ax=SEC.axis, lo=INFO.bbox.min[ax], hi=INFO.bbox.max[ax];
+   SEC.t=hi>lo?(PICKED.centroid[ax]-lo)/(hi-lo):0.5; $('plane').value=SEC.t*1000;
+   clearTimeout(secTimer); applyStyle(); await doSection();
+  }
+  focusCell(12);
+ });
+}
 
 /* ── panel ─────────────────────────────────────────────────────────────── */
 function zoneLabel(name){
@@ -445,7 +575,8 @@ function applyLang(){
  document.documentElement.lang=LANG;
  document.querySelectorAll('[data-t]').forEach(e=>e.textContent=t(e.dataset.t));
  $('lang').textContent=LANG==='es'?'EN':'ES';
- if(INFO){renderHeader(); renderZones(); renderCell(); updatePlaneLabel();}
+ if(INFO){renderHeader(); renderZones(); renderCell(); updatePlaneLabel();
+  renderColorOptions(); renderLegend();}
 }
 function updateStatus(){
  let tris=0;
@@ -472,6 +603,8 @@ document.querySelectorAll('#axes button[data-axis]').forEach(b=>b.onclick=()=>{S
 $('side').onclick=()=>{SEC.side=-SEC.side; applyStyle(); requestSection();};
 $('plane').oninput=e=>{SEC.t=+e.target.value/1000; updatePlaneLabel(); applyStyle(); requestSection();};
 $('hidezones').onchange=applyStyle;
+$('colorby').onchange=e=>setColor(e.target.value);
+$('robust').onchange=()=>{paintAll();};
 
 /* keep the server alive while the page is open */
 setInterval(()=>fetch('/api/ping').catch(()=>{$('status').textContent=t('stopped');}),60000);
@@ -496,6 +629,7 @@ window.LEGOLAS_API={
  section:(mode,axis,tt)=>{SEC.axis=axis; SEC.t=tt; $('plane').value=tt*1000;
    setSecMode(mode); clearTimeout(secTimer); return doSection();},
  view:k=>document.querySelector(`#tools [data-view="${k}"]`).click(),
+ color:name=>setColor(name),
  show:names=>{for(const [n,z] of ZONES){z.on=names.includes(n); if(z.on)loadZone(n);} renderZones(); applyStyle();},
  focus:name=>focusZone(name),
  state:()=>({zones:[...ZONES].map(([n,z])=>({name:n,on:z.on,loaded:!!z.obj,stride:z.stride,error:z.error||null})),

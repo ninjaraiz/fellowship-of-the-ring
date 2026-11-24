@@ -39,6 +39,11 @@
             "desc": "Sizes, element kinds, zones and boundaries."
           },
           {
+            "name": "quality",
+            "type": "LEGOLAS.Quality",
+            "desc": "Cell quality metrics (Jacobians, aspect ratio, skewness…)."
+          },
+          {
             "name": "viewer",
             "type": "LEGOLAS.Viewer",
             "desc": "Web viewer: ``lg.viewer.show()`` returns the address to open."
@@ -730,6 +735,46 @@
           }
         },
         {
+          "id": "ViewerServer.field",
+          "class": "ViewerServer",
+          "name": "field",
+          "signature": "field(name: str)",
+          "returns": "bytes",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Payload of ``/api/field`` (a quality metric per cell).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "ViewerServer.worst",
+          "class": "ViewerServer",
+          "name": "worst",
+          "signature": "worst(name: str, n: int)",
+          "returns": "list",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Payload of ``/api/worst``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
           "id": "ViewerServer._watch",
           "class": "ViewerServer",
           "name": "_watch",
@@ -1284,6 +1329,229 @@
         }
       ],
       "defined_as": "Census"
+    },
+    {
+      "id": "LEGOLAS.Quality",
+      "file": "FotR/characters/legolas/quality.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "Cell quality: Jacobians, aspect ratio, skewness, non-orthogonality.",
+        "description": "Reached as ``lg.quality``. Metrics are computed once, on first use, and\ncached (:meth:`metrics`); see the module documentation for what each one\nmeans and where it is evaluated.",
+        "params": [
+          {
+            "name": "legolas",
+            "type": "LEGOLAS",
+            "desc": "The owner; the mesh is ``legolas.mesh``."
+          }
+        ],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "LEGOLAS.Quality.__init__",
+          "class": "LEGOLAS.Quality",
+          "name": "__init__",
+          "signature": "__init__(legolas)",
+          "returns": "",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality.mesh",
+          "class": "LEGOLAS.Quality",
+          "name": "mesh",
+          "signature": "mesh()",
+          "returns": "",
+          "kind": "property",
+          "is_private": false,
+          "doc": {
+            "summary": "The mesh being measured.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality.metrics",
+          "class": "LEGOLAS.Quality",
+          "name": "metrics",
+          "signature": "metrics()",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Every metric, as ``{name: (n_cells,) float array}``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    q = lg.quality.metrics()\n    q['scaled_jacobian'].min()"
+              }
+            ],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality._neighbour_metrics",
+          "class": "LEGOLAS.Quality",
+          "name": "_neighbour_metrics",
+          "signature": "_neighbour_metrics(out)",
+          "returns": "None",
+          "kind": "method",
+          "is_private": true,
+          "doc": {
+            "summary": "Non-orthogonality and volume jump, over inner faces.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality.field",
+          "class": "LEGOLAS.Quality",
+          "name": "field",
+          "signature": "field(name: str)",
+          "returns": "np.ndarray",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "One metric, ``(n_cells,)``.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality.summary",
+          "class": "LEGOLAS.Quality",
+          "name": "summary",
+          "signature": "summary()",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Statistics of every metric.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``{name: {'min', 'p01', 'p50', 'p99', 'max', 'n', 'warn', 'error'}}``: percentiles over the cells where the metric is defined, and how many cells pass the warning and error thresholds of :data:`METRICS` (on the bad side)."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality.worst",
+          "class": "LEGOLAS.Quality",
+          "name": "worst",
+          "signature": "worst(metric: str = 'scaled_jacobian', n: int = 20)",
+          "returns": "list",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "The *n* worst cells for *metric*.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "list[dict]",
+                "desc": "``cell``, ``value``, ``kind``, ``order``, ``centroid`` and ``file_cell`` (index in the file, when the reader keeps it; add one for HORSES3D's numbering), worst first."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality.issues",
+          "class": "LEGOLAS.Quality",
+          "name": "issues",
+          "signature": "issues()",
+          "returns": "list",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Findings in the format of :meth:`Census.check`.",
+            "description": "Inverted or flat cells (scaled Jacobian or Jacobian ratio <= 0) are\nerrors; the other thresholds of :data:`METRICS` give warnings.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Quality.report",
+          "class": "LEGOLAS.Quality",
+          "name": "report",
+          "signature": "report(bins: int = 10, width: int = 30)",
+          "returns": "str",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Plain-text table and a histogram per metric.",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "defined_as": "Quality"
     },
     {
       "id": "LEGOLAS.Viewer",
@@ -2525,6 +2793,178 @@
                 "desc": "``name``, ``type`` (tuple of ints from ``(/t,c,s,a/)``, or None if no ``BoundaryType`` follows) and ``line``, in file order."
               }
             ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        }
+      ],
+      "module": true
+    },
+    {
+      "id": "legolas.quality",
+      "file": "FotR/characters/legolas/quality.py",
+      "parent": null,
+      "bases": [],
+      "doc": {
+        "summary": "``LEGOLAS.Quality``: cell quality metrics, one value per cell.",
+        "description": "Metrics (all per cell, in the global cell order of the mesh):\n\n``scaled_jacobian``\n    Minimum over the sample points of ``det J / (|x_xi| |x_eta| |x_zeta|)``\n    (the Verdict measure): 1 for a perfect cube, 0 for a flat cell,\n    negative for an inverted one. Higher is better.\n``jacobian_ratio``\n    ``min det J / max det J`` over the sample points: what PyHOPE prints as\n    the \"scaled Jacobian\". 1 for an affine cell, <= 0 for an invalid one.\n    Higher is better. Hexahedra only (NaN for the linear kinds, whose\n    Jacobian is constant or piecewise constant).\n``aspect_ratio``\n    Longest over shortest corner edge. Lower is better; boundary layers are\n    expected to be large.\n``skewness``\n    Equiangle skewness of the worst face, 0 (ideal angles) to 1\n    (degenerate). Lower is better.\n``non_orthogonality``\n    Worst angle, in degrees, between a face normal and the line joining the\n    centroids of the two cells it separates (inner faces only). Lower is\n    better; it matters most to finite-volume solvers.\n``volume_ratio``\n    Largest ratio of volumes with a neighbour (>= 1). Lower is better.\n``volume``\n    Cell volume.\n\nWhere the Jacobian is evaluated: hexahedra of order N on the\n``(N+1)**3`` Gauss-Lobatto points of the reference cube, from the Lagrange\ninterpolant through the geometric nodes, which every supported format places\nat **equispaced** reference positions; for N = 1 those points are the\ncorners. Linear tetrahedra, prisms and pyramids use the three edges of each\ncorner (the apex of a pyramid has four and is skipped), normalised so that\nthe regular element scores 1.\n\nOrientation: a format's convention may make every cell of a kind\n\"left-handed\" (VTK and gmsh order the prism differently). Each block keeps\nthe orientation of its majority of cells; only the minority comes out\nnegative, and ``meta['flipped']`` says when a block was turned round.\n\nOnly numpy. SAM's finite-difference helpers are not used on purpose: they\nwould import SAM (and torch) into a module that must stay light.",
+        "params": [],
+        "returns": [],
+        "raises": [],
+        "attributes": [],
+        "methods": [],
+        "text_sections": [],
+        "has_doc": true
+      },
+      "methods": [
+        {
+          "id": "legolas.quality.gauss_lobatto",
+          "class": "legolas.quality",
+          "name": "gauss_lobatto",
+          "signature": "gauss_lobatto(n: int)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Gauss-Lobatto points and weights on [-1, 1] for order *n* (n+1 points).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.quality.lagrange",
+          "class": "legolas.quality",
+          "name": "lagrange",
+          "signature": "lagrange(nodes: np.ndarray, x: np.ndarray)",
+          "returns": "tuple",
+          "kind": "function",
+          "is_private": false,
+          "doc": {
+            "summary": "Lagrange basis through *nodes* and its derivative, evaluated at *x*.",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "L, D",
+                "type": "numpy.ndarray",
+                "desc": "``(len(x), len(nodes))``: ``L[a, i] = l_i(x_a)``, ``D[a, i] = l_i'(x_a)``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.quality._corner_triples",
+          "class": "legolas.quality",
+          "name": "_corner_triples",
+          "signature": "_corner_triples(kind: str)",
+          "returns": "list",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "For each corner, three neighbours ordered for a positive determinant on the reference element (corners with four neighbours are skipped).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.quality._hex_jacobian",
+          "class": "legolas.quality",
+          "name": "_hex_jacobian",
+          "signature": "_hex_jacobian(points, conn, order, chunk=None)",
+          "returns": "",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Jacobian extremes at the Gauss-Lobatto points, per cell (chunked).",
+            "description": "",
+            "params": [],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "``smin``, ``smax`` (scaled Jacobian), ``dmin``, ``dmax`` (det J) and ``vol`` (sum of det J times the GL weights), each ``(n_cells,)``."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.quality._linear_jacobian",
+          "class": "legolas.quality",
+          "name": "_linear_jacobian",
+          "signature": "_linear_jacobian(points, conn, kind)",
+          "returns": "",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Corner scaled Jacobians ``(n_cells, n_corners)``, normalised, and volume. The minimum is taken by the caller, once the block's orientation is known (taking it before turning the signs round would keep the best corner instead of the worst).",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.quality._edges",
+          "class": "legolas.quality",
+          "name": "_edges",
+          "signature": "_edges(kind)",
+          "returns": "",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "",
+            "description": "",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": false
+          }
+        },
+        {
+          "id": "legolas.quality._angles",
+          "class": "legolas.quality",
+          "name": "_angles",
+          "signature": "_angles(c)",
+          "returns": "",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Interior angles (degrees) of polygons ``c`` (m, k, 3).",
+            "description": "",
+            "params": [],
+            "returns": [],
             "raises": [],
             "attributes": [],
             "methods": [],

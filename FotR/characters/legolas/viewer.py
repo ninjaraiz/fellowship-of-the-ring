@@ -25,6 +25,10 @@ HTTP API (all ``GET``):
 * ``/api/section?axis=<0|1|2>&value=<x>&mode=<slice|clip>&side=<-1|1>`` --
   binary, the same arrays for the cells around a plane.
 * ``/api/cell?id=<n>`` -- JSON, :func:`.scene.cell_info`.
+* ``/api/field?name=<metric>`` -- binary, one float32 per cell
+  (:class:`.quality.Quality`), with ``min``, ``max``, ``p01``, ``p99`` and
+  ``better`` in the header; NaN where the metric is not defined.
+* ``/api/worst?name=<metric>&n=<k>`` -- JSON, the k worst cells.
 * ``/api/ping`` -- keeps the server alive.
 """
 
@@ -42,7 +46,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
+import numpy as np
+
 from . import scene
+from .quality import METRICS
 
 __all__ = ['Viewer', 'ViewerServer', 'ViewerHandle', 'launch', 'main']
 
@@ -83,6 +90,7 @@ class ViewerServer:
                  idle_timeout: float = 1800.0,
                  max_triangles: int = scene.MAX_TRIANGLES) -> None:
         from .census import Census
+        from .quality import Quality
 
         self.mesh = mesh
         path = mesh.meta.get('path')
@@ -98,6 +106,7 @@ class ViewerServer:
             self.page = fh.read()
         self.static = self._static_files()
         # everything the page asks for first is computed before "ready"
+        self.quality = Quality(SimpleNamespace(mesh=mesh))
         self.info = self._info(Census(SimpleNamespace(mesh=mesh)).summary())
         self.httpd = self._bind(host, int(port))
         self.httpd.viewer = self
@@ -157,6 +166,8 @@ class ViewerServer:
             'warnings': census['warnings'],
             'max_triangles': self.max_triangles,
             'has_file_index': 'file_cell_index' in m.meta,
+            'fields': [{'name': k, 'label': v['label'], 'better': v['better']}
+                       for k, v in METRICS.items()],
         }
 
     def _geometry(self, elem, face, header: dict) -> bytes:
@@ -187,7 +198,32 @@ class ViewerServer:
     def cell(self, cell: int) -> dict:
         """Payload of ``/api/cell``."""
         with self._lock:
-            return scene.cell_info(self.mesh, cell)
+            info = scene.cell_info(self.mesh, cell)
+            if self.quality._metrics is not None:
+                info['quality'] = {
+                    k: (None if not np.isfinite(v[cell]) else float(v[cell]))
+                    for k, v in self.quality.metrics().items()}
+            return info
+
+    def field(self, name: str) -> bytes:
+        """Payload of ``/api/field`` (a quality metric per cell)."""
+        with self._lock:
+            key = 'field:' + name
+            if key not in self._cache:
+                values = self.quality.field(name).astype(np.float32)
+                stats = self.quality.summary().get(name)
+                if stats is None:
+                    stats = {k: 0.0 for k in ('min', 'max', 'p01', 'p99')}
+                head = {'name': name, 'better': METRICS[name]['better']}
+                head.update({k: stats[k] for k in ('min', 'max', 'p01',
+                                                    'p99')})
+                self._cache[key] = scene.pack(head, {'values': values})
+            return self._cache[key]
+
+    def worst(self, name: str, n: int) -> list:
+        """Payload of ``/api/worst``."""
+        with self._lock:
+            return self.quality.worst(name, max(1, min(int(n), 1000)))
 
     # -- running ------------------------------------------------------------
     def _watch(self) -> None:
@@ -264,6 +300,12 @@ class _Handler(BaseHTTPRequestHandler):
                            'application/octet-stream')
             elif url.path == '/api/cell':
                 self._json(v.cell(int(arg('id', '-1'))))
+            elif url.path == '/api/field':
+                self._send(200, v.field(arg('name', '')),
+                           'application/octet-stream')
+            elif url.path == '/api/worst':
+                self._json(v.worst(arg('name', 'scaled_jacobian'),
+                                   int(arg('n', '10'))))
             else:
                 self._json({'error': 'not found'}, 404)
         except KeyError as exc:

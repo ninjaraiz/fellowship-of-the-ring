@@ -71,6 +71,20 @@
           "en": "Prints something like `http://127.0.0.1:8766/`; if the port is taken it tries the next 20."
         }
       }
+    ],
+    "nested_Quality": [
+      {
+        "title": {
+          "es": "Calidad de la turbina g2",
+          "en": "Quality of the turbine g2"
+        },
+        "source": "examples/legolas/quality_turbine.py",
+        "code": "import os\nfrom FotR import LEGOLAS\n\nsources = '/home/m.jaraiz/Documentos/COMAC/wind_turbine_ansa/sources'\n\n# Calidad de la malla g2 de la turbina: tabla, histogramas y avisos.\nlg = LEGOLAS(os.path.join(sources, 'Wind_turbine_disk_fluid_cgns_g2_mesh.h5'))\nprint(lg.quality)\n\n# Las cinco peores celdas por jacobiano; file_cell + 1 es el nº que imprime HORSES3D.\nfor w in lg.quality.worst('scaled_jacobian', 5):\n    print(w['cell'], round(w['value'], 3), w['file_cell'] + 1, [round(c, 3) for c in w['centroid']])\n\n# Los valores por celda, para lo que haga falta (numpy).\njr = lg.quality.field('jacobian_ratio')\nprint('jacobiano mín/máx (lo que imprime PyHOPE):', jr.min())\n\n# En el visor: Color -> jacobiano escalado, y un clic en las peores celdas.\n# lg.viewer.show()",
+        "note": {
+          "es": "Salen `jacobian_ratio` mínimo 0,463 y ningún aviso; las cinco peores, en x = 3,66, son los elementos 9343, 9339, 9209, 9402 y 9380 de HORSES3D.",
+          "en": "It gives a minimum `jacobian_ratio` of 0.463 and no warnings; the five worst, at x = 3.66, are HORSES3D elements 9343, 9339, 9209, 9402 and 9380."
+        }
+      }
     ]
   }
 }

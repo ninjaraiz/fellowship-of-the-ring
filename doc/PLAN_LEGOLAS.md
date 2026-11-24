@@ -186,11 +186,12 @@ tocar código, `graphify update .`.
 | hito | estado |
 |---|---|
 | L0 | **hecho** (20/11/2026): este documento y HANDOFF |
-| — | commits en la rama `legolas` (salida de `develop`): L0–L2 en `2208226`, L3 en el siguiente |
+| — | commits en la rama `legolas` (salida de `develop`): L0–L2 en `2208226`, L3 en `0fe65c6`, L4 en el siguiente |
 | L1 | **hecho** (20/11/2026): ver abajo |
 | L2 | **hecho** (20/11/2026): ver abajo |
 | L3 | **hecho** (20/11/2026): ver abajo |
-| L4–L7 | pendientes |
+| L4 | **hecho** (20/11/2026): ver abajo |
+| L5–L7 | pendientes |
 
 ### L1 (20/11/2026)
 
@@ -276,6 +277,30 @@ tocar código, `graphify update .`.
   `watertight` 1,1 s y `duplicates` 2,0 s con 2,2 M nodos.
 * Tests: `FotR/tests/test_legolas_census.py` (19); `FotR/tests/_legolas_meshes.py` con la caja
   de prueba común a censo y visor. Ejemplo: `examples/legolas/check_turbine.py`.
+
+### L4 (20/11/2026)
+
+* `quality.py` (solo numpy) y la clase anidada `LEGOLAS.Quality` (`lg.quality`): `metrics`,
+  `field`, `summary`, `worst`, `issues`, `report`. Métricas por celda: `scaled_jacobian`,
+  `jacobian_ratio` (mín/máx det J, la «scaled Jacobian» de PyHOPE), `aspect_ratio`,
+  `skewness`, `non_orthogonality`, `volume_ratio`, `volume`.
+* Hexaedros de orden N: jacobiano en los (N+1)³ puntos de Gauss-Lobatto con derivadas de
+  Lagrange sobre nodos geométricos **equiespaciados**, por trozos para acotar memoria. No se usa
+  `SAM.Backpack._fornberg_weights`: arrastraría SAM (y torch) a un módulo que debe ser ligero.
+  Lineales: aristas de cada esquina, normalizadas a 1 en la celda regular.
+* **Orientación por bloque:** VTK y gmsh numeran el prisma al revés; cada bloque toma la
+  orientación de su mayoría (`meta['flipped']`). Error encontrado al probar con TIFON: tomar el
+  mínimo por esquinas *antes* de girar el signo guardaba la mejor esquina (salían prismas con
+  1,155); ahora se gira antes.
+* Comprobado: celdas ideales dan 1; turbina g1/g2/g4 `jacobian_ratio` mínimo 0,46 sin negativos
+  (lo que dio PyHOPE). La esfera `my_ESPHERE_1` da ≈ 0,074 en todas: son tetraedros partidos en
+  hexaedros (0,0741 exacto en el regular), así que el aviso de `jacobian_ratio` va en 0,05.
+  TIFON `mesh_f22_v5.msh` (724 k prismas): 7 s; esfera (260 k hex p2): 5 s.
+* Visor: `/api/field` (float32 por celda, cabecera con p01/p99) y `/api/worst`; selector
+  **Color** con leyenda azul→rojo (mejor→peor), rango p1–p99 por defecto, las diez peores
+  clicables (seleccionan, llevan el plano de corte a la celda y acercan la cámara mirando a la
+  abertura) y métricas en la ficha de la celda.
+* Tests: `FotR/tests/test_legolas_quality.py` (24). Ejemplo: `examples/legolas/quality_turbine.py`.
 
 ### Decisiones abiertas (se resuelven al llegar al hito)
 

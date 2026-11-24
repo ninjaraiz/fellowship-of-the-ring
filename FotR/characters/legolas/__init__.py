@@ -16,6 +16,7 @@ import os
 from .census import Census
 from .io import read
 from .mesh import Boundary, CellBlock, Mesh
+from .quality import Quality
 from .viewer import Viewer
 
 __all__ = ['LEGOLAS', 'Mesh', 'CellBlock', 'Boundary', 'read']
@@ -42,6 +43,8 @@ class LEGOLAS:
         :mod:`FotR.characters.legolas.ordering`).
     census : LEGOLAS.Census
         Sizes, element kinds, zones and boundaries.
+    quality : LEGOLAS.Quality
+        Cell quality metrics (Jacobians, aspect ratio, skewness…).
     viewer : LEGOLAS.Viewer
         Web viewer: ``lg.viewer.show()`` returns the address to open.
 
@@ -58,6 +61,8 @@ class LEGOLAS:
 
     #: Inventory and checks of the mesh (:class:`.census.Census`).
     Census = Census
+    #: Cell quality metrics (:class:`.quality.Quality`).
+    Quality = Quality
     #: Web viewer of the mesh (:class:`.viewer.Viewer`).
     Viewer = Viewer
 
@@ -71,6 +76,7 @@ class LEGOLAS:
             self._source = (self.mesh.meta['path'], self.mesh.meta['format'],
                             dict(read_kwargs))
         self.census = LEGOLAS.Census(self)
+        self.quality = LEGOLAS.Quality(self)
         self.viewer = LEGOLAS.Viewer(self)
 
     @property
