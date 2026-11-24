@@ -959,8 +959,28 @@
         "x": "Mariño A, p2: 11 instantes de t = 0 a 30. En una capa z = 0,81 coloreada por u se ve la estela nacer detrás del disco (t = 3) y llegar a la salida (t = 15)."
       },
       {
+        "t": "h",
+        "x": "Estadísticas y valores en puntos"
+      },
+      {
+        "t": "p",
+        "x": "`lg.solution.load()` también lee los ficheros de estadísticas de HORSES3D (`<solución>.stats.hsol`, del bloque `#define statistics`): `u`, `v`, `w` y `Vmag` son la velocidad media, `uu`, `vv`, `ww`, `uv`, `uw` y `vw` las tensiones de Reynolds (fluctuaciones: ⟨u′u′⟩ = ⟨uu⟩ − ⟨u⟩²), `tke` la energía cinética turbulenta y `rho` la densidad media. Cada registro lleva los 9 momentos de la velocidad y, sin cabecera propia, las 5 variables conservativas medias (y sus gradientes, si se guardan): `read_stats` del núcleo los lee."
+      },
+      {
+        "t": "p",
+        "x": "`lg.solution.sample(xyz)` evalúa la solución cargada en puntos cualesquiera: localiza cada punto en su elemento (`lg.locate.points`, con la forma curva) y evalúa allí el polinomio de ese elemento. El valor es el de la discretización del solver, no una interpolación entre nodos. Los puntos fuera de la malla dan NaN. Sirve para perfiles a lo largo de líneas y planos."
+      },
+      {
+        "t": "code",
+        "x": "st = lg.solution.load('RESULTS/adA_g2p3.stats.hsol')       # medias de t = 35 a 40\ny = np.linspace(1.355 - 0.894, 1.355 + 0.894, 201)          # y/R de -2 a 2\nline = np.column_stack([np.full_like(y, 4.554), y, np.full_like(y, 0.817)])\nr = st.sample(line, ['u', 'tke'])\na = 1 - r['u']                                                # déficit de estela en x/D = 1"
+      },
+      {
         "t": "note",
-        "x": "Todavía no: ficheros de estadísticas (`.stats.hsol`: sus registros llevan más datos de los que dice su cabecera y el núcleo aún no los descifra), soluciones con p-adaptación, gradientes (vorticidad, criterio Q), superficies (`.surf.hsol`), dibujar las caras al orden de la solución cuando p > Ngeo (el deslizador de autoguardados ya está: abajo)."
+        "x": "Comprobado con la turbina de Mariño (modelo A, p = 2, estela estacionaria): la velocidad media muestreada en la posición de las seis sondas del `.control` coincide con la de las sondas hasta la cuarta cifra."
+      },
+      {
+        "t": "note",
+        "x": "Todavía no: soluciones con p-adaptación, gradientes (vorticidad, criterio Q), superficies (`.surf.hsol`), dibujar las caras al orden de la solución cuando p > Ngeo (el deslizador de autoguardados ya está: arriba)."
       }
     ]
   },
@@ -1924,8 +1944,28 @@
         "x": "Mariño A, p2: 11 instants from t = 0 to 30. On a layer z = 0.81 coloured by u the wake is born behind the disk (t = 3) and reaches the outlet (t = 15)."
       },
       {
+        "t": "h",
+        "x": "Statistics and values at points"
+      },
+      {
+        "t": "p",
+        "x": "`lg.solution.load()` also reads HORSES3D statistics files (`<solution>.stats.hsol`, from the `#define statistics` block): `u`, `v`, `w` and `Vmag` are the mean velocity, `uu`, `vv`, `ww`, `uv`, `uw` and `vw` the Reynolds stresses (fluctuations: ⟨u′u′⟩ = ⟨uu⟩ − ⟨u⟩²), `tke` the turbulent kinetic energy and `rho` the mean density. Each record holds the 9 velocity moments and, with no header of their own, the 5 mean conservative variables (and their gradients, when saved): the core's `read_stats` reads them."
+      },
+      {
+        "t": "p",
+        "x": "`lg.solution.sample(xyz)` evaluates the loaded solution at any points: it locates each point in its element (`lg.locate.points`, with the curved shape) and evaluates that element's polynomial there. The value is that of the solver's discretization, not an interpolation between nodes. Points outside the mesh give NaN. Use it for profiles along lines and planes."
+      },
+      {
+        "t": "code",
+        "x": "st = lg.solution.load('RESULTS/adA_g2p3.stats.hsol')       # averages from t = 35 to 40\ny = np.linspace(1.355 - 0.894, 1.355 + 0.894, 201)          # y/R from -2 to 2\nline = np.column_stack([np.full_like(y, 4.554), y, np.full_like(y, 0.817)])\nr = st.sample(line, ['u', 'tke'])\na = 1 - r['u']                                                # wake deficit at x/D = 1"
+      },
+      {
         "t": "note",
-        "x": "Not yet: statistics files (`.stats.hsol`: their records carry more data than their header says and the core does not decode them yet), p-adaptive solutions, gradients (vorticity, Q criterion), surfaces (`.surf.hsol`), drawing faces at the solution's order when p > Ngeo (the autosave slider is there: below)."
+        "x": "Checked on the Mariño turbine (model A, p = 2, steady wake): the mean velocity sampled at the six probes of the `.control` matches the probes to the fourth digit."
+      },
+      {
+        "t": "note",
+        "x": "Not yet: p-adaptive solutions, gradients (vorticity, Q criterion), surfaces (`.surf.hsol`), drawing faces at the solution's order when p > Ngeo (the autosave slider is there: above)."
       }
     ]
   }

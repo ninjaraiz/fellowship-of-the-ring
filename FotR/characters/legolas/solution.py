@@ -20,8 +20,19 @@ primitive_variables`; incompressible runs have no ``T`` nor ``Mach``) and
 ``Vmag``. They are computed at the solution nodes and then interpolated.
 Other files keep their raw components ``q0``, ``q1``…
 
-Not yet: statistics files (``.stats.hsol``, which the reader core does not
-decode), p-adaptive solutions, gradients (vorticity, Q criterion) and
+Statistics files (``.stats.hsol``, ``#define statistics``) load the time
+averages: ``u``, ``v``, ``w`` and ``Vmag`` are the mean velocity, ``uu``,
+``vv``, ``ww``, ``uv``, ``uw``, ``vw`` the Reynolds stresses (fluctuations,
+``<u'u'> = <uu> - <u>**2``), ``tke`` the turbulent kinetic energy and ``rho``
+the mean density.
+
+:meth:`Solution.sample` evaluates the loaded variables at any points: each
+point is located in its element (:meth:`LEGOLAS.Locate.points`, curved
+shapes included) and the polynomial of that element is evaluated at its
+reference coordinates, so profiles along lines or planes keep the order of
+the solution.
+
+Not yet: p-adaptive solutions, gradients (vorticity, Q criterion) and
 surfaces (``.surf.hsol``).
 """
 
@@ -68,6 +79,22 @@ def read_control_keys(path, keys=('mesh file name', 'solution file name',
     return out
 
 
+def _stats_variables(M, refs: dict, physical: bool) -> dict:
+    """Mean velocity, Reynolds stresses, TKE and mean density from the 9
+    moments of a statistics file and its mean density (last component)."""
+    V = refs['V_ref'] if physical else 1.0
+    R = refs['rho_ref'] if physical else 1.0
+    u, v, w = M[..., 0], M[..., 1], M[..., 2]
+    out = {'u': u * V, 'v': v * V, 'w': w * V,
+           'Vmag': np.sqrt(u ** 2 + v ** 2 + w ** 2) * V}
+    for k, (name, a, b) in enumerate((('uu', u, u), ('vv', v, v), ('ww', w, w),
+                                      ('uv', u, v), ('uw', u, w), ('vw', v, w))):
+        out[name] = (M[..., 3 + k] - a * b) * V ** 2
+    out['tke'] = 0.5 * (out['uu'] + out['vv'] + out['ww'])
+    out['rho'] = M[..., 9] * R
+    return out
+
+
 def _finite_range(v) -> tuple:
     v = v[np.isfinite(v)]
     return (float(v.min()), float(v.max())) if len(v) else (np.nan, np.nan)
@@ -103,6 +130,8 @@ class Solution:
         self.physical = False
         self._node = {}
         self._cell = {}
+        self._raw = {}
+        self._xs = None
 
     @property
     def mesh(self):
@@ -120,7 +149,8 @@ class Solution:
         Parameters
         ----------
         path : str or path-like
-            A volume solution (final or autosave) of this very mesh.
+            A volume solution (final or autosave) of this very mesh, or a
+            statistics file (``.stats.hsol``) of it.
         physical : bool
             SI units (kg/m3, m/s, Pa, K) instead of the solver's
             non-dimensional ones.
@@ -144,15 +174,22 @@ class Solution:
             sol = lg.solution.load('RESULTS/adA_g2p3.hsol')
             sol.variables, sol.node_field('Mach').shape
             lg.viewer.show(solution='RESULTS/adA_g2p3.hsol')
+            st = lg.solution.load('RESULTS/adA_g2p3.stats.hsol')
+            st.variables          # u v w Vmag uu vv ww uv uw vw tke rho
         """
         from FotR.solver_tools import horses3d as h3d
 
         m = self.mesh
         if any(b.kind != 'hex' for b in m.blocks):
             raise ValueError('solutions need a mesh of hexahedra')
-        data = h3d.read_solution(path)
+        stats = h3d.read_header(path).file_type == 4
+        if stats:
+            data = h3d.read_stats(path)
+            Q = np.concatenate([data['moments'], data['Q'][..., :1]], axis=-1)
+        else:
+            data = h3d.read_solution(path)
+            Q = data['Q']
         header = data['header']
-        Q = data['Q']
         if isinstance(Q, list):
             raise NotImplementedError(f'{path}: elements of different orders '
                                       '(p-adaptation) are not supported yet')
@@ -167,7 +204,9 @@ class Solution:
             raise NotImplementedError(f'{path}: anisotropic orders')
         p = nx - 1
         Q = Q[fidx]                                   # file order -> cells
-        if Q.shape[-1] == 5:
+        if stats:
+            raw = _stats_variables(Q, header.refs, physical)
+        elif Q.shape[-1] == 5:
             raw = h3d.primitive_variables(Q, header.refs, physical=physical)
             raw['Vmag'] = np.sqrt(raw['u'] ** 2 + raw['v'] ** 2
                                   + raw['w'] ** 2)
@@ -194,7 +233,59 @@ class Solution:
         self.p = p
         self.physical = physical
         self._node, self._cell = node, cell
+        self._raw, self._xs = raw, xs
         return self
+
+    def sample(self, xyz, variables=None) -> dict:
+        """Evaluate the loaded solution at any points.
+
+        Each point is located in its element (:meth:`LEGOLAS.Locate.points`,
+        with the curved shape of the element) and the solution polynomial of
+        that element is evaluated at the point's reference coordinates: the
+        value is that of the solver's own discretization, not an
+        interpolation between nodes. Points outside the mesh get NaN.
+
+        Parameters
+        ----------
+        xyz : array_like
+            ``(n, 3)`` points, in the units of the mesh.
+        variables : list of str, optional
+            Default: every loaded variable.
+
+        Returns
+        -------
+        dict
+            One ``(n,)`` array per variable, plus ``cell`` (``-1`` outside)
+            and ``xi`` (reference coordinates).
+
+        Examples
+        --------
+        ::
+
+            st = lg.solution.load('RESULTS/adA_g2p3.stats.hsol')
+            y = np.linspace(1.355 - 0.894, 1.355 + 0.894, 201)
+            line = np.column_stack([np.full_like(y, 4.554), y,
+                                    np.full_like(y, 0.817)])
+            a = 1 - st.sample(line, ['u'])['u']     # wake deficit at x/D = 1
+        """
+        if not self._raw:
+            raise RuntimeError('no solution loaded: call load(path) first')
+        names = list(variables or self.variables)
+        for n in names:
+            self._check(n)
+        loc = self._lg.locate.points(xyz)
+        cell, xi = loc['cell'], loc['xi']
+        ok = cell >= 0
+        out = {'cell': cell, 'xi': xi}
+        Lx = lagrange(self._xs, xi[ok, 0])[0]
+        Ly = lagrange(self._xs, xi[ok, 1])[0]
+        Lz = lagrange(self._xs, xi[ok, 2])[0]
+        for n in names:
+            v = np.full(len(cell), np.nan)
+            v[ok] = np.einsum('ak,aj,ai,akji->a', Lz, Ly, Lx,
+                              self._raw[n][cell[ok]], optimize=True)
+            out[n] = v
+        return out
 
     # -- reading the values -------------------------------------------------
     def _check(self, name):

@@ -2695,7 +2695,7 @@
               {
                 "name": "path",
                 "type": "str or path-like",
-                "desc": "A volume solution (final or autosave) of this very mesh."
+                "desc": "A volume solution (final or autosave) of this very mesh, or a statistics file (``.stats.hsol``) of it."
               },
               {
                 "name": "physical",
@@ -2722,7 +2722,49 @@
             "text_sections": [
               {
                 "title": "Examples",
-                "text": "::\n\n    lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\n    sol = lg.solution.load('RESULTS/adA_g2p3.hsol')\n    sol.variables, sol.node_field('Mach').shape\n    lg.viewer.show(solution='RESULTS/adA_g2p3.hsol')"
+                "text": "::\n\n    lg = LEGOLAS('MESH/Wind_turbine_disk_fluid_cgns_g2_mesh.h5')\n    sol = lg.solution.load('RESULTS/adA_g2p3.hsol')\n    sol.variables, sol.node_field('Mach').shape\n    lg.viewer.show(solution='RESULTS/adA_g2p3.hsol')\n    st = lg.solution.load('RESULTS/adA_g2p3.stats.hsol')\n    st.variables          # u v w Vmag uu vv ww uv uw vw tke rho"
+              }
+            ],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "LEGOLAS.Solution.sample",
+          "class": "LEGOLAS.Solution",
+          "name": "sample",
+          "signature": "sample(xyz, variables=None)",
+          "returns": "dict",
+          "kind": "method",
+          "is_private": false,
+          "doc": {
+            "summary": "Evaluate the loaded solution at any points.",
+            "description": "Each point is located in its element (:meth:`LEGOLAS.Locate.points`,\nwith the curved shape of the element) and the solution polynomial of\nthat element is evaluated at the point's reference coordinates: the\nvalue is that of the solver's own discretization, not an\ninterpolation between nodes. Points outside the mesh get NaN.",
+            "params": [
+              {
+                "name": "xyz",
+                "type": "array_like",
+                "desc": "``(n, 3)`` points, in the units of the mesh."
+              },
+              {
+                "name": "variables",
+                "type": "list of str, optional",
+                "desc": "Default: every loaded variable."
+              }
+            ],
+            "returns": [
+              {
+                "name": "",
+                "type": "dict",
+                "desc": "One ``(n,)`` array per variable, plus ``cell`` (``-1`` outside) and ``xi`` (reference coordinates)."
+              }
+            ],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [
+              {
+                "title": "Examples",
+                "text": "::\n\n    st = lg.solution.load('RESULTS/adA_g2p3.stats.hsol')\n    y = np.linspace(1.355 - 0.894, 1.355 + 0.894, 201)\n    line = np.column_stack([np.full_like(y, 4.554), y,\n                            np.full_like(y, 0.817)])\n    a = 1 - st.sample(line, ['u'])['u']     # wake deficit at x/D = 1"
               }
             ],
             "has_doc": true
@@ -4784,7 +4826,7 @@
       "bases": [],
       "doc": {
         "summary": "``LEGOLAS.Solution``: a HORSES3D solution on the mesh, node by node.",
-        "description": "A ``.hsol`` stores, per element, the solution at ``(p+1)**3`` Gauss or\nGauss-Lobatto nodes, in the element order of the mesh ``.h5`` and with ``i``\nrunning fastest along xi. The mesh in LEGOLAS has its own nodes: the\ngeometric ones, equispaced, of order Ngeo. :meth:`Solution.load` evaluates\nthe solution's polynomial of each element at those nodes, so the viewer can\ncolour every face vertex with the value of *its* element: the jumps of a DG\nsolution between elements stay visible, nothing is averaged.\n\nChecked on 24/11/2026 against the solver itself: the LEGOLAS geometry\nevaluated at the solution nodes reproduces the coordinates of HORSES3D's\n``.hmesh`` to 1e-14 (turbine, Gauss nodes, p = 2, 3, 4; sphere,\nGauss-Lobatto, p = 2). Element order, node order and node positions are\ntherefore the solver's.\n\nVariables: with the 5 conservative variables, ``rho``, ``u``, ``v``, ``w``,\n``p``, ``T``, ``Mach``, ``Cp`` (:func:`FotR.solver_tools.horses3d.\nprimitive_variables`; incompressible runs have no ``T`` nor ``Mach``) and\n``Vmag``. They are computed at the solution nodes and then interpolated.\nOther files keep their raw components ``q0``, ``q1``…\n\nNot yet: statistics files (``.stats.hsol``, which the reader core does not\ndecode), p-adaptive solutions, gradients (vorticity, Q criterion) and\nsurfaces (``.surf.hsol``).",
+        "description": "A ``.hsol`` stores, per element, the solution at ``(p+1)**3`` Gauss or\nGauss-Lobatto nodes, in the element order of the mesh ``.h5`` and with ``i``\nrunning fastest along xi. The mesh in LEGOLAS has its own nodes: the\ngeometric ones, equispaced, of order Ngeo. :meth:`Solution.load` evaluates\nthe solution's polynomial of each element at those nodes, so the viewer can\ncolour every face vertex with the value of *its* element: the jumps of a DG\nsolution between elements stay visible, nothing is averaged.\n\nChecked on 24/11/2026 against the solver itself: the LEGOLAS geometry\nevaluated at the solution nodes reproduces the coordinates of HORSES3D's\n``.hmesh`` to 1e-14 (turbine, Gauss nodes, p = 2, 3, 4; sphere,\nGauss-Lobatto, p = 2). Element order, node order and node positions are\ntherefore the solver's.\n\nVariables: with the 5 conservative variables, ``rho``, ``u``, ``v``, ``w``,\n``p``, ``T``, ``Mach``, ``Cp`` (:func:`FotR.solver_tools.horses3d.\nprimitive_variables`; incompressible runs have no ``T`` nor ``Mach``) and\n``Vmag``. They are computed at the solution nodes and then interpolated.\nOther files keep their raw components ``q0``, ``q1``…\n\nStatistics files (``.stats.hsol``, ``#define statistics``) load the time\naverages: ``u``, ``v``, ``w`` and ``Vmag`` are the mean velocity, ``uu``,\n``vv``, ``ww``, ``uv``, ``uw``, ``vw`` the Reynolds stresses (fluctuations,\n``<u'u'> = <uu> - <u>**2``), ``tke`` the turbulent kinetic energy and ``rho``\nthe mean density.\n\n:meth:`Solution.sample` evaluates the loaded variables at any points: each\npoint is located in its element (:meth:`LEGOLAS.Locate.points`, curved\nshapes included) and the polynomial of that element is evaluated at its\nreference coordinates, so profiles along lines or planes keep the order of\nthe solution.\n\nNot yet: p-adaptive solutions, gradients (vorticity, Q criterion) and\nsurfaces (``.surf.hsol``).",
         "params": [],
         "returns": [],
         "raises": [],
@@ -4825,6 +4867,26 @@
           "doc": {
             "summary": "Values of some keys of a HORSES3D ``.control`` (comments dropped).",
             "description": "Keys are matched without case; values lose their quotes.",
+            "params": [],
+            "returns": [],
+            "raises": [],
+            "attributes": [],
+            "methods": [],
+            "text_sections": [],
+            "has_doc": true
+          }
+        },
+        {
+          "id": "legolas.solution._stats_variables",
+          "class": "legolas.solution",
+          "name": "_stats_variables",
+          "signature": "_stats_variables(M, refs: dict, physical: bool)",
+          "returns": "dict",
+          "kind": "function",
+          "is_private": true,
+          "doc": {
+            "summary": "Mean velocity, Reynolds stresses, TKE and mean density from the 9 moments of a statistics file and its mean density (last component).",
+            "description": "",
             "params": [],
             "returns": [],
             "raises": [],

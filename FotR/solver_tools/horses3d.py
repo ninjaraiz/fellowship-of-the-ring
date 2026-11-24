@@ -39,6 +39,13 @@ Then one record per element, in global element order:
 * with ``save les with solution``, the total and the subgrid viscosity,
   ``(N+1)^3`` each. The header does not say so: it is deduced from the size.
 
+A statistics file (type 4, ``HexMesh_SaveStatistics``) has the same header
+and one record per element made of the int32 ``4``, the dimensions
+``(9, Nx+1, Ny+1, Nz+1)`` and the 9 velocity moments
+(:data:`STATS_MOMENTS`), followed with no header by the 5 mean conservative
+variables and, if the statistics keep gradients, by their 3 gradients
+(``n_grad x (N+1)^3`` each). :func:`read_stats` reads them.
+
 The file ends with an int32 ``99``. Its absence means that the solver is
 still writing it, or that it was truncated.
 
@@ -62,7 +69,8 @@ import numpy as np
 __all__ = [
     'FILE_TYPES', 'NODE_TYPES', 'HorsesHeader', 'HorsesLayout',
     'IncompleteFileError', 'read_header', 'scan', 'read_solution',
-    'read_mesh', 'to_nodes', 'primitive_variables', 'find_solutions',
+    'read_mesh', 'read_stats', 'STATS_MOMENTS', 'to_nodes',
+    'primitive_variables', 'find_solutions',
 ]
 
 HEADER_SIZE = 204
@@ -81,6 +89,12 @@ FILE_TYPES = {
     8: 'SOLUTION_AND_SENSOR',
     9: 'SOLUTION_AND_GRADIENTS_AND_SENSOR',
 }
+
+#: The 9 moments of a statistics file, in file order (``StatisticsMonitor.f90``):
+#: time averages of the velocity components and of their products,
+#: non-dimensional with ``V_ref``. They are raw second moments, not
+#: fluctuations: ``<u'u'> = UU - U**2``.
+STATS_MOMENTS = ('U', 'V', 'W', 'UU', 'VV', 'WW', 'UV', 'UW', 'VW')
 
 #: Node type codes (``Discretization nodes`` in the control file).
 NODE_TYPES = {1: 'Gauss', 2: 'Gauss-Lobatto'}
@@ -472,6 +486,85 @@ def read_solution(path, elements=None, layout: HorsesLayout | None = None) -> di
         les = _field(recs, 'les', uniform)
         out['mu_total'] = les[:, 0] if uniform else [m[0] for m in les]
         out['mu_sgs'] = les[:, 1] if uniform else [m[1] for m in les]
+    return out
+
+
+def read_stats(path, elements=None) -> dict:
+    """Read a statistics file (``#define statistics``, ``.stats.hsol``).
+
+    Parameters
+    ----------
+    path : str or path-like
+        Statistics file (type 4): the final ``<solution>.stats.hsol`` or a
+        dump ``<solution>.stats.<iteration>.hsol``.
+    elements : array-like of int, optional
+        Global element indices, starting at 0, in the order wanted. Only
+        those records are read. Default: all.
+
+    Returns
+    -------
+    dict
+        * ``header``: :class:`HorsesHeader`; ``elements``: the indices read;
+          ``order``: the polynomial orders ``(Nx, Ny, Nz)``.
+        * ``moments``: ``(n_sel, Nz+1, Ny+1, Nx+1, 9)``, the averages of
+          :data:`STATS_MOMENTS`, non-dimensional with ``V_ref``.
+        * ``Q``: mean conservative variables, ``(n_sel, Nz+1, Ny+1, Nx+1, 5)``.
+        * ``U_x``, ``U_y``, ``U_z``: mean gradients, if the file has them.
+
+    Raises
+    ------
+    ValueError
+        If the file is not a statistics file or its size does not match.
+    IncompleteFileError
+        If the file has no end marker.
+    NotImplementedError
+        If the elements have different orders (p-adaptation).
+
+    Examples
+    --------
+    ::
+
+        st = read_stats('RESULTS/adA_g2p3.stats.hsol')
+        U = st['moments'][..., 0]                       # mean u / V_ref
+        uu = st['moments'][..., 3] - U ** 2             # <u'u'> / V_ref**2
+    """
+    header = read_header(path)
+    if header.file_type != 4:
+        raise ValueError(f"{header.path}: file type {header.file_type} "
+                         f"({header.file_type_name}), not a statistics file")
+    if not header.complete:
+        raise IncompleteFileError(f"{header.path}: no end marker (still being written?)")
+    ne = header.n_elements
+    with open(header.path, 'rb') as f:
+        f.seek(HEADER_SIZE)
+        first = np.fromfile(f, dtype=_RECORD_HEAD, count=1)[0]
+    if first['nd'] != 4 or first['dims'][0] != len(STATS_MOMENTS):
+        raise ValueError(f"{header.path}: first record is not a statistics record")
+    nx, ny, nz = (int(n) for n in first['dims'][1:])
+    nodes = nx * ny * nz
+    per_element, rem = divmod(header.size - HEADER_SIZE - 4, ne)
+    extra, rem2 = divmod(per_element - 20 - 8 * nodes * (len(STATS_MOMENTS) + 5), 8 * nodes)
+    if rem or rem2 or extra < 0 or extra % 3:
+        raise NotImplementedError(f"{header.path}: {per_element} bytes per element do not "
+                                  f"match a uniform order {nx - 1, ny - 1, nz - 1} "
+                                  "(p-adaptation is not supported)")
+    n_grad = extra // 3
+    fields = [('nd', '<i4'), ('dims', '<i4', 4),
+              ('m', '<f8', (nz, ny, nx, len(STATS_MOMENTS))), ('q', '<f8', (nz, ny, nx, 5))]
+    if n_grad:
+        fields.append(('grad', '<f8', (3, nz, ny, nx, n_grad)))
+    idx = _selection(elements, ne)
+    mm = np.memmap(header.path, dtype=np.dtype(fields), mode='r', offset=HEADER_SIZE, shape=(ne,))
+    recs = mm[idx].view(np.ndarray)
+    del mm
+    bad = (recs['nd'] != 4) | np.any(recs['dims'] != [len(STATS_MOMENTS), nx, ny, nz], axis=1)
+    if np.any(bad):
+        raise ValueError(f"{header.path}: corrupt record for element {int(idx[np.argmax(bad)])}")
+    out = {'header': header, 'elements': idx, 'order': (nx - 1, ny - 1, nz - 1),
+           'moments': recs['m'], 'Q': recs['q']}
+    if n_grad:
+        for d, name in enumerate(('U_x', 'U_y', 'U_z')):
+            out[name] = recs['grad'][:, d]
     return out
 
 

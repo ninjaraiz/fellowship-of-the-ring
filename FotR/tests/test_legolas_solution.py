@@ -17,7 +17,7 @@ from FotR.characters.legolas.solution import (read_control_keys,
                                               solution_nodes)
 
 from _legolas_meshes import box_mesh
-from test_horses3d_hsol import REFS, write_horses_file
+from test_horses3d_hsol import REFS, write_horses_file, write_stats_file
 
 MARINO = os.path.expanduser('~/Documentos/COMAC/wind_turbine_marino2024/'
                             'model_A/outputs/marino_A_tsr_6.0')
@@ -257,3 +257,95 @@ def test_viewer_serves_every_frame(tmp_path):
         assert srv.info['series'] == []
     finally:
         srv.stop()
+
+
+# ---------------------------------------------------------------------------
+# Statistics and sampling at points
+# ---------------------------------------------------------------------------
+
+def write_box_stats(path, p, node_type, nx=NX, ny=NY, nz=NZ):
+    """Statistics of the unit-cell box with a linear mean velocity
+    U = (x, 2 y, z), <uu> = U**2 + 0.01, <vv> = V**2 + 0.04, <ww> = W**2
+    + 0.09, <uv> = U V + 0.005 (the other products without fluctuation)
+    and a mean density 1 + 0.1 x."""
+    xs = (solution_nodes(p, node_type) + 1) / 2
+    moments, means = [], []
+    for ek in range(nz):
+        for ej in range(ny):
+            for ei in range(nx):
+                X, Y, Z = np.meshgrid(ei + xs, ej + xs, ek + xs, indexing='ij')
+                U, V, W = X, 2 * Y, Z
+                moments.append(np.stack([U, V, W, U ** 2 + 0.01, V ** 2 + 0.04,
+                                         W ** 2 + 0.09, U * V + 0.005, U * W, V * W]))
+                means.append(np.stack([1 + 0.1 * X, U, V, W, 3000 + 0 * X]))
+    return write_stats_file(path, moments, means, node_type=node_type)
+
+
+@pytest.mark.parametrize('node_type', [1, 2])
+def test_statistics_variables(tmp_path, node_type):
+    path = write_box_stats(tmp_path / 'b.stats.hsol', 3, node_type)
+    lg = LEGOLAS(box_mesh(NX, NY, NZ, order=2, with_bcs=False))
+    st = lg.solution.load(path)
+    assert st.variables == ['u', 'v', 'w', 'Vmag', 'uu', 'vv', 'ww', 'uv',
+                            'uw', 'vw', 'tke', 'rho']
+    x = lg.mesh.points[lg.mesh.blocks[0].conn]
+    np.testing.assert_allclose(st.node_field('v'), 2 * x[..., 1], atol=1e-11)
+    np.testing.assert_allclose(st.node_field('uu'), 0.01, atol=1e-10)
+    np.testing.assert_allclose(st.node_field('uv'), 0.005, atol=1e-10)
+    np.testing.assert_allclose(st.node_field('uw'), 0.0, atol=1e-10)
+    np.testing.assert_allclose(st.node_field('tke'), 0.07, atol=1e-10)
+    np.testing.assert_allclose(st.node_field('rho'), 1 + 0.1 * x[..., 0], atol=1e-11)
+    phys = lg.solution.load(path, physical=True)
+    V, R = REFS[2], REFS[3]
+    np.testing.assert_allclose(phys.node_field('u'), x[..., 0] * V, rtol=1e-11, atol=1e-9)
+    np.testing.assert_allclose(phys.node_field('tke'), 0.07 * V ** 2, rtol=1e-9)
+    np.testing.assert_allclose(phys.node_field('rho'), (1 + 0.1 * x[..., 0]) * R, rtol=1e-11)
+
+
+@pytest.mark.parametrize('ngeo', [1, 3])
+def test_sample_evaluates_the_element_polynomial(tmp_path, ngeo):
+    lg = LEGOLAS(box_mesh(NX, NY, NZ, order=ngeo, with_bcs=False))
+    rng = np.random.default_rng(3)
+    pts = rng.uniform([0, 0, 0], [NX, NY, NZ], size=(50, 3))
+    pts = np.vstack([pts, [[NX + 1.0, 0.5, 0.5]]])        # one point outside
+    sol = lg.solution.load(write_box_solution(tmp_path / 's.hsol', 3, 1, linear))
+    r = sol.sample(pts)
+    exp = linear(*pts.T)
+    for k in range(3):
+        np.testing.assert_allclose(r[f'q{k}'][:-1], exp[k][:-1], atol=1e-11)
+    assert r['cell'][-1] == -1 and np.isnan(r['q0'][-1])
+    st = lg.solution.load(write_box_stats(tmp_path / 'b.stats.hsol', 2, 2))
+    r = st.sample(pts[:-1], ['u', 'w', 'tke'])
+    np.testing.assert_allclose(r['u'], pts[:-1, 0], atol=1e-11)
+    np.testing.assert_allclose(r['w'], pts[:-1, 2], atol=1e-11)
+    np.testing.assert_allclose(r['tke'], 0.07, atol=1e-10)
+    assert set(r) == {'cell', 'xi', 'u', 'w', 'tke'}
+    with pytest.raises(KeyError):
+        st.sample(pts[:2], ['p'])
+
+
+def test_sample_needs_a_solution():
+    lg = LEGOLAS(box_mesh(NX, NY, NZ, order=1, with_bcs=False))
+    with pytest.raises(RuntimeError, match='load'):
+        lg.solution.sample([[0.5, 0.5, 0.5]])
+
+
+def test_statistics_of_the_turbine_match_its_probes():
+    """Marino validation, model A, p = 2: the mean velocity sampled from the
+    statistics at the probes equals the probes, whose signal is steady."""
+    stats = os.path.join(MARINO, 'RESULTS', 'adA_g2p2.stats.hsol')
+    mesh = os.path.join(MARINO, 'MESH', 'Wind_turbine_disk_fluid_cgns_g2_mesh.h5')
+    if not (os.path.isfile(stats) and os.path.isfile(mesh)):
+        pytest.skip('case not available')
+    lg = LEGOLAS(mesh)
+    st = lg.solution.load(stats)
+    names = ['u_xd1_axis', 'u_xd1_r08', 'u_xd5_axis', 'u_xd5_r08']
+    pts, last = [], []
+    for n in names:
+        f = os.path.join(MARINO, 'RESULTS', f'adA_g2p2.{n}.probe')
+        with open(f) as fh:
+            lines = fh.readlines()
+        pts.append([float(lines[k].split()[-1]) for k in (2, 3, 4)])
+        last.append(float(lines[-1].split()[-1]))
+    r = st.sample(np.array(pts), ['u'])
+    np.testing.assert_allclose(r['u'], last, atol=2e-4)

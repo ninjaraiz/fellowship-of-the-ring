@@ -371,3 +371,78 @@ def test_real_fan_selection_only():
     assert layout.uniform and layout.n_grad == 0
     out = h3d.read_solution(FAN_HSOL, elements=[0, 352368, 704735], layout=layout)
     assert out['Q'].shape == (3, 3, 3, 3, 5) and np.all(np.isfinite(out['Q']))
+
+
+# ---------------------------------------------------------------------------
+# Statistics files (type 4)
+# ---------------------------------------------------------------------------
+
+def write_stats_file(path, moments, means, *, grads=None, node_type=1, iteration=10, time=3.0,
+                     seal=True):
+    """Write a statistics file as ``HexMesh_SaveStatistics`` does: per element
+    the record header with dims ``(9, nx, ny, nz)``, the 9 moments, then the
+    5 means and the 3 gradients (``(3, n_grad, nx, ny, nz)``) without a header.
+
+    moments: list of ``(9, nx, ny, nz)``; means: list of ``(5, nx, ny, nz)``.
+    """
+    header = bytearray(204)
+    stored = os.path.basename(path).encode()[:128]
+    header[:len(stored)] = stored
+    struct.pack_into('<4i', header, 128, 4, node_type, len(moments), iteration)
+    struct.pack_into('<d', header, 144, time)
+    struct.pack_into('<6d', header, 152, *REFS)
+    struct.pack_into('<i', header, 200, 88)
+    n_grad = grads[0].shape[1] if grads is not None else 0
+    n_stats = 9 + 5 + 3 * n_grad
+    with open(path, 'wb') as f:
+        f.write(header)
+        offset_io = 0
+        for e, (m, q) in enumerate(zip(moments, means)):
+            f.seek(204 + e * 20 + n_stats * offset_io * 8)
+            f.write(struct.pack('<5i', 4, *m.shape))
+            f.write(np.asarray(m, '<f8').tobytes(order='F'))
+            f.write(np.asarray(q, '<f8').tobytes(order='F'))
+            if grads is not None:
+                for d in range(3):
+                    f.write(np.asarray(grads[e][d], '<f8').tobytes(order='F'))
+            offset_io += int(np.prod(m.shape[1:]))
+        if seal:
+            f.seek(0, 2)
+            f.write(struct.pack('<i', 99))
+    return path
+
+
+def _stats_arrays(ne=3, n=3, n_grad=0):
+    rng = np.random.default_rng(1)
+    m = [rng.normal(size=(9, n, n, n)) for _ in range(ne)]
+    q = [rng.normal(size=(5, n, n, n)) for _ in range(ne)]
+    g = [rng.normal(size=(3, n_grad, n, n, n)) for _ in range(ne)] if n_grad else None
+    return m, q, g
+
+
+@pytest.mark.parametrize('n_grad', [0, 5])
+def test_read_stats_layout_and_values(tmp_path, n_grad):
+    m, q, g = _stats_arrays(n_grad=n_grad)
+    path = write_stats_file(tmp_path / 'c.stats.hsol', m, q, grads=g)
+    st = h3d.read_stats(path)
+    assert st['header'].file_type == 4 and st['order'] == (2, 2, 2)
+    assert st['moments'].shape == (3, 3, 3, 3, 9) and st['Q'].shape == (3, 3, 3, 3, 5)
+    for e in range(3):
+        # Fortran (var, i, j, k) comes back as [k, j, i, var]
+        np.testing.assert_array_equal(st['moments'][e], np.transpose(m[e], (3, 2, 1, 0)))
+        np.testing.assert_array_equal(st['Q'][e], np.transpose(q[e], (3, 2, 1, 0)))
+    if n_grad:
+        np.testing.assert_array_equal(st['U_y'][1], np.transpose(g[1][1], (3, 2, 1, 0)))
+    else:
+        assert 'U_x' not in st
+    sel = h3d.read_stats(path, elements=[2, 0])
+    np.testing.assert_array_equal(sel['moments'], st['moments'][[2, 0]])
+
+
+def test_read_stats_refuses_other_files(tmp_path):
+    m, q, _ = _stats_arrays()
+    with pytest.raises(h3d.IncompleteFileError):
+        h3d.read_stats(write_stats_file(tmp_path / 'open.stats.hsol', m, q, seal=False))
+    sol = write_horses_file(tmp_path / 's.hsol', 2, [np.zeros((5, 3, 3, 3))] * 2)
+    with pytest.raises(ValueError, match='not a statistics file'):
+        h3d.read_stats(sol)

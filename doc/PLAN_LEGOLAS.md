@@ -397,6 +397,19 @@ elemento), **entrada por LEGOLAS**, deslizador después.
 * Mariño A p2: 11 instantes (t = 0 a 30); la estela nace a t = 3 y llega a la salida a t = 15.
 * Tests: 2 más en `test_legolas_solution.py` (17 en total).
 
+### Estadísticas y valores en puntos (24/11/2026, para la validación de Mariño)
+
+- `solver_tools.horses3d.read_stats`: lee los `.stats.hsol` (tipo 4). Cada registro tiene una
+  cabecera con dimensiones (9, n, n, n), los 9 momentos U V W UU VV WW UV UW VW y, sin cabecera,
+  las 5 conservativas medias (y 3 gradientes si se guardan; el número de gradientes se deduce
+  del tamaño). Orden uniforme; la p-adaptación lanza `NotImplementedError`.
+- `lg.solution.load()` acepta estadísticas: u v w Vmag (medias), uu vv ww uv uw vw (tensiones de
+  Reynolds = ⟨ab⟩ − ⟨a⟩⟨b⟩), tke y rho; con `physical=True`, ×V_ref, ×V_ref² o ×ρ_ref.
+- `lg.solution.sample(xyz, variables)`: `locate.points` + el polinomio del elemento en ξ (los
+  valores en los nodos de solución se guardan al cargar). Fuera de la malla, NaN.
+- Comprobado con el caso real: muestreado en la posición de las sondas de A con p2, coincide con
+  ellas hasta la cuarta cifra (test `test_statistics_of_the_turbine_match_its_probes`). 551 tests.
+
 ### Propuesta de la que salió L8 (24/11/2026)
 
 **Qué hay.** En disco hay `.hsol` (final, `.stats.hsol`, autoguardados), `.hmesh` por p, `.tec`
