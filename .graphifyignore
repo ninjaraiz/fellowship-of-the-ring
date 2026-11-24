@@ -1,0 +1,10 @@
+# Grafo de graphify: solo código, tests y ejemplos .py (ver doc/HANDOFF.md §12).
+doc/**/*.json
+doc/**/*.html
+pictures/
+*.egg-info/
+*.ipynb
+*.html
+*.log
+# three.js de terceros, minificado: no es nuestro código (doc/PLAN_LEGOLAS.md, L2).
+FotR/characters/legolas/static/

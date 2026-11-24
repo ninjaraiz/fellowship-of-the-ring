@@ -1,0 +1,776 @@
+{
+  "FotR/__init__.py": {
+    "mtime": 1792268142.4863322,
+    "seen": 1794326686.3795822,
+    "ast_hash": "875d72fd2bf9c2c6bfeb7c81d1920404",
+    "semantic_hash": "875d72fd2bf9c2c6bfeb7c81d1920404"
+  },
+  "FotR/_lazy.py": {
+    "mtime": 1791626558.273836,
+    "seen": 1794326686.3795898,
+    "ast_hash": "3a2a2834bfa885ff42aaf15bbbf9fb90",
+    "semantic_hash": "3a2a2834bfa885ff42aaf15bbbf9fb90"
+  },
+  "FotR/characters/aragorn.py": {
+    "mtime": 1780414596.5078733,
+    "seen": 1794326686.3795931,
+    "ast_hash": "23bd4425b666c4cc5392e3ce5f173b9c",
+    "semantic_hash": "23bd4425b666c4cc5392e3ce5f173b9c"
+  },
+  "FotR/characters/frodo.py": {
+    "mtime": 1792269532.8221045,
+    "seen": 1794326686.379595,
+    "ast_hash": "aa7571466f7f776aac63e43ab7f217d5",
+    "semantic_hash": "aa7571466f7f776aac63e43ab7f217d5"
+  },
+  "FotR/characters/gandalf.py": {
+    "mtime": 1795030183.222349,
+    "seen": 1795030406.584232,
+    "ast_hash": "a366235407a0f11a037fa2781d734458",
+    "semantic_hash": ""
+  },
+  "FotR/characters/gimli.py": {
+    "mtime": 1791626725.77253,
+    "seen": 1794326686.379598,
+    "ast_hash": "7ac7d6243dce8a9e1c20a697c90bb114",
+    "semantic_hash": "7ac7d6243dce8a9e1c20a697c90bb114"
+  },
+  "FotR/characters/readers/__init__.py": {
+    "mtime": 1791626725.79153,
+    "seen": 1794326686.379601,
+    "ast_hash": "d583efc83f5d8a663d1fb86c852f2289",
+    "semantic_hash": "d583efc83f5d8a663d1fb86c852f2289"
+  },
+  "FotR/characters/readers/base.py": {
+    "mtime": 1789741735.3332973,
+    "seen": 1794326686.3796022,
+    "ast_hash": "75d278b2f553d917fd1caf2e1eda51d0",
+    "semantic_hash": "75d278b2f553d917fd1caf2e1eda51d0"
+  },
+  "FotR/characters/readers/coda.py": {
+    "mtime": 1791626725.79453,
+    "seen": 1794326686.3796034,
+    "ast_hash": "0977705fc8f782c40f92b46f0ca47017",
+    "semantic_hash": "0977705fc8f782c40f92b46f0ca47017"
+  },
+  "FotR/characters/readers/coda_single.py": {
+    "mtime": 1790238541.9104853,
+    "seen": 1794326686.3796048,
+    "ast_hash": "d157d4f99182ec09bd5d5e5fa6583c84",
+    "semantic_hash": "d157d4f99182ec09bd5d5e5fa6583c84"
+  },
+  "FotR/characters/readers/horses3d.py": {
+    "mtime": 1795512431.9321,
+    "seen": 1795526192.135572,
+    "ast_hash": "4ad720a68cce5948c35b6b6904d6a168",
+    "semantic_hash": ""
+  },
+  "FotR/characters/readers/numpy.py": {
+    "mtime": 1789741735.3822968,
+    "seen": 1794326686.3796074,
+    "ast_hash": "51ebcd59af0c556f9eca8c05d0d5f713",
+    "semantic_hash": "51ebcd59af0c556f9eca8c05d0d5f713"
+  },
+  "FotR/characters/readers/numpy_file.py": {
+    "mtime": 1789741735.4082966,
+    "seen": 1794326686.3796089,
+    "ast_hash": "5680d52f6aab36c888fe087435acda8a",
+    "semantic_hash": "5680d52f6aab36c888fe087435acda8a"
+  },
+  "FotR/characters/readers/pylom.py": {
+    "mtime": 1789741735.4362965,
+    "seen": 1794326686.37961,
+    "ast_hash": "dac04dda1660b3def3b38b89eee7c838",
+    "semantic_hash": "dac04dda1660b3def3b38b89eee7c838"
+  },
+  "FotR/characters/residuals/__init__.py": {
+    "mtime": 1791626725.8325295,
+    "seen": 1794326686.3796115,
+    "ast_hash": "450050eefe8b6a4b9d338a8e1a78449a",
+    "semantic_hash": "450050eefe8b6a4b9d338a8e1a78449a"
+  },
+  "FotR/characters/residuals/base.py": {
+    "mtime": 1790329843.5221195,
+    "seen": 1794326686.3796127,
+    "ast_hash": "48100212d84474984346a0ba9709a5c7",
+    "semantic_hash": "48100212d84474984346a0ba9709a5c7"
+  },
+  "FotR/characters/residuals/coda.py": {
+    "mtime": 1793109585.5645168,
+    "seen": 1794326686.3796139,
+    "ast_hash": "02e79aee8098cf616d17746a1c539e56",
+    "semantic_hash": "02e79aee8098cf616d17746a1c539e56"
+  },
+  "FotR/characters/residuals/horses3d.py": {
+    "mtime": 1791626725.8575294,
+    "seen": 1794326686.379615,
+    "ast_hash": "f466cd6ae0c5455547c9b5be281b5543",
+    "semantic_hash": "f466cd6ae0c5455547c9b5be281b5543"
+  },
+  "FotR/characters/rings/__init__.py": {
+    "mtime": 1795030176.798391,
+    "seen": 1795030406.5842574,
+    "ast_hash": "e1655d7899e8ed96f3bc6081f470bb5d",
+    "semantic_hash": ""
+  },
+  "FotR/characters/rings/base.py": {
+    "mtime": 1792268142.6093314,
+    "seen": 1794326686.3796172,
+    "ast_hash": "b44a4ced8c94db1e52d35010517c3936",
+    "semantic_hash": "b44a4ced8c94db1e52d35010517c3936"
+  },
+  "FotR/characters/rings/coda.py": {
+    "mtime": 1789741764.2590816,
+    "seen": 1794326686.3796186,
+    "ast_hash": "bb32993e0f258a3531be9565c190dcfe",
+    "semantic_hash": "bb32993e0f258a3531be9565c190dcfe"
+  },
+  "FotR/characters/rings/coda_single.py": {
+    "mtime": 1789741764.2950814,
+    "seen": 1794326686.37962,
+    "ast_hash": "43b2eeb5330aa1686dee317c28efbb29",
+    "semantic_hash": "43b2eeb5330aa1686dee317c28efbb29"
+  },
+  "FotR/characters/sam.py": {
+    "mtime": 1792269532.8631043,
+    "seen": 1794326686.3796213,
+    "ast_hash": "3e0bea80e8c3dca1c471cf07c28eb741",
+    "semantic_hash": "3e0bea80e8c3dca1c471cf07c28eb741"
+  },
+  "FotR/characters/sets/__init__.py": {
+    "mtime": 1795512328.3606403,
+    "seen": 1795526192.1355922,
+    "ast_hash": "3d607eb432bda031f33789a3ab3e77f9",
+    "semantic_hash": ""
+  },
+  "FotR/characters/sets/base.py": {
+    "mtime": 1791626725.9435287,
+    "seen": 1794326686.3796234,
+    "ast_hash": "b0d153bfba031d11da730efe0622b83f",
+    "semantic_hash": "b0d153bfba031d11da730efe0622b83f"
+  },
+  "FotR/characters/sets/coda.py": {
+    "mtime": 1791626725.9955282,
+    "seen": 1794326686.3796244,
+    "ast_hash": "dd7b318ac5bc48f45a1041e53813fe38",
+    "semantic_hash": "dd7b318ac5bc48f45a1041e53813fe38"
+  },
+  "FotR/characters/sets/coda_single.py": {
+    "mtime": 1790007617.831215,
+    "seen": 1794326686.379626,
+    "ast_hash": "4ca9e6de377cc2a7bcaf54db755e56d7",
+    "semantic_hash": "4ca9e6de377cc2a7bcaf54db755e56d7"
+  },
+  "FotR/characters/sets/numpy_file.py": {
+    "mtime": 1790006819.2259881,
+    "seen": 1794326686.379627,
+    "ast_hash": "851a0140096537b776d7fd659ff25718",
+    "semantic_hash": "851a0140096537b776d7fd659ff25718"
+  },
+  "FotR/characters/sets/pylom.py": {
+    "mtime": 1791626725.9995282,
+    "seen": 1794326686.3796282,
+    "ast_hash": "8758633abd09908e75649a3c9533b192",
+    "semantic_hash": "8758633abd09908e75649a3c9533b192"
+  },
+  "FotR/characters/stats/__init__.py": {
+    "mtime": 1791626726.003528,
+    "seen": 1794326686.3796296,
+    "ast_hash": "484c4eefa08b67c70127c1c6c5daa1ec",
+    "semantic_hash": "484c4eefa08b67c70127c1c6c5daa1ec"
+  },
+  "FotR/characters/stats/base.py": {
+    "mtime": 1782994008.621035,
+    "seen": 1794326686.3796306,
+    "ast_hash": "aa19a94e6488584af40a44bfde5c222c",
+    "semantic_hash": "aa19a94e6488584af40a44bfde5c222c"
+  },
+  "FotR/characters/stats/coda.py": {
+    "mtime": 1795024034.6946843,
+    "seen": 1795024069.3658094,
+    "ast_hash": "e5eedb838bc514d98356604d5f402a0a",
+    "semantic_hash": ""
+  },
+  "FotR/characters/stats/coda_single.py": {
+    "mtime": 1790356356.623824,
+    "seen": 1794326686.3796327,
+    "ast_hash": "f6c96f2049e9ab8159eadcd19fc8cdeb",
+    "semantic_hash": "f6c96f2049e9ab8159eadcd19fc8cdeb"
+  },
+  "FotR/characters/xgboost_preliminar.py": {
+    "mtime": 1792268142.5163321,
+    "seen": 1794326686.3796337,
+    "ast_hash": "9a0564f5f5d29db1d1033b4164d37861",
+    "semantic_hash": "9a0564f5f5d29db1d1033b4164d37861"
+  },
+  "FotR/earendils_light.py": {
+    "mtime": 1792267987.436461,
+    "seen": 1794326686.3796349,
+    "ast_hash": "b0819c3f3f3e89a359332407d46ce7cb",
+    "semantic_hash": "b0819c3f3f3e89a359332407d46ce7cb"
+  },
+  "FotR/solver_tools/__init__.py": {
+    "mtime": 1793109986.5654237,
+    "seen": 1794326686.379636,
+    "ast_hash": "66733f1acfdfa36f5097324e0292f247",
+    "semantic_hash": "66733f1acfdfa36f5097324e0292f247"
+  },
+  "FotR/solver_tools/coda_log.py": {
+    "mtime": 1793109563.900684,
+    "seen": 1794326686.379637,
+    "ast_hash": "ce46ec5b22a0aaadd4b248ddd7c75050",
+    "semantic_hash": "ce46ec5b22a0aaadd4b248ddd7c75050"
+  },
+  "FotR/solver_tools/coda_monitor.py": {
+    "mtime": 1793108860.8441076,
+    "seen": 1794326686.379638,
+    "ast_hash": "0b70f2812a323d1ed4b799bc6eeff6d9",
+    "semantic_hash": "0b70f2812a323d1ed4b799bc6eeff6d9"
+  },
+  "FotR/solver_tools/gmsh_tools.py": {
+    "mtime": 1780414596.7118719,
+    "seen": 1794326686.3796394,
+    "ast_hash": "7eb03b6027908312e6c7002adb98ce7f",
+    "semantic_hash": "7eb03b6027908312e6c7002adb98ce7f"
+  },
+  "FotR/solver_tools/horses3d.py": {
+    "mtime": 1795530528.1182046,
+    "seen": 1795530722.6725655,
+    "ast_hash": "a2f9c188251e26d06bf370588a093636",
+    "semantic_hash": ""
+  },
+  "FotR/solver_tools/xfoil_tools.py": {
+    "mtime": 1776939361.9182565,
+    "seen": 1794326686.3796418,
+    "ast_hash": "4ade9216c38fbcdf427fcd3f56ebd6ee",
+    "semantic_hash": "4ade9216c38fbcdf427fcd3f56ebd6ee"
+  },
+  "FotR/tests/test_coda_monitor.py": {
+    "mtime": 1793109752.776227,
+    "seen": 1794326686.379643,
+    "ast_hash": "03341f2a410408adcee35c6fc95cef9d",
+    "semantic_hash": "03341f2a410408adcee35c6fc95cef9d"
+  },
+  "FotR/tests/test_coda_residuals_plot.py": {
+    "mtime": 1790008036.5271802,
+    "seen": 1794326686.379646,
+    "ast_hash": "eb4613cdfd993baee42720a3521ff401",
+    "semantic_hash": "eb4613cdfd993baee42720a3521ff401"
+  },
+  "FotR/tests/test_coda_restart.py": {
+    "mtime": 1792568511.832121,
+    "seen": 1794326686.3796473,
+    "ast_hash": "6cce0c0de58bb7b792893a89c4ad3606",
+    "semantic_hash": "6cce0c0de58bb7b792893a89c4ad3606"
+  },
+  "FotR/tests/test_coda_single.py": {
+    "mtime": 1790238674.6174183,
+    "seen": 1794326686.3796482,
+    "ast_hash": "c31d39ea9c9cf189481b4caddb017b6a",
+    "semantic_hash": "c31d39ea9c9cf189481b4caddb017b6a"
+  },
+  "FotR/tests/test_coda_single_sets.py": {
+    "mtime": 1792266405.5677114,
+    "seen": 1794326686.3796492,
+    "ast_hash": "4eb87e3a21f4d2e2fee55216395946ab",
+    "semantic_hash": "4eb87e3a21f4d2e2fee55216395946ab"
+  },
+  "FotR/tests/test_coda_subsets.py": {
+    "mtime": 1789479920.1789887,
+    "seen": 1794326686.3796504,
+    "ast_hash": "7f253fe17cd122be1b624b6da012238a",
+    "semantic_hash": "7f253fe17cd122be1b624b6da012238a"
+  },
+  "FotR/tests/test_coda_wall_integrals.py": {
+    "mtime": 1792266512.8319223,
+    "seen": 1794326686.3796515,
+    "ast_hash": "452df2e681ce6fe6cf0a5c336a0721e5",
+    "semantic_hash": "452df2e681ce6fe6cf0a5c336a0721e5"
+  },
+  "FotR/tests/test_earendils_light.py": {
+    "mtime": 1792268172.057117,
+    "seen": 1794326686.3796525,
+    "ast_hash": "f4f0ea4eff0023e7f0f1a349efec312a",
+    "semantic_hash": "f4f0ea4eff0023e7f0f1a349efec312a"
+  },
+  "FotR/tests/test_horses3d.py": {
+    "mtime": 1795030040.3332891,
+    "seen": 1795030406.584311,
+    "ast_hash": "8a31c2df2fee4bdde49f6e25fc789329",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_horses3d_hsol.py": {
+    "mtime": 1795530601.0928218,
+    "seen": 1795530722.6725829,
+    "ast_hash": "9920989d0efecbdbe402e38ae4f111f9",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_merge_datasets.py": {
+    "mtime": 1792268142.659331,
+    "seen": 1794326686.379656,
+    "ast_hash": "d416febb4f04f4288672a726b7b65824",
+    "semantic_hash": "d416febb4f04f4288672a726b7b65824"
+  },
+  "FotR/tests/test_numpy_reader.py": {
+    "mtime": 1789741735.6792946,
+    "seen": 1794326686.3796575,
+    "ast_hash": "fc749821e969b1695ba4537ce3ea26b8",
+    "semantic_hash": "fc749821e969b1695ba4537ce3ea26b8"
+  },
+  "FotR/tests/test_rings_gandalf.py": {
+    "mtime": 1789741764.3240812,
+    "seen": 1794326686.3796585,
+    "ast_hash": "288178349e6dd8c7510f0d6c9c63eacb",
+    "semantic_hash": "288178349e6dd8c7510f0d6c9c63eacb"
+  },
+  "FotR/tests/test_save_to_npy.py": {
+    "mtime": 1792268149.7052796,
+    "seen": 1794326686.37966,
+    "ast_hash": "24843bd061cac1235c733df078e2b7c9",
+    "semantic_hash": "24843bd061cac1235c733df078e2b7c9"
+  },
+  "doc/frodo_sam/flows/flow_coda.py": {
+    "mtime": 1789741735.7382941,
+    "seen": 1794326686.3796608,
+    "ast_hash": "f31f1d2b57c3ca973d9e0ec4f3bc3021",
+    "semantic_hash": "f31f1d2b57c3ca973d9e0ec4f3bc3021"
+  },
+  "doc/frodo_sam/flows/flow_horses3d.py": {
+    "mtime": 1789741735.7912936,
+    "seen": 1794326686.379662,
+    "ast_hash": "c613293b71252b7416154c2b1c497ac0",
+    "semantic_hash": "c613293b71252b7416154c2b1c497ac0"
+  },
+  "doc/frodo_sam/flows/flow_numpy.py": {
+    "mtime": 1789741735.8312933,
+    "seen": 1794326686.3796635,
+    "ast_hash": "956c9eb7b63ff0b79bba1dd8118332e4",
+    "semantic_hash": "956c9eb7b63ff0b79bba1dd8118332e4"
+  },
+  "doc/frodo_sam/flows/flow_pylom.py": {
+    "mtime": 1789741735.872293,
+    "seen": 1794326686.3796644,
+    "ast_hash": "63edab0f95c444ac423f180d129d218a",
+    "semantic_hash": "63edab0f95c444ac423f180d129d218a"
+  },
+  "doc/frodo_sam/generate_docs.py": {
+    "mtime": 1795512651.4909534,
+    "seen": 1795526192.135662,
+    "ast_hash": "47254656056bd6e5c0f2a302940af271",
+    "semantic_hash": ""
+  },
+  "doc/gandalf/generate_docs.py": {
+    "mtime": 1795030320.0584645,
+    "seen": 1795030406.58433,
+    "ast_hash": "d8216bbe46195af13307b1a5519ba767",
+    "semantic_hash": ""
+  },
+  "examples/TIFON_database_CODA/build_gci_report.py": {
+    "mtime": 1791369347.2656834,
+    "seen": 1794326686.3796678,
+    "ast_hash": "676016a2d8661f238478a631dcb72849",
+    "semantic_hash": "676016a2d8661f238478a631dcb72849"
+  },
+  "examples/TIFON_database_CODA/diff_study.py": {
+    "mtime": 1787235081.9018915,
+    "seen": 1794326686.379669,
+    "ast_hash": "825c2af6771a185c4c1ca826e3169a8d",
+    "semantic_hash": "825c2af6771a185c4c1ca826e3169a8d"
+  },
+  "examples/TIFON_database_CODA/monitor_TIFON.py": {
+    "mtime": 1793109915.4249723,
+    "seen": 1794326686.37967,
+    "ast_hash": "389b5b5130c70423fdf6b1c813fd2daa",
+    "semantic_hash": "389b5b5130c70423fdf6b1c813fd2daa"
+  },
+  "examples/TIFON_database_PYLOM/surface_derivate_study_tifon.py": {
+    "mtime": 1787235081.9228914,
+    "seen": 1794326686.3796713,
+    "ast_hash": "80f0e54b35abe1d0e6618ff710793bdd",
+    "semantic_hash": "80f0e54b35abe1d0e6618ff710793bdd"
+  },
+  "examples/dataset_TIFON_merge.py": {
+    "mtime": 1790955303.5390513,
+    "seen": 1794326686.3796723,
+    "ast_hash": "47e22f66065eac14387a55a232b353c6",
+    "semantic_hash": "47e22f66065eac14387a55a232b353c6"
+  },
+  "examples/gandalf/coda_1sim.py": {
+    "mtime": 1791386418.9948473,
+    "seen": 1794326686.3796732,
+    "ast_hash": "04cf0dcf1b1d989307fe6559e538c473",
+    "semantic_hash": "04cf0dcf1b1d989307fe6559e538c473"
+  },
+  "examples/gandalf/coda_TIFON.py": {
+    "mtime": 1791888536.9110055,
+    "seen": 1794326686.3796744,
+    "ast_hash": "40f1dc1fd0d6c5debb84ed9780e30773",
+    "semantic_hash": "40f1dc1fd0d6c5debb84ed9780e30773"
+  },
+  "examples/gandalf/restart_TIFON.py": {
+    "mtime": 1793274265.1733973,
+    "seen": 1794326686.3796756,
+    "ast_hash": "cabb735501b0321772fb7aa12d3a9160",
+    "semantic_hash": "cabb735501b0321772fb7aa12d3a9160"
+  },
+  "examples/gci_codasingle.py": {
+    "mtime": 1789741764.614079,
+    "seen": 1794326686.3796768,
+    "ast_hash": "ea138bec1ba201216d719dc1efae0e32",
+    "semantic_hash": "ea138bec1ba201216d719dc1efae0e32"
+  },
+  "setup.py": {
+    "mtime": 1795197962.4018943,
+    "seen": 1795198136.4836416,
+    "ast_hash": "f43ebb024d50fa44df77647d18fc23f2",
+    "semantic_hash": ""
+  },
+  ".claude/settings.json": {
+    "mtime": 1794327061.029966,
+    "seen": 1795024069.3657482,
+    "ast_hash": "a2cd672ad466723ea5bf25c2022fdef9",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1794327061.0099664,
+    "seen": 1795024069.365865,
+    "ast_hash": "67d88e9d0760c3ba54c75dfd9551c1c5",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1793109931.5718477,
+    "seen": 1795024069.365867,
+    "ast_hash": "c0b69fd2b13a79ac4205a9bb081c0c7d",
+    "semantic_hash": ""
+  },
+  "doc/HANDOFF.md": {
+    "mtime": 1795529271.4407496,
+    "seen": 1795530722.6726403,
+    "ast_hash": "3fc63dd2895938230b3d2203e9766001",
+    "semantic_hash": ""
+  },
+  "doc/frodo_sam/ANALISIS.md": {
+    "mtime": 1792267942.6057873,
+    "seen": 1795024069.3658695,
+    "ast_hash": "8f57860978415bb54f162c350b3d5c49",
+    "semantic_hash": ""
+  },
+  "doc/frodo_sam/BUGS_CODA_SINGLE.md": {
+    "mtime": 1791627475.9966016,
+    "seen": 1795024069.3658705,
+    "ast_hash": "d9b16cf2a681f20b2cc1b4c8f8e933e3",
+    "semantic_hash": ""
+  },
+  "doc/frodo_sam/DISENO_SETS_CODA_SINGLE.md": {
+    "mtime": 1790007710.0345483,
+    "seen": 1795024069.365872,
+    "ast_hash": "5ed34a034589d679b8ed97a7eb3b212d",
+    "semantic_hash": ""
+  },
+  "doc/frodo_sam/flows/flow_coda.md": {
+    "mtime": 1789741735.7102942,
+    "seen": 1795024069.3658729,
+    "ast_hash": "6af8387a8a71167610561ab28fe6c195",
+    "semantic_hash": ""
+  },
+  "doc/frodo_sam/flows/flow_horses3d.md": {
+    "mtime": 1789741735.770294,
+    "seen": 1795024069.3658743,
+    "ast_hash": "52d984f3c19983fe09770c65cf54c208",
+    "semantic_hash": ""
+  },
+  "doc/frodo_sam/flows/flow_numpy.md": {
+    "mtime": 1789741735.8072937,
+    "seen": 1795024069.3658757,
+    "ast_hash": "a56dda577e56c534f1e753576421af9d",
+    "semantic_hash": ""
+  },
+  "doc/frodo_sam/flows/flow_pylom.md": {
+    "mtime": 1789741735.8402934,
+    "seen": 1795024069.3658767,
+    "ast_hash": "df0d3f13a7d52485240fce85eab4a6c7",
+    "semantic_hash": ""
+  },
+  "examples/README.md": {
+    "mtime": 1791627496.574439,
+    "seen": 1795024069.3658783,
+    "ast_hash": "127e0ad90cf00660f794ac88a4ad0be2",
+    "semantic_hash": ""
+  },
+  "requirements.txt": {
+    "mtime": 1782994008.9940324,
+    "seen": 1795024069.3658795,
+    "ast_hash": "1f9ddce19cb5d2034622d64cc4a6c736",
+    "semantic_hash": ""
+  },
+  "FotR/characters/rings/horses3d.py": {
+    "mtime": 1795428472.4094095,
+    "seen": 1795510958.3454237,
+    "ast_hash": "1881bea8dadcffa94a8b95bbf34e1d55",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_rings_horses3d.py": {
+    "mtime": 1795428472.4124095,
+    "seen": 1795510958.345499,
+    "ast_hash": "20541544afb92dd3f896adbe751db6fa",
+    "semantic_hash": ""
+  },
+  "examples/gandalf/horses3d_wind_turbine.py": {
+    "mtime": 1795172914.1752787,
+    "seen": 1795174678.5811703,
+    "ast_hash": "5c841f98b8d1c301549a2b728b25672d",
+    "semantic_hash": ""
+  },
+  "doc/PLAN_HORSES3D.md": {
+    "mtime": 1795512728.4365516,
+    "seen": 1795526192.135699,
+    "ast_hash": "33210a6437294c4686204c5e76e2ca08",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/__init__.py": {
+    "mtime": 1795528002.080325,
+    "seen": 1795528372.1285317,
+    "ast_hash": "779e3a3ba193127a8f68d69b88c9ea58",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/census.py": {
+    "mtime": 1795199784.3763573,
+    "seen": 1795200019.3257391,
+    "ast_hash": "6e12495e09f694b7c8842000fab75ec1",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/io/__init__.py": {
+    "mtime": 1795173697.9961548,
+    "seen": 1795174678.5810719,
+    "ast_hash": "1b5ca026ed71847e4ffee594addb5850",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/io/cgns.py": {
+    "mtime": 1795173810.225278,
+    "seen": 1795174678.581073,
+    "ast_hash": "514d4c6d68215455312a38da7de2567e",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/io/gmsh.py": {
+    "mtime": 1795173951.3321855,
+    "seen": 1795174678.5810745,
+    "ast_hash": "d5c0d77f30ff1a200ec4c77636226a79",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/io/hmesh.py": {
+    "mtime": 1795199653.789367,
+    "seen": 1795200019.3257453,
+    "ast_hash": "cf03fa69bf153451a965bde0a27095c8",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/io/hopr.py": {
+    "mtime": 1795173964.9310803,
+    "seen": 1795174678.5810766,
+    "ast_hash": "a7c3492729bfd9cdf332ddbeccd17306",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/mesh.py": {
+    "mtime": 1795528002.063325,
+    "seen": 1795528372.1285503,
+    "ast_hash": "c08a24b13ca15dd1427f260a4e75a253",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/ordering.py": {
+    "mtime": 1795526396.31963,
+    "seen": 1795527113.281415,
+    "ast_hash": "566ebf9354a6edd0803d95f87676b0c3",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/topology.py": {
+    "mtime": 1795199653.774367,
+    "seen": 1795200019.325753,
+    "ast_hash": "cefaac54e9f645000785e97b355bab5e",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_io.py": {
+    "mtime": 1795174139.3307304,
+    "seen": 1795174678.5811431,
+    "ast_hash": "882369d89f96f25c28c641b392d05f94",
+    "semantic_hash": ""
+  },
+  "doc/legolas/generate_docs.py": {
+    "mtime": 1795528264.973963,
+    "seen": 1795528372.1286635,
+    "ast_hash": "6c4cd0fa186a686d8dca56606326cc20",
+    "semantic_hash": ""
+  },
+  "examples/gandalf/horses3d_sphere_re_mach.py": {
+    "mtime": 1795172914.2022786,
+    "seen": 1795174678.581169,
+    "ast_hash": "70ef6b30a9c0dc74ca02dbc7bed3afca",
+    "semantic_hash": ""
+  },
+  "examples/legolas/census_turbine.py": {
+    "mtime": 1795174254.2928407,
+    "seen": 1795174678.5811744,
+    "ast_hash": "a107a2c7fb5955815880e5a7b4911068",
+    "semantic_hash": ""
+  },
+  "doc/PLAN_LEGOLAS.md": {
+    "mtime": 1795530743.6260743,
+    "seen": 1795532245.7604477,
+    "ast_hash": "e32ef3117553756f097c0bd4085b8f67",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/scene.py": {
+    "mtime": 1795528035.1911533,
+    "seen": 1795528372.1285572,
+    "ast_hash": "966aa69e4befd6adfbadbd098d5a71c1",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/viewer.py": {
+    "mtime": 1795528498.0937555,
+    "seen": 1795529191.171029,
+    "ast_hash": "974f458bee38f5b01382a1b708915e14",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_viewer.py": {
+    "mtime": 1795199838.2309408,
+    "seen": 1795200019.3258243,
+    "ast_hash": "532a95774a183acb832724e74dc2ee13",
+    "semantic_hash": ""
+  },
+  "examples/legolas/viewer_turbine.py": {
+    "mtime": 1795198000.720627,
+    "seen": 1795198136.4836397,
+    "ast_hash": "28e3f92f0e6e5d7f5de0705628965a4f",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/bcfiles.py": {
+    "mtime": 1795199638.6194842,
+    "seen": 1795200019.3257356,
+    "ast_hash": "3c58670a09e66cd043d3233e03b73498",
+    "semantic_hash": ""
+  },
+  "FotR/tests/_legolas_meshes.py": {
+    "mtime": 1795199838.216941,
+    "seen": 1795200019.325807,
+    "ast_hash": "851e080e265f511f365dbece988d94c5",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_census.py": {
+    "mtime": 1795199891.4145298,
+    "seen": 1795200019.3258214,
+    "ast_hash": "d73eee56ba28ccd58fa8dece778413bd",
+    "semantic_hash": ""
+  },
+  "examples/legolas/check_turbine.py": {
+    "mtime": 1795199913.7723567,
+    "seen": 1795200019.3258567,
+    "ast_hash": "80daa3882b7c8cd521bd11ff71b6ae2c",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/quality.py": {
+    "mtime": 1795511153.2887647,
+    "seen": 1795511544.7183278,
+    "ast_hash": "0092dd5cbcf32e68f30f91f5e75eaeb2",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_quality.py": {
+    "mtime": 1795201280.354663,
+    "seen": 1795201407.6871276,
+    "ast_hash": "39589fc0839d92cf2787264f70ee9aa8",
+    "semantic_hash": ""
+  },
+  "examples/legolas/quality_turbine.py": {
+    "mtime": 1795201295.667543,
+    "seen": 1795201407.6871653,
+    "ast_hash": "675b058884e55b6e430539f796d7dff9",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/resolution.py": {
+    "mtime": 1795511374.233613,
+    "seen": 1795511544.7183344,
+    "ast_hash": "d58c721b3ebad5d3f07a705cb3918970",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_resolution.py": {
+    "mtime": 1795511361.7406783,
+    "seen": 1795511544.7185898,
+    "ast_hash": "2f9d7d1bf4e96f33e5e46265588b1de2",
+    "semantic_hash": ""
+  },
+  "examples/legolas/resolution_sphere.py": {
+    "mtime": 1795511384.592559,
+    "seen": 1795511544.7187128,
+    "ast_hash": "c9206fd66da1f4073db3371d1072e68d",
+    "semantic_hash": ""
+  },
+  "FotR/characters/sets/horses3d.py": {
+    "mtime": 1795512663.8628888,
+    "seen": 1795526192.1355987,
+    "ast_hash": "883d126761de3b641b69ac8f82db7589",
+    "semantic_hash": ""
+  },
+  "FotR/solver_tools/horses2plt.py": {
+    "mtime": 1795512431.9261,
+    "seen": 1795526192.1356173,
+    "ast_hash": "edceab2aecc23bcedd80adfa5e474cb2",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_horses2plt.py": {
+    "mtime": 1795512563.4494133,
+    "seen": 1795526192.1356344,
+    "ast_hash": "3fb587625c3ead69037143c8fc3fb4a7",
+    "semantic_hash": ""
+  },
+  "examples/horses3d/marino2024_tecplot.py": {
+    "mtime": 1795512643.3809958,
+    "seen": 1795526192.1356835,
+    "ast_hash": "b89752b86edc24a300828504ec414ca8",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/convert.py": {
+    "mtime": 1795526766.596721,
+    "seen": 1795527113.281402,
+    "ast_hash": "60127da5b7ef3a53195ed16142c890da",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/locate.py": {
+    "mtime": 1795526542.6858752,
+    "seen": 1795527113.2814116,
+    "ast_hash": "ee3c71d8f6362deac34026f0d46f2b72",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_convert.py": {
+    "mtime": 1795526904.546009,
+    "seen": 1795527113.2814946,
+    "ast_hash": "5205523814b7f53b7a2fcc2bd24206ff",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_locate.py": {
+    "mtime": 1795526894.6400602,
+    "seen": 1795527113.2814972,
+    "ast_hash": "50a7d76f7cf89068c6a7a89561a09e14",
+    "semantic_hash": ""
+  },
+  "examples/legolas/convert_locate_turbine.py": {
+    "mtime": 1795526942.0378149,
+    "seen": 1795527113.2815378,
+    "ast_hash": "c44b81e099ca1f1dc4504c119ea1dd43",
+    "semantic_hash": ""
+  },
+  "FotR/characters/legolas/solution.py": {
+    "mtime": 1795530559.5160398,
+    "seen": 1795530722.6725097,
+    "ast_hash": "14ccfc5f1ae0e516b5310bc034ee00d5",
+    "semantic_hash": ""
+  },
+  "FotR/tests/test_legolas_solution.py": {
+    "mtime": 1795530620.4957201,
+    "seen": 1795530722.6725926,
+    "ast_hash": "dbf3b14f6f9bc8f71528b5278de16d78",
+    "semantic_hash": ""
+  },
+  "examples/legolas/solution_marino.py": {
+    "mtime": 1795528615.8401456,
+    "seen": 1795529191.1711535,
+    "ast_hash": "a5a50913e90b536e0e66ced7956f78d7",
+    "semantic_hash": ""
+  }
+}
