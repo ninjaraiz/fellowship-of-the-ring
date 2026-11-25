@@ -442,3 +442,140 @@ puntos de dibujo, variables primitivas, medias por elemento) y orquestación en 
 
 **No se propone** leer `.tec` (ASCII grande, lento; lo mismo sale del `.hsol` con
 `primitive_variables`) ni los planos VTK externos (son superficies sueltas, otro tipo de capa).
+
+## Auditoría (25/11/2026)
+
+> Revisión del plan contra código, tests, documentación generada e historial Git. Se han
+> documentado las propuestas para que Claude las valore; **no se ha corregido ningún fallo**
+> ni se han tocado otros ficheros. Método: `graphify query/explain/path` antes de leer código;
+> lectura puntual de las líneas localizadas; recogida de tests con
+> `/home/migueljaraiz/anaconda3/envs/envkan_nvidia/bin/python -m pytest FotR/tests/
+> --collect-only -q -p no:cacheprovider` (551 tests recogidos, 176 en `test_legolas_*.py`).
+> Línea base verificada: `HEAD=81da02a`, rama `develop`, árbol limpio, sin rama local
+> `legolas`.
+
+### Resumen
+
+| ID | Prioridad | Tipo | Hallazgo |
+|---|---|---|---|
+| LG-01 | Media | Documentación | La “Propuesta” final contradice L8: LEGOLAS ya lee soluciones HORSES3D. |
+| LG-02 | Media | Planificación | L7 sigue pendiente aunque L8 está cerrado y no hay commit L7. |
+| LG-03 | Media | Documentación | Estadísticas implementadas, pero HANDOFF y guías generadas las dan por pendientes. |
+| LG-04 | Media | Documentación | Regla de BC interiores mal explicada en `HANDOFF.md`. |
+| LG-05 | Baja | Robustez | Validación y manejo de errores incompletos en el visor. |
+| LG-06 | Baja | Robustez | Caché FIFO y posible desajuste del frame inicial. |
+| LG-07 | Baja | Documentación | Cifras por hito desactualizadas; el total 551 sí coincide. |
+| LG-08 | Media | Documentación | Estado Git y métricas de graphify en `HANDOFF.md` son viejos. |
+| LG-09 | Baja | Documentación | README habla de dos visores y no menciona el generador de `doc/legolas/`. |
+| LG-10 | — | No incidencia | `p > Ngeo` sigue pendiente y está correctamente documentado. |
+
+### LG-01 — Propuesta final obsoleta tras L8
+
+- **Evidencia:** `doc/PLAN_LEGOLAS.md:424-429` afirma que “LEGOLAS sigue sin saber de
+  HORSES3D” y propone que `Horses3DSets` orqueste `db.view(case, p, kind)`. La sección L8
+  del propio plan (`:369-386`) ya describe lo contrario: `LEGOLAS.from_control()` en
+  `FotR/characters/legolas/__init__.py:107-129` y `LEGOLAS.Solution` en
+  `FotR/characters/legolas/solution.py:103-378` leen malla y solución. `Horses3DSets` no tiene
+  `view`; solo `to_tecplot` y auxiliares.
+- **Propuesta:** convertir esa “Propuesta” en registro histórico o reescribirla como “estado
+  final tras L8”, indicando que la responsabilidad quedó en LEGOLAS y que el canal de campos
+  sigue sirviendo para `node_fields=` externos.
+
+### LG-02 — L7 sin cerrar
+
+- **Evidencia:** `doc/PLAN_LEGOLAS.md:153,189,196,359` mantiene L7 (`LEGOLAS(db, case)` y
+  README) como pendiente, pero L8 figura como hecho. `FotR/characters/legolas/__init__.py:90-105`
+  solo acepta una ruta, un `Mesh` o `from_control`; no acepta `db`/`case`. No hay commit
+  etiquetado L7 entre `ceaeaa4` (L6) y `3df459d` (L8).
+- **Propuesta:** decidir una de tres salidas y documentarla: (a) implementar el puente FRODO,
+  (b) darlo por sustituido por `from_control()` y cerrar L7 como “no necesario”, o (c)
+  renombrar el hito. Mientras tanto, la tabla de estado resulta confusa.
+
+### LG-03 — Estadísticas: documento y código divergentes
+
+- **Evidencia:** `doc/PLAN_LEGOLAS.md:400-411` documenta `read_stats`, tensiones de Reynolds,
+  `tke`, `rho` y `sample`. El código está en `FotR/solver_tools/horses3d.py:492-568` y
+  `FotR/characters/legolas/solution.py:82-95,185-208`. Sin embargo
+  `doc/HANDOFF.md:160-162` las incluye en “Pendiente”, y
+  `doc/legolas/guides.json:572` y `:1557` todavía muestran el mensaje
+  `file type 4 (STATS) is not supported yet`, en contradicción con `:967` del mismo archivo.
+- **Propuesta:** quitar las estadísticas de la lista pendiente del HANDOFF y regenerar
+  `doc/legolas/guides.json` desde `doc/legolas/generate_docs.py`.
+
+### LG-04 — Regla de zonas interiores
+
+- **Evidencia:** el plan acierta en `:269-272`: HORSES3D exige `type` para toda zona **con
+  caras**, también las interiores; las zonas vacías no. PyHOPE exige tipo 100 para
+  interiores. `FotR/characters/legolas/io/hopr.py:18-21` marca `BCType 100` precisamente en
+  caras con elemento a ambos lados. `doc/HANDOFF.md:416-418` dice que esas zonas “no tienen
+  caras”, lo cual es incorrecto.
+- **Propuesta:** corregir el HANDOFF a “interiores incluidas cuando tienen caras; las vacías
+  no requieren declaración”. El plan no necesita cambio, pero conviene citar aquí la errata.
+
+### LG-05 — Visor: validación y errores HTTP
+
+- **Evidencia:** `FotR/characters/legolas/viewer.py:70-91` valida `better` en campos por celda,
+  pero `_normalise_node_fields` en `:94-110` no lo hace. El frente interpreta cualquier valor
+  distinto de `'high'` como “low es bueno” (`viewer.html:566-569`). El flujo normal
+  `FotR/characters/legolas/solution.py:355-360` siempre emite `better=None`, así que afecta
+  solo a `node_fields=` manuales mal formados.
+- **Evidencia 2:** `do_GET` en `viewer.py:480-528` captura solo `KeyError` y `ValueError`; un
+  `OSError` al leer un frame borrado u otro error interno puede cerrar la conexión sin JSON.
+- **Propuesta:** aplicar la misma validación en ambos normalizadores y añadir un `except
+  Exception` final que devuelva 500 y deje constancia en el log.
+
+### LG-06 — Caché y frame inicial
+
+- **Evidencia:** `viewer.py:364-377` y `:419-424` eliminan la entrada más antigua insertada,
+  no la menos usada; el plan `:392-394` dice “últimas 24 respuestas” y no promete LRU, así
+  que es una precisión de documento, no un bug. En `:219-222`, `base_frame` solo se fija si
+  el nombre del `.hsol` cargado aparece en la serie; `viewer.html:483-486,710-717` cae al
+  último autosave cuando `frame` es `null`.
+- **Propuesta:** decidir si se documenta el comportamiento FIFO o se implementa LRU; cargar
+  un `.hsol` final con nombre distinto a los autosaves y comparar cabecera y frame inicial.
+
+### LG-07 — Recuento de tests
+
+- **Evidencia:** el total del plan (`:411`, 551) coincide con la recogida actual. Los
+  desgloses por hito no: `test_legolas_solution.py` recoge 23 tests frente a los 15/17
+  citados en `:386,398`. El desglose actual es: `io` 35, `viewer` 23, `census` 19, `quality`
+  24, `resolution` 19, `convert` 26, `locate` 7, `solution` 23.
+- **Propuesta:** actualizar los números por hito; dejar la cifra global atada a una fecha y a
+  un entorno concreto.
+
+### LG-08 — Estado Git y graphify en el HANDOFF
+
+- **Evidencia:** `doc/HANDOFF.md:7,25-28` describe `develop @ 6126066`, trabajo sin
+  commitear y una rama `legolas` que no existe; el estado real es `81da02a`, limpio, en
+  `develop`. `doc/PLAN_LEGOLAS.md:189` dice “L8 el siguiente” aunque L8 está en `3df459d`.
+  `doc/HANDOFF.md:361-362` cita 2035 nodos / 3944 aristas / 99 comunidades; el
+  `graphify-out/GRAPH_REPORT.md:10` actual dice 2840 / 6133 / 146.
+- **Propuesta:** sincronizar el HANDOFF con `git log`, `git branch` y el informe actual de
+  graphify; actualizar la tabla del plan.
+
+### LG-09 — Documentación de navegación
+
+- **Evidencia:** `README.md:128` habla de “los dos visores” y `:140-141` solo lista los
+  generadores de FRODO/SAM y GANDALF, aunque `doc/legolas/` existe y tiene su propio
+  `generate_docs.py`. `doc/frodo_sam/guides.json:444,949` dice que visor, calidad y resolución
+  están “en camino”, todos ellos implementados.
+- **Propuesta:** añadir el tercer visor y su comando de regeneración; actualizar las dos
+  frases de `guides.json` regenerando la guía.
+
+### LG-10 — Dibujo a orden `max(Ngeo, p)`
+
+- **Evidencia:** `doc/PLAN_LEGOLAS.md:357-362,431-438` lo deja como trabajo futuro;
+  `FotR/characters/legolas/solution.py:221-229` interpola a nodos geométricos `Ngeo` y
+  `scene.py` dibuja la rejilla disponible. Las guías lo declaran como no implementado.
+- **Conclusión:** limitación documentada, **no un bug**. Solo debe mantenerse visible en la
+  lista de pendientes.
+
+### Revisado sin incidencias confirmadas
+
+- Orden canónico tensorial y tablas de permutación (`ordering.py`, `convert.py`).
+- Jacobiano escalado y giro por bloque antes de tomar el mínimo (`quality.py`).
+- `h`, Δ_DG, primera celda, crecimiento y y⁺ estimado (`resolution.py`).
+- `detect_order`/`fix_order`/`write_msh` y búsqueda de puntos (`convert.py`, `locate.py`).
+- Carga de soluciones, series, estadísticas y escalado de tensiones de Reynolds
+  (`solution.py`, `solver_tools/horses3d.py`). La p-adaptación sigue siendo `NotImplementedError`
+  y está documentada (`solution.py:193-195`).

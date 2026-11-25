@@ -222,3 +222,149 @@ prueba corta antes de producción. Luego: monitor en directo para HORSES3D, hito
     desde nibbler. Superficies (`.surf.hsol`) fuera: el binario no las lee.
   - Guía de HORSES3D §8.1–8.2 (binario = `ab3b02326`, no `7624e34ed`), clave `output variables`
     corregida en `POST/horses2plt-surface.control`. 492 tests (11 nuevos).
+
+## Auditoría (25/11/2026)
+
+> Revisión del plan contra código, tests, documentación generada e historial Git. Se han
+> documentado las propuestas para que Claude las valore; **no se ha corregido ningún fallo**
+> ni se han tocado otros ficheros. Método: `graphify query/explain/path` antes de leer código;
+> lectura puntual de las líneas localizadas; recogida de tests con
+> `/home/migueljaraiz/anaconda3/envs/envkan_nvidia/bin/python -m pytest FotR/tests/
+> --collect-only -q -p no:cacheprovider` (551 tests recogidos).
+> Línea base verificada: `HEAD=81da02a`, rama `develop`, árbol limpio.
+
+### Resumen
+
+| ID | Prioridad | Tipo | Hallazgo |
+|---|---|---|---|
+| HS-01 | Media | Documentación | La firma de `submit_cases` y el criterio de `fsp_report` del plan están desactualizados. |
+| HS-02 | Media | Documentación | El plan dice que los `#define` no se tocan y que la FSP no tiene restart; el código hace ambas cosas. |
+| HS-03 | Media | Cobertura | La regla `g` duplicada no se comprueba de ida y vuelta en los casos límite. |
+| HS-04 | Media | Decisión/code | La cadena de `submit_cases` pierde la dependencia si el p anterior solo tiene `.hsol`/`.residuals`. |
+| HS-05 | Media | Documentación | `Ngeo` no es solo respaldo: desajuste con el nombre es error en modo estricto. |
+| HS-06 | Media | Bug latente | `to_tecplot` decide “ya convertido” solo por `mtime`. |
+| HS-07 | Alta | Trazabilidad | `horses2plt_batch.slurm` se declara hecho pero no está versionado. |
+| HS-08 | Media | Reproducibilidad | Ejemplos/tests usan rutas externas absolutas. |
+| HS-09 | Media | Documentación | `HORSES3D` tiene `sets`, pero README/HANDOFF/examples dicen lo contrario. |
+| HS-10 | Baja | Documentación | Cifras de tests y el estado de la física del caso real quedaron obsoletos. |
+
+### HS-01 — Firma de `submit_cases` y criterio de FSP
+
+- **Evidencia:** el plan describe `submit_cases(p, repo, arch='GPU', node='n001', ngpu=1,
+  cpus_per_gpu=16, branch=None, fsp=False, dry_run=True)` en `doc/PLAN_HORSES3D.md:66-69`,
+  pero la firma real en `FotR/characters/rings/horses3d.py:817-831` añade `ncpus`, `solver`,
+  `cases`, admite `p` como lista y recursos `{p: n}`. El propio diario ya documenta esos
+  cambios en `doc/PLAN_HORSES3D.md:188-199`.
+- **FSP:** el plan dice en `:72` que `fsp_report` lee `RESULTS/FSP/*.residuals` y decide con
+  ellos; `FotR/characters/rings/horses3d.py:1030-1099` decide por la desviación entre la
+  solución inicial y la final (`:1102-1119`) y usa los residuos solo como información. El
+  diario en `:153-154` ya recoge la decisión correcta.
+- **Propuesta:** actualizar la sección 1 del plan con la firma real y el contrato real de
+  `fsp_report`, o marcar explícitamente esa sección como especificación histórica.
+
+### HS-02 — `#define` y restart en la FSP
+
+- **Evidencia:** `doc/PLAN_HORSES3D.md:35` afirma “los `#define` no se tocan”, pero
+  `FotR/characters/rings/horses3d.py:112-124` permite modificarlos con
+  `'<block header>: <key>'`, `:651-653` añade bloques `#define boundary` para zonas
+  interiores y `:700` elimina todos los bloques en `fsp_control`. La guía en
+  `doc/PLAN_HORSES3D.md:168-172` ya describe el comportamiento real.
+- **Restart:** `doc/PLAN_HORSES3D.md:60-64` resume la FSP como “sin restart”, pero
+  `FotR/characters/rings/horses3d.py:691-699` escribe `restart=False` **y**
+  `restart file name`; el diario en `:123-128` explica que HORSES3D exige esa clave.
+- **Propuesta:** corregir esas dos frases del plan; distinguir “sin reinicio activo” de
+  “sin clave de reinicio”.
+
+### HS-03 — Regla `g` duplicada sin prueba de ida y vuelta
+
+- **Evidencia:** la regex está duplicada en `FotR/characters/rings/horses3d.py:40` y
+  `FotR/characters/readers/horses3d.py:188`. El plan afirma en `:38` que un test de ida y
+  vuelta la garantiza, pero `FotR/tests/test_rings_horses3d.py:341-356` solo usa el nombre
+  canónico `wt_cgns_g2_mesh.h5`; los casos `_v2g2`/tokens múltiples se prueban solo en el
+  lector (`FotR/tests/test_horses3d.py:336-345`).
+- **Propuesta:** añadir un test parametrizado que pase por ring y reader los mismos nombres
+  límite, o extraer la regex a un único helper compartido.
+
+### HS-04 — Cadena de órdenes sin dependencia tras un orden “ya empezado”
+
+- **Evidencia:** `FotR/characters/rings/horses3d.py:946-971,975-988` pone `prev_job=None`
+  cuando existe `.hsol` o `.residuals`; el docstring `:846-849` y el test
+  `FotR/tests/test_rings_horses3d.py:476-491` codifican ese comportamiento. El plan también
+  lo describe en `:189-191`, así que **no es una contradicción documental**.
+- **Riesgo:** un `.hsol` presente no garantiza que el reinicio del orden anterior esté
+  completo y válido; el siguiente `p` se envía sin `DEPENDENCY` y puede fallar o leer un
+  fichero a medio escribir.
+- **Propuesta:** decidir si “ya empezado” debe significar solo “finished” para encadenar, o
+  si se mantiene el salto pero se valida el reinicio antes de lanzar el siguiente orden.
+  Documentar la decisión en el plan.
+
+### HS-05 — `Ngeo` como respaldo, no solo como dato informativo
+
+- **Evidencia:** el plan en `:76-84` presenta el atributo `Ngeo` como respaldo y no incluye
+  el desajuste nombre/`Ngeo` entre los errores. El reader
+  `FotR/characters/readers/horses3d.py:647-662` lanza `ValueError` en modo estricto (que es
+  el default, `:196`); `doc/HANDOFF.md:404-405` sí lo refleja.
+- **Propuesta:** añadir ese caso a la lista de errores del plan y citar el test
+  `FotR/tests/test_horses3d.py:358-364`.
+
+### HS-06 — Reutilización silenciosa de `.tec` por `mtime`
+
+- **Evidencia:** `FotR/solver_tools/horses2plt.py:246-251` devuelve `True` si el `.tec` existe
+  y es más reciente que el `.hsol`; `FotR/characters/sets/horses3d.py:234-236` marca entonces
+  `skipped/already converted`. La decisión de salto no consulta `variables`,
+  `stats_variables`, `dimensionless`, gradientes ni la versión del control generado en
+  `:248-251`.
+- **Impacto:** cambiar las opciones sin `overwrite=True` puede dejar un `.tec` con el
+  contenido anterior, sin aviso.
+- **Propuesta:** guardar una huella de las opciones en el control/nombre del `.tec`, o
+  incluir esas opciones en la decisión de `is_converted`.
+
+### HS-07 — Script de conversión no versionado
+
+- **Evidencia:** `doc/PLAN_HORSES3D.md:201-216` da por hecho
+  `utils_H3d/POST/horses2plt_batch.slurm`. `git ls-files` no contiene ese fichero, y
+  `FotR/characters/sets/horses3d.py:183-186` lanza `FileNotFoundError` si `script` no existe.
+  El test real `FotR/tests/test_horses2plt.py:30` depende de una ruta externa
+  `/home/m.jaraiz/Documentos/utils_H3d/POST/...`.
+- **Impacto:** el flujo documentado no es reproducible desde un checkout limpio y el
+  contrato `OK/ERROR <path>` usado en `:300-315` no se puede verificar en el repo.
+- **Propuesta:** versionar el script (o un equivalente mínimo) o cambiar el plan para dejar
+  explícito que `script` es una dependencia externa con contrato documentado.
+
+### HS-08 — Rutas externas y entorno
+
+- **Evidencia:** `examples/horses3d/marino2024_tecplot.py:5-7`, `FotR/tests/test_horses2plt.py:30`
+  y `doc/HANDOFF.md:12` usan `/home/m.jaraiz/...`, que no existe en este workspace. El entorno
+  real con `h5py`, `meshio`, `pyvista`, `vtk` y `pytest` es
+  `/home/migueljaraiz/anaconda3/envs/envkan_nvidia/bin/python`.
+- **Propuesta:** sustituir rutas absolutas por variables de entorno o rutas relativas, y
+  actualizar el comando de tests del handoff.
+
+### HS-09 — `HORSES3D` sí tiene `sets`
+
+- **Evidencia:** `FotR/characters/sets/__init__.py:33` registra
+  `'HORSES3D': '.horses3d:Horses3DSets'`. Sin embargo `README.md:80`,
+  `examples/README.md:15`, `doc/HANDOFF.md:98` y `:112` dicen lo contrario. Este plan
+  `:208-212` y `doc/frodo_sam/docs.json` ya reflejan la realidad.
+- **Propuesta:** alinear README, examples y HANDOFF con el registry; no requiere cambiar código.
+
+### HS-10 — Cifras y estado narrativo
+
+- **Evidencia:** `doc/PLAN_HORSES3D.md:224` dice 492 tests; la recogida actual da 551
+  (de ellos, 35 en `test_rings_horses3d.py`, 43 en `test_horses3d.py`, 27 en
+  `test_horses3d_hsol.py` y 11 en `test_horses2plt.py`). `doc/HANDOFF.md:9` dice 542 passed.
+  Además `:116` dice que falta decidir la física del caso real, mientras el diario `:188-199`
+  ya registra disco actuador, recursos y lanzamiento p2→p5.
+- **Propuesta:** unificar la cifra tras ejecutar la suite con `-rs` en el entorno correcto y
+  precisar que lo pendiente es el modelo de rotor/IBM/condiciones iniciales, no la decisión
+  de usar actuador.
+
+### Revisado sin incidencias confirmadas
+
+- Escalera `p` ascendente y `p >= g` en generación (`FotR/characters/rings/horses3d.py:425-436`).
+- Criterio FSP por desviación de la solución, con residuos informativos
+  (`FotR/characters/rings/horses3d.py:1030-1119`).
+- Detección `pending`/`started`/`finished` por solución
+  (`FotR/characters/readers/horses3d.py:1664-1697`). Un caso sin soluciones queda
+  `pending`, no `finished` (`:1442-1448`): se descarta el falso positivo contrario.
+- Nombres `<tag>_g<g>p<p>` y puente `cases_metadata.json` coherentes con el plan.
